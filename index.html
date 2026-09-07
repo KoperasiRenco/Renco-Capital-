@@ -1336,6 +1336,27 @@ document.addEventListener('DOMContentLoaded', function() {
     _pollTimer = setInterval(async function() {
       if (!_isOnline || _isSyncing) return;
       try {
+        // ── OPTIMASI EGRESS (PENTING) ──────────────────────────────────
+        // SEBELUMNYA: setiap 4 detik, query ini menarik KOLOM 'payload'
+        // LENGKAP (seluruh snapshot DB — termasuk foto nasabah base64 dkk,
+        // bisa beberapa MB) HANYA untuk mengecek apakah 'saved_at' berubah.
+        // Akibatnya nyaris seluruh egress terbuang untuk polling yang
+        // 99% hasilnya "tidak ada perubahan" — inilah penyebab utama
+        // kuota Egress Supabase (5GB/bulan Free Plan) jebol dalam hitungan
+        // hari meski ukuran database kecil (data yang SAMA ditarik ulang
+        // ribuan kali oleh setiap tab yang terbuka).
+        // SEKARANG: cek dulu HANYA kolom 'saved_at' (beberapa byte saja).
+        // Kolom 'payload' yang berat baru ditarik SETELAH benar-benar
+        // terkonfirmasi ada perubahan (saved_at berbeda dari terakhir kali).
+        var tsCheck = await _supa
+          .from(TBL)
+          .select('saved_at')
+          .eq('id', 'main')
+          .single();
+        if (!tsCheck || !tsCheck.data) return;
+        var checkedSaved = tsCheck.data.saved_at;
+        if (checkedSaved && checkedSaved === _lastCloudSavedAt) return; // tidak ada perubahan — selesai, TANPA menarik payload
+
         var result = await _supa
           .from(TBL)
           .select('payload,saved_at')
@@ -1375,13 +1396,23 @@ document.addEventListener('DOMContentLoaded', function() {
       } catch(e) {
         // silent — polling gagal tidak perlu ditampilkan
       }
-    }, 4000); // cek setiap 4 detik (lebih responsif)
+    }, 15000); // cek setiap 15 detik — cukup responsif, jauh lebih hemat egress dari cek ringan di atas
   }
 
   /* ── Refresh instan saat user kembali ke app / tab ── */
   async function _refreshOnFocus() {
     if (!_isOnline || _isSyncing) return;
     try {
+      // Sama seperti polling: cek 'saved_at' (ringan) dulu sebelum menarik
+      // 'payload' (berat) — supaya tidak boros egress tiap kali tab dibuka.
+      var tsCheck = await _supa
+        .from(TBL)
+        .select('saved_at')
+        .eq('id', 'main')
+        .single();
+      if (!tsCheck || !tsCheck.data) return;
+      if (tsCheck.data.saved_at && tsCheck.data.saved_at === _lastCloudSavedAt) return;
+
       var result = await _supa
         .from(TBL)
         .select('payload,saved_at')
@@ -12286,6 +12317,10 @@ window.deletePengurus = function(id) {
   background: linear-gradient(135deg, #0e5954 0%, #0d9488 60%, #2dd4bf 100%); color: white;
   box-shadow: 0 4px 16px rgba(13,148,136,0.25);
 }
+.bk-action-card.whatsapp {
+  background: linear-gradient(135deg, #128c7e 0%, #25d366 100%); color: white;
+  box-shadow: 0 4px 16px rgba(37,211,102,0.3);
+}
 .bk-action-icon { font-size: 22px; line-height: 1; }
 .bk-action-label { font-size: 12.5px; font-weight: 800; line-height: 1.2; }
 .bk-action-desc { font-size: 10px; opacity: 0.72; line-height: 1.3; font-weight: 500; }
@@ -12326,6 +12361,21 @@ window.deletePengurus = function(id) {
 }
 .bk-snap-empty-icon { font-size: 26px; margin-bottom: 6px; opacity: 0.4; }
 .bk-snap-empty-text { font-size: 12px; color: #9ca3af; font-weight: 600; }
+
+/* ── WhatsApp share picker ── */
+.bk-wa-search {
+  width: 100%; padding: 10px 13px; border-radius: 11px; border: 1.5px solid #e5e7eb;
+  font-size: 12.5px; font-family: inherit; margin-bottom: 10px; background: white;
+}
+.bk-wa-search:focus { outline: none; border-color: #25d366; }
+.bk-wa-list { max-height: 260px; overflow-y: auto; }
+.bk-wa-item { cursor: pointer; }
+.bk-wa-item .bk-snap-num { background: linear-gradient(135deg, rgba(37,211,102,0.14), rgba(18,140,126,0.08)); border-color: rgba(37,211,102,0.25); color: #128c7e; }
+.bk-wa-empty { text-align: center; padding: 16px; color: #9ca3af; font-size: 11.5px; font-weight: 600; }
+.bk-wa-back {
+  background: none; border: none; color: #6b7280; font-size: 11.5px; font-weight: 700;
+  cursor: pointer; font-family: inherit; padding: 6px 0 10px; display: flex; align-items: center; gap: 4px;
+}
 
 /* ── Restore zone ── */
 .bk-restore-zone {
@@ -12476,8 +12526,8 @@ window.deletePengurus = function(id) {
     <!-- ══ BODY ══ -->
     <div class="bk-body">
 
-      <!-- Simpan Backup -->
-      <div class="bk-section">
+      <!-- Simpan Backup — khusus Admin -->
+      <div class="bk-section" id="bkSaveSection">
         <div class="bk-section-label">💾 Simpan Backup</div>
         <div class="bk-action-grid">
           <button class="bk-action-card primary" onclick="backupDataDownload()">
@@ -12498,8 +12548,22 @@ window.deletePengurus = function(id) {
             <div class="bk-action-desc">Tersimpan di browser</div>
             <div class="bk-action-arrow">→</div>
           </button>
+          <button class="bk-action-card whatsapp" onclick="openBkWaShare()">
+            <div class="bk-action-icon">📤</div>
+            <div class="bk-action-label">Kirim WhatsApp</div>
+            <div class="bk-action-desc">Bagikan ke user</div>
+            <div class="bk-action-arrow">→</div>
+          </button>
 
         </div>
+      </div>
+
+      <!-- Kirim via WhatsApp: pilih nasabah (opsional) -->
+      <div class="bk-section" id="bkWaShareSection" style="margin-top:16px;display:none">
+        <div class="bk-section-label">📤 Kirim Backup via WhatsApp</div>
+        <button class="bk-wa-back" onclick="closeBkWaShare()">‹ Kembali</button>
+        <input type="text" class="bk-wa-search" id="bkWaSearch" placeholder="🔍 Cari nama nasabah..." oninput="_bkWaRenderList(this.value)">
+        <div class="bk-wa-list" id="bkWaList"></div>
       </div>
 
       <!-- Snapshot Tersimpan -->
@@ -12522,7 +12586,7 @@ window.deletePengurus = function(id) {
           <input type="file" id="bkFileInput" accept=".json" onchange="bkFileSelected(event)">
           <div class="bk-restore-zone-icon">📂</div>
           <div class="bk-restore-zone-text">Pilih atau Drag File JSON</div>
-          <div class="bk-restore-zone-sub">Tap untuk memilih file backup (.json)</div>
+          <div class="bk-restore-zone-sub">Tap untuk memilih file backup (.json) — termasuk file backup dari Admin</div>
         </div>
         <div class="bk-restore-manual">
           <button class="bk-restore-toggle" onclick="togglePasteArea()">atau paste JSON manual ▾</button>
@@ -14198,12 +14262,19 @@ function getMemberPhoto(id) {
   try { return localStorage.getItem('renco_photo_' + id) || null; } catch(e) { return null; }
 }
 
-// Simpan foto nasabah ke database (menimpa foto lama secara otomatis) + sync cloud
-function setMemberPhoto(id, dataUrl) {
+// Simpan foto nasabah: upload ke Supabase Storage dulu (foto jadi URL pendek,
+// bukan base64 penuh di database), fallback simpan base64 kalau upload gagal
+// (offline/error) — nanti otomatis dimigrasi ulang oleh _migrasiFotoKeStorage().
+async function setMemberPhoto(id, dataUrl) {
   if (!window.DB || !Array.isArray(DB.nasabah)) return false;
   var n = DB.nasabah.find(function(x){ return x.id === id; });
   if (!n) return false;
-  n.foto = dataUrl || '';
+  if (dataUrl && dataUrl.indexOf('data:') === 0) {
+    try { n.foto = await _uploadFotoToStorage('nasabah', id, dataUrl); }
+    catch(e) { console.warn('[RENCO☁] Upload foto gagal, simpan base64 sementara:', e && e.message); n.foto = dataUrl; }
+  } else {
+    n.foto = dataUrl || '';
+  }
   try { localStorage.removeItem('renco_photo_' + id); } catch(e) {} // bersihkan jejak lama agar tak dobel
   saveDB();
   if (typeof window._doSync === 'function') { setTimeout(function(){ window._doSync(); }, 100); }
@@ -14215,6 +14286,69 @@ function removeMemberPhoto(id) {
   return setMemberPhoto(id, '');
 }
 window.removeMemberPhoto = removeMemberPhoto;
+
+// ========== FOTO DI SUPABASE STORAGE (bukan base64 di database) ==========
+// Sebelumnya foto nasabah disimpan sebagai teks base64 langsung di dalam
+// DB.nasabah[].foto — ikut tertarik SETIAP KALI seluruh payload database
+// diambil (load awal, polling saat ada perubahan, refresh fokus tab, dsb),
+// dikalikan jumlah nasabah. Ini salah satu penyebab utama kuota Egress
+// Supabase cepat habis. Sekarang foto diunggah sebagai FILE ke Supabase
+// Storage (bucket publik 'renco-foto'); DB.nasabah[].foto hanya menyimpan
+// URL publiknya (teks pendek) — payload database jadi jauh lebih kecil,
+// dan foto dilayani lewat CDN dengan cache (kuota cached-egress terpisah).
+const FOTO_BUCKET = 'renco-foto';
+function _fotoDataUrlToBlob(dataUrl) {
+  var parts = dataUrl.split(',');
+  var mimeMatch = parts[0].match(/:(.*?);/);
+  var mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  var bin = atob(parts[1]);
+  var arr = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+async function _uploadFotoToStorage(folder, id, dataUrl) {
+  if (!window.supabaseClient) throw new Error('Supabase Storage belum siap');
+  if (window._RENCO_IS_LOCAL) throw new Error('Mode lokal — upload foto ke Storage dilewati');
+  var blob = _fotoDataUrlToBlob(dataUrl);
+  var path = folder + '/' + id + '.jpg';
+  var up = await window.supabaseClient.storage.from(FOTO_BUCKET).upload(path, blob, {
+    upsert: true, contentType: blob.type || 'image/jpeg', cacheControl: '3600'
+  });
+  if (up.error) throw up.error;
+  var pub = window.supabaseClient.storage.from(FOTO_BUCKET).getPublicUrl(path);
+  // Query string ?v= memaksa cache lama tergantikan begitu foto diganti,
+  // tanpa mengganggu cache untuk foto yang TIDAK berubah (URL-nya tetap sama).
+  return pub.data.publicUrl + '?v=' + Date.now();
+}
+
+// Migrasi satu kali (khusus Admin): pindahkan foto lama yang masih tersimpan
+// sebagai base64 (data:...) ke Supabase Storage, lalu ganti field .foto
+// dengan URL-nya. Ditandai DB._fotoMigratedToStorage agar tidak diulang
+// terus setiap kali app dibuka.
+async function _migrasiFotoKeStorage() {
+  if (!window.DB || DB._fotoMigratedToStorage) return;
+  if (typeof isAdmin !== 'function' || !isAdmin()) return;
+  if (!window.supabaseClient || window._RENCO_IS_LOCAL) return;
+  var daftar = (DB.nasabah || []).filter(function(n){ return n.foto && n.foto.indexOf('data:') === 0; });
+  if (!daftar.length) { DB._fotoMigratedToStorage = true; return; }
+  console.log('[RENCO☁] Migrasi ' + daftar.length + ' foto nasabah (base64 → Storage)...');
+  var berhasil = 0;
+  for (var i = 0; i < daftar.length; i++) {
+    var n = daftar[i];
+    try {
+      n.foto = await _uploadFotoToStorage('nasabah', n.id, n.foto);
+      berhasil++;
+    } catch(e) {
+      console.warn('[RENCO☁] Gagal migrasi foto nasabah ' + n.id + ':', e && e.message);
+      // biarkan base64-nya apa adanya, coba lagi di sesi berikutnya
+    }
+  }
+  DB._fotoMigratedToStorage = true;
+  if (typeof saveDB === 'function') saveDB();
+  if (typeof window._doSync === 'function') window._doSync();
+  console.log('[RENCO☁] Migrasi foto selesai — ' + berhasil + '/' + daftar.length + ' berhasil dipindah ke Storage.');
+}
+window._migrasiFotoKeStorage = _migrasiFotoKeStorage;
 
 function renderAvatarHTML(member) {
   const photo = getMemberPhoto(member.id);
@@ -14264,7 +14398,7 @@ function uploadFotoNasabah(memberId) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         /* Kompres jadi persegi 240×240 (crop tengah) — skema sama seperti foto Pengurus, hemat storage */
         const sz = 240;
         const canvas = document.createElement('canvas');
@@ -14274,7 +14408,8 @@ function uploadFotoNasabah(memberId) {
         const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
         ctx.drawImage(img, sx, sy, side, side, 0, 0, sz, sz);
         const compressed = canvas.toDataURL('image/jpeg', 0.85);
-        setMemberPhoto(memberId, compressed); // tersimpan di DB.nasabah & sync cloud; foto lama otomatis tertimpa
+        showToast('📤 Mengunggah foto...');
+        await setMemberPhoto(memberId, compressed); // tersimpan di DB.nasabah & sync cloud; foto lama otomatis tertimpa
         showToast('✅ Foto berhasil dipasang!');
         renderNasabah(_lastNasabahFilter||'');
         // Perbarui icon profil di header jika foto milik user yang sedang login
@@ -23810,6 +23945,14 @@ function renderHomeTagihanList() {
 
 function renderHome() {
   document.getElementById('heroDate').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  // Migrasi foto nasabah lama (base64 → Supabase Storage) — sekali per sesi,
+  // khusus Admin, dijalankan di latar belakang beberapa detik setelah home
+  // pertama kali tampil (memberi waktu data cloud selesai dimuat penuh).
+  if (!window._fotoMigrasiTriggered && typeof _migrasiFotoKeStorage === 'function') {
+    window._fotoMigrasiTriggered = true;
+    setTimeout(function(){ _migrasiFotoKeStorage().catch(function(){}); }, 3000);
+  }
 
   // ── Banner pemberitahuan: akun nasabah dinonaktifkan otomatis (3 bulan tanpa transaksi) ──
   (function(){
@@ -36928,7 +37071,7 @@ function handlePhotoUpload(event, memberId) {
     const dataUrl = e.target.result;
     // Compress to keep localStorage usage low
     const img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
       /* Kompres jadi persegi 240×240 (crop tengah) — skema sama seperti foto Pengurus */
       const sz = 240;
       const canvas = document.createElement('canvas');
@@ -36938,12 +37081,13 @@ function handlePhotoUpload(event, memberId) {
       const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
       ctx.drawImage(img, sx, sy, side, side, 0, 0, sz, sz);
       const compressed = canvas.toDataURL('image/jpeg', 0.85);
-      setMemberPhoto(memberId, compressed); // tersimpan di DB.nasabah & sync cloud; foto lama otomatis tertimpa
-      // Update card photo live
+      // Update card photo live (pakai base64 lokal dulu agar preview instan,
+      // tanpa menunggu upload Storage selesai)
       const box = document.getElementById('cardPhotoBox');
       if (box) {
         box.innerHTML = `<img src="${compressed}" alt="Foto">`;
       }
+      await setMemberPhoto(memberId, compressed); // tersimpan di DB.nasabah & sync cloud; foto lama otomatis tertimpa
       showToast('✅ Foto berhasil dipasang');
     };
     img.src = dataUrl;
@@ -37085,6 +37229,16 @@ function openBackupModal() {
   hideBkConfirm();
   document.getElementById('bkDangerBody').classList.remove('open');
   document.getElementById('bkDangerArrow').textContent = '›';
+  // ── Simpan/Unduh Backup: khusus Admin. Nasabah hanya boleh Pulihkan Data ──
+  var _bkAdm = (typeof isAdmin === 'function' && isAdmin());
+  var saveSection = document.getElementById('bkSaveSection');
+  if (saveSection) saveSection.style.display = _bkAdm ? '' : 'none';
+  var snapSection = document.getElementById('bkSnapshotSection');
+  if (snapSection) snapSection.style.display = _bkAdm ? '' : 'none';
+  var dangerZone = document.querySelector('#modalBackup .bk-danger-zone');
+  if (dangerZone) dangerZone.style.display = _bkAdm ? '' : 'none';
+  var waSection = document.getElementById('bkWaShareSection');
+  if (waSection) waSection.style.display = 'none';
   openModal('modalBackup');
 }
 
@@ -37186,6 +37340,7 @@ function _renderBkSnapshots() {
 }
 
 function backupAutoSave() {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa menyimpan backup'); return; }
   if (typeof saveDB === 'function') saveDB(); // pastikan localStorage sinkron dgn data terbaru sebelum snapshot
   const raw = JSON.stringify(DB);
   const sizeKB = (new Blob([raw]).size/1024).toFixed(1);
@@ -37218,6 +37373,7 @@ function restoreFromSnapshot(idx) {
 }
 
 function backupDataDownload() {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa mengunduh backup'); return; }
   if (typeof saveDB === 'function') saveDB(); // pastikan data yang diunduh adalah yang terbaru
   const raw = JSON.stringify(DB);
   const blob = new Blob([raw], {type:'application/json'});
@@ -37231,6 +37387,7 @@ function backupDataDownload() {
 }
 
 function backupDataCopy() {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa menyalin backup'); return; }
   if (typeof saveDB === 'function') saveDB(); // pastikan data yang disalin adalah yang terbaru
   const raw = JSON.stringify(DB);
 
@@ -37356,6 +37513,103 @@ function _bkTryCopy() {
 
 
 // File drag-drop restore
+/* ========== KIRIM BACKUP VIA WHATSAPP (khusus Admin) ==========
+   Memakai Web Share API (navigator.share) dengan file terlampir, sama seperti
+   fitur "Kirim PDF" & share QRIS yang sudah ada — ini membuka menu share asli
+   HP sehingga admin tinggal pilih WhatsApp lalu pilih kontak nasabah tujuan.
+   wa.me TIDAK dipakai untuk melampirkan file karena link WhatsApp hanya bisa
+   membawa teks, bukan file — jadi file harus lewat share sheet OS. */
+function openBkWaShare() {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa mengirim backup'); return; }
+  document.getElementById('bkWaSearch').value = '';
+  _bkWaRenderList('');
+  document.getElementById('bkWaShareSection').style.display = '';
+  var el = document.getElementById('bkWaShareSection');
+  if (el && el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+function closeBkWaShare() {
+  document.getElementById('bkWaShareSection').style.display = 'none';
+}
+function _bkWaRenderList(filter) {
+  var list = document.getElementById('bkWaList');
+  if (!list) return;
+  var q = (filter||'').trim().toLowerCase();
+  var data = (DB.nasabah||[]).filter(function(n){
+    return !q || (n.nama||'').toLowerCase().indexOf(q) >= 0;
+  }).sort(function(a,b){ return (a.nama||'').localeCompare(b.nama||''); });
+
+  var html = '';
+  html += '<div class="bk-snap-item bk-wa-item" onclick="shareBackupWhatsApp(null)">'
+    + '<div class="bk-snap-num">🌐</div>'
+    + '<div class="bk-snap-info"><div class="bk-snap-name">Kirim tanpa memilih nasabah</div>'
+    + '<div class="bk-snap-meta">Buka menu share umum</div></div>'
+    + '<div class="bk-snap-restore">Kirim</div></div>';
+
+  if (!data.length && q) {
+    html += '<div class="bk-wa-empty">Nasabah "'+q+'" tidak ditemukan</div>';
+  } else {
+    data.slice(0, 50).forEach(function(n){
+      var inisial = (n.nama||'?').trim().charAt(0).toUpperCase() || '?';
+      var hpText = n.hp ? n.hp : 'Tanpa No. HP';
+      html += '<div class="bk-snap-item bk-wa-item" onclick="shareBackupWhatsApp(\''+n.id+'\')">'
+        + '<div class="bk-snap-num">'+inisial+'</div>'
+        + '<div class="bk-snap-info"><div class="bk-snap-name">'+(n.nama||'-')+'</div>'
+        + '<div class="bk-snap-meta">'+hpText+'</div></div>'
+        + '<div class="bk-snap-restore">Kirim</div></div>';
+    });
+  }
+  list.innerHTML = html;
+}
+async function shareBackupWhatsApp(kkId) {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa mengirim backup'); return; }
+  var nb = kkId ? (DB.nasabah||[]).find(function(n){ return n.id === kkId; }) : null;
+
+  if (typeof saveDB === 'function') saveDB(); // pastikan data yang dikirim adalah yang terbaru
+  var exportData = { _exportedAt: new Date().toISOString(), _version: (typeof DB_VERSION!=='undefined'?DB_VERSION:1), db: DB, tagihan: null };
+  try { exportData.tagihan = JSON.parse(localStorage.getItem('rencopay_tagihan_automate') || 'null'); } catch(e) {}
+  var tgl = new Date().toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'});
+  var pesan = nb
+    ? 'Halo *'+nb.nama+'*, ini file backup data Koperasi RENCO per '+tgl+'.\n\nCara memuatnya: buka app RENCO → menu ☰ → *Backup Data* → *Pulihkan Data* → pilih file ini.'
+    : 'Backup data Koperasi RENCO per '+tgl+'.\n\nCara memuatnya: buka app RENCO → menu ☰ → *Backup Data* → *Pulihkan Data* → pilih file ini.';
+
+  var raw = JSON.stringify(exportData, null, 2);
+  var fname = 'backup-renco-' + new Date().toISOString().slice(0,10) + '.json';
+  var file;
+  try { file = new File([raw], fname, { type: 'application/json' }); }
+  catch(e) { showToast('❌ Gagal menyiapkan file backup'); return; }
+
+  // Salin nomor HP nasabah ke clipboard supaya admin gampang cari kontaknya di WhatsApp
+  if (nb && nb.hp && navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(nb.hp); } catch(e) {}
+  }
+
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files:[file] }))) {
+    try {
+      await navigator.share({ files:[file], title:'Backup Data Koperasi RENCO', text: pesan });
+      showToast(nb ? ('✅ Pilih WhatsApp, lalu cari kontak '+nb.nama+' ('+(nb.hp||'-')+')') : '✅ Pilih WhatsApp lalu kirim ke user');
+      closeBkWaShare();
+    } catch(e) {
+      if (e && e.name !== 'AbortError') { showToast('❌ Gagal membuka menu share'); console.error(e); }
+    }
+    return;
+  }
+
+  // Fallback: perangkat/browser tidak mendukung share file (mis. desktop) —
+  // unduh file dulu, lalu buka WhatsApp (teks saja, file dilampirkan manual).
+  var blob = new Blob([raw], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  var hpDigits = nb && nb.hp ? nb.hp.replace(/[^0-9]/g,'') : '';
+  if (hpDigits.startsWith('0')) hpDigits = '62' + hpDigits.slice(1);
+  var waUrl = 'https://wa.me/' + hpDigits + '?text=' + encodeURIComponent(pesan + '\n\n(Lampirkan file JSON yang baru terunduh secara manual)');
+  window.open(waUrl, '_blank');
+  showToast('📥 File diunduh — lampirkan manual di WhatsApp yang baru terbuka');
+  closeBkWaShare();
+}
+
 function bkDragOver(e) { e.preventDefault(); document.getElementById('bkDropZone').classList.add('drag-over'); }
 function bkDragLeave(e) { document.getElementById('bkDropZone').classList.remove('drag-over'); }
 function bkDrop(e) {
@@ -37395,10 +37649,21 @@ function restoreData() {
 function _doRestore(raw) {
   try {
     const parsed = JSON.parse(raw);
-    if (!parsed.nasabah) { showToast('❌ Format data tidak valid'); return; }
-    DB = { ...DB, ...parsed };
+    // Dukung 2 format:
+    // 1) Format "lengkap" dari admin (dbExport / menu Pengaturan → Manajemen
+    //    Database): { _exportedAt, _version, db: {...}, tagihan: [...] }
+    // 2) Format "biasa": objek DB langsung, mis. { nasabah:[...], transaksi:[...] }
+    const data = (parsed && parsed._version && parsed.db) ? parsed.db : parsed;
+    if (!data || (!data.nasabah && !data.transaksi)) { showToast('❌ Format data tidak valid — bukan file backup RENCO'); return; }
+    DB = { ...DB, ...data };
+    // Jika file backup admin menyertakan data tagihan RencoPay, pulihkan juga
+    if (parsed && Array.isArray(parsed.tagihan)) {
+      try { localStorage.setItem('rencopay_tagihan_automate', JSON.stringify(parsed.tagihan)); } catch(e) {}
+    }
+    if (typeof _dbMigrate === 'function') { try { _dbMigrate(); } catch(e) {} }
+    if (typeof _dbIntegrity === 'function') { try { _dbIntegrity(); } catch(e) {} }
     saveDB(); closeModal('modalBackup'); renderHome();
-    showToast('✅ Data berhasil direstore');
+    showToast('✅ Data berhasil direstore' + (parsed && parsed._exportedAt ? ' (backup ' + new Date(parsed._exportedAt).toLocaleDateString('id-ID') + ')' : ''));
   } catch(e) { showToast('❌ JSON tidak valid: '+e.message); }
 }
 
@@ -37414,6 +37679,7 @@ function showResetConfirm() {
 }
 
 function doResetAllData() {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa mereset data'); return; }
   localStorage.removeItem(DB_KEY);
   DB = {
     nasabah:[], transaksi:[], pinjaman:[],
