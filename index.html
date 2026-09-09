@@ -6887,13 +6887,12 @@ function _renderNasabahDashboard(kkId) {
     if (t.textContent && t.textContent.trim() === 'Kesehatan Kas') t.style.display = 'none';
   });
 
-  /* --- Sembunyikan slide banner & challenge --- */
-  var slideBannerWrap = document.getElementById('slideBannerWrap') || document.querySelector('.slide-banner-wrap');
-  if (slideBannerWrap) {
-    var prev = slideBannerWrap.previousElementSibling;
-    if (prev && prev.classList && prev.classList.contains('section-title')) prev.style.display = 'none';
-    slideBannerWrap.style.display = 'none';
-  }
+  /* --- Slide banner (Informasi & Pengumuman) TETAP TAMPIL untuk Nasabah ---
+     Sebelumnya baris ini menyembunyikannya total dari Nasabah — padahal
+     itulah satu-satunya tempat Admin bisa mengirim pengumuman/informasi
+     umum ke seluruh anggota. Tombol "Edit Slide"-nya sendiri tetap
+     disembunyikan untuk Nasabah lewat _atur VisibilitasEditSlide() di
+     renderSlideBanner() — Nasabah hanya boleh melihat, bukan mengedit. */
   var challengeEl = document.querySelector('#page-home [onclick*="openChallengeGame"]');
   if (challengeEl) challengeEl.style.display = 'none';
 
@@ -9106,6 +9105,54 @@ window.deletePengurus = function(id) {
 </script>
 
 
+<!-- ═══ BROADCAST PEMBERITAHUAN MODAL (Admin Only) ═══ -->
+<div class="modal-overlay" id="modalBroadcast">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h3 class="modal-title">📤 Broadcast Pemberitahuan</h3>
+      <button class="modal-close" onclick="closeModal('modalBroadcast')">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Judul</label>
+        <input type="text" id="bcJudul" placeholder="Contoh: Aplikasi Sedang Maintenance">
+      </div>
+      <div class="field">
+        <label>Pesan</label>
+        <textarea id="bcPesan" rows="4" placeholder="Contoh: Aplikasi koperasi sedang maintenance sampai tanggal 14 Sep 2026. Mohon maaf atas ketidaknyamanannya."></textarea>
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;font-weight:600;color:var(--text-soft);margin:2px 0 16px;cursor:pointer;line-height:1.4">
+        <input type="checkbox" id="bcTampilkanBeranda" checked style="width:16px;height:16px;flex-shrink:0;margin-top:1px">
+        Tampilkan juga sebagai Pengumuman di Beranda semua Nasabah
+      </label>
+
+      <div class="bk-action-grid" id="bcActionGrid" style="margin-bottom:6px">
+        <button class="bk-action-card whatsapp" onclick="_bcOpenWaPicker()">
+          <div class="bk-action-icon">💬</div>
+          <div class="bk-action-label">Kirim WhatsApp</div>
+          <div class="bk-action-desc">Satu per satu ke Nasabah</div>
+          <div class="bk-action-arrow">→</div>
+        </button>
+        <button class="bk-action-card gold" onclick="_bcKirimEmail()">
+          <div class="bk-action-icon">📧</div>
+          <div class="bk-action-label">Kirim Email</div>
+          <div class="bk-action-desc">Sekaligus (BCC)</div>
+          <div class="bk-action-arrow">→</div>
+        </button>
+      </div>
+
+      <div class="bk-section" id="bcWaSection" style="display:none;margin-top:10px">
+        <button class="bk-wa-back" onclick="_bcCloseWaPicker()">‹ Kembali</button>
+        <input type="text" class="bk-wa-search" id="bcWaSearch" placeholder="🔍 Cari nama nasabah..." oninput="_bcRenderWaList(this.value)">
+        <div class="bk-wa-list" id="bcWaList"></div>
+      </div>
+
+      <button class="btn btn-outline" style="width:100%;margin-top:8px" onclick="_bcTerbitkanSaja()">✅ Terbitkan ke Beranda saja (tanpa WA/Email)</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ USER PROFILE MODAL ═══ -->
 <div class="modal-overlay" id="modalUserProfile">
   <div class="modal-sheet">
@@ -9807,7 +9854,9 @@ window.deletePengurus = function(id) {
       <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:16px">
         <span>Informasi &amp; Pengumuman</span>
         <div style="display:flex;align-items:center;gap:8px">
-          <button onclick="openEditSlideModal()" style="font-size:11px;font-weight:700;color:var(--forest-mid);background:rgba(45,106,79,0.1);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px">✏️ Edit Slide</button>
+          <button onclick="openEditSlideModal()" id="editSlideBtn" style="font-size:11px;font-weight:700;color:var(--forest-mid);background:rgba(45,106,79,0.1);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px">✏️ Edit Slide</button>
+          <button onclick="openBroadcastModal()" id="broadcastBtn" style="font-size:11px;font-weight:700;color:#128c7e;background:rgba(37,211,102,0.12);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px">📤 Broadcast</button>
+          <button onclick="openBroadcastModal()" id="broadcastPengumumanBtn" style="font-size:11px;font-weight:700;color:#128c7e;background:rgba(37,211,102,0.12);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px">📤 Broadcast</button>
           <span id="slideDots" style="display:flex;gap:5px;align-items:center"></span>
         </div>
       </div>
@@ -12625,6 +12674,68 @@ window.deletePengurus = function(id) {
       <div style="height:8px"></div>
 
     </div><!-- /bk-body -->
+  </div>
+</div>
+
+<!-- ═══ MODAL BROADCAST PENGUMUMAN ═══ -->
+<div class="modal-overlay" id="modalBroadcastPengumuman">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">📤 Broadcast Pengumuman</div>
+      <button onclick="closeModal('modalBroadcastPengumuman')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-soft)">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:11.5px;color:var(--text-soft);line-height:1.5;margin-bottom:14px;background:rgba(45,106,79,0.06);border:1px solid rgba(45,106,79,0.15);border-radius:10px;padding:10px 12px">
+        Tulis sekali, kirim ke semua Nasabah — tampil di Beranda, dan/atau lewat WhatsApp &amp; Email langsung dari HP Admin.
+      </div>
+
+      <div class="field">
+        <label>Judul Pengumuman</label>
+        <input type="text" id="bcJudul" placeholder="Contoh: Aplikasi Sedang Maintenance">
+      </div>
+      <div class="field">
+        <label>Isi Pesan</label>
+        <textarea id="bcPesan" rows="4" placeholder="Contoh: Aplikasi Koperasi RENCO sedang dalam perbaikan hingga 14 September 2026. Mohon maaf atas ketidaknyamanannya."></textarea>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" id="bcTampilBeranda" checked style="width:16px;height:16px;flex-shrink:0">
+        <label style="margin:0;text-transform:none;font-size:12px;font-weight:600;color:var(--text)">Tampilkan juga di Beranda (Informasi &amp; Pengumuman)</label>
+      </div>
+
+      <div id="bcStats" style="font-size:10.5px;color:var(--text-soft);margin-bottom:14px"></div>
+
+      <!-- EMAIL -->
+      <div class="bc-section">
+        <div class="bc-section-label">📧 Kirim Email (sekaligus, lewat BCC)</div>
+        <button class="btn btn-block" style="background:linear-gradient(135deg,#1e3a8a,#3b5ede);color:white" onclick="broadcastKirimEmail()">Buka Aplikasi Email — Kirim ke Semua</button>
+        <div style="font-size:10px;color:var(--text-soft);margin-top:6px">Membuka aplikasi Email HP Admin dengan semua nasabah ber-email di kolom BCC — Admin tinggal tekan Kirim sekali. Kalau nasabah sangat banyak, dibagi jadi beberapa batch otomatis.</div>
+      </div>
+
+      <div style="height:16px"></div>
+
+      <!-- WHATSAPP -->
+      <div class="bc-section">
+        <div class="bc-section-label">💬 Kirim WhatsApp</div>
+        <div id="bcWaIntro">
+          <button class="btn btn-block whatsapp" style="background:linear-gradient(135deg,#128c7e,#25d366);color:white" onclick="broadcastMulaiWA()">Mulai Kirim ke Nasabah (satu per satu)</button>
+          <div style="font-size:10px;color:var(--text-soft);margin-top:6px">WhatsApp tidak mengizinkan kirim ke banyak kontak sekaligus dari luar aplikasinya — jadi ini akan membuka chat tiap nasabah satu per satu dengan pesan sudah terisi, Admin tinggal tekan Kirim lalu lanjut ke berikutnya.</div>
+        </div>
+        <div id="bcWaProgress" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:12px;font-weight:800;color:var(--text)" id="bcWaCurrentName">-</span>
+            <span style="font-size:10.5px;color:var(--text-soft)" id="bcWaCounter">0/0</span>
+          </div>
+          <div style="background:rgba(0,0,0,0.06);border-radius:99px;height:6px;overflow:hidden;margin-bottom:12px">
+            <div id="bcWaBar" style="height:100%;border-radius:99px;background:linear-gradient(90deg,#128c7e,#25d366);width:0%;transition:width 0.3s ease"></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-block" style="background:linear-gradient(135deg,#128c7e,#25d366);color:white" onclick="broadcastWABukaChat()">💬 Buka WhatsApp</button>
+            <button class="btn btn-outline" style="flex:0 0 auto;padding:10px 16px" onclick="broadcastWALewati()">Lewati</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -37222,6 +37333,143 @@ async function printKartu(id) {
 // ========== BACKUP & RESTORE (REDESIGNED) ==========
 const BK_SNAPSHOT_KEY = 'renco_snapshots_v1';
 
+/* ========== BROADCAST PEMBERITAHUAN (khusus Admin) ==========
+   Menulis satu pesan lalu menyalurkannya ke 3 tempat sekaligus: Pengumuman
+   di Beranda (via DB.slideBanner — sudah tersinkron cloud), WhatsApp ke tiap
+   nasabah, dan Email ke semua nasabah via BCC. Tidak ada "kirim WA massal
+   otomatis" yang benar-benar sekali klik karena WhatsApp tidak mengizinkan
+   web app pihak ketiga mengirim pesan tanpa interaksi manual per kontak —
+   jadi jalur WA di sini adalah daftar nasabah yang tinggal di-tap satu per
+   satu (chat WA sudah terbuka dengan pesan siap kirim). Email BISA sekaligus
+   karena mailto: mendukung banyak alamat BCC dalam satu email. */
+var _bcPublishedThisSession = false;
+
+function openBroadcastModal() {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa broadcast'); return; }
+  document.getElementById('bcJudul').value = '';
+  document.getElementById('bcPesan').value = '';
+  document.getElementById('bcTampilkanBeranda').checked = true;
+  document.getElementById('bcWaSection').style.display = 'none';
+  document.getElementById('bcActionGrid').style.display = '';
+  _bcPublishedThisSession = false;
+  openModal('modalBroadcast');
+}
+
+function _bcGetPesan() {
+  var judul = (document.getElementById('bcJudul').value || '').trim();
+  var pesan = (document.getElementById('bcPesan').value || '').trim();
+  if (!judul && !pesan) { showToast('⚠️ Isi judul & pesan dulu'); return null; }
+  var full = (judul ? '*' + judul + '*\n\n' : '') + pesan + '\n\n— Koperasi RENCO';
+  return { judul: judul, pesan: pesan, full: full };
+}
+
+// Terbitkan sebagai kartu Pengumuman paling depan di slide banner Beranda —
+// otomatis tersinkron ke semua Nasabah lewat DB.slideBanner (cloud).
+function _bcTerbitkanKeBeranda(judul, pesan) {
+  if (!window.DB) return;
+  var slide = {
+    badge: '⚠️ Pemberitahuan',
+    title: judul || 'Pemberitahuan',
+    desc: pesan,
+    cta: 'Mengerti',
+    ctaFn: '',
+    gradient: 'linear-gradient(135deg, #7c0d0d 0%, #c0392b 55%, #e74c3c 100%)',
+    overlay: 'linear-gradient(180deg,rgba(124,13,13,0.1) 0%,rgba(124,13,13,0.75) 100%)',
+    ctaBg: 'rgba(255,255,255,0.2)',
+    ctaColor: 'white',
+    emoji: '📢',
+  };
+  var slides = (typeof _loadSlides === 'function') ? _loadSlides().slice() : [];
+  slides.unshift(slide); // taruh paling depan agar langsung terlihat pertama kali
+  window._slidesData = slides;
+  if (typeof _saveSlides === 'function') _saveSlides();
+  if (typeof renderSlideBanner === 'function') renderSlideBanner();
+}
+
+// Menerbitkan ke Beranda sekali saja per sesi modal ini, dipanggil otomatis
+// begitu admin memilih jalur WA atau Email (kalau centangnya aktif) —
+// supaya tidak dobel-dobel setiap kali admin kirim WA ke nasabah berikutnya.
+function _bcMaybePublish(judul, pesan) {
+  if (_bcPublishedThisSession) return;
+  if (!document.getElementById('bcTampilkanBeranda').checked) return;
+  _bcTerbitkanKeBeranda(judul, pesan);
+  _bcPublishedThisSession = true;
+}
+
+function _bcTerbitkanSaja() {
+  var msg = _bcGetPesan();
+  if (!msg) return;
+  _bcTerbitkanKeBeranda(msg.judul, msg.pesan);
+  showToast('✅ Pemberitahuan diterbitkan ke Beranda semua Nasabah');
+  closeModal('modalBroadcast');
+}
+
+function _bcOpenWaPicker() {
+  var msg = _bcGetPesan();
+  if (!msg) return;
+  _bcMaybePublish(msg.judul, msg.pesan);
+  document.getElementById('bcWaSearch').value = '';
+  _bcRenderWaList('');
+  document.getElementById('bcActionGrid').style.display = 'none';
+  document.getElementById('bcWaSection').style.display = '';
+}
+function _bcCloseWaPicker() {
+  document.getElementById('bcWaSection').style.display = 'none';
+  document.getElementById('bcActionGrid').style.display = '';
+}
+function _bcRenderWaList(filter) {
+  var list = document.getElementById('bcWaList');
+  if (!list) return;
+  var q = (filter||'').trim().toLowerCase();
+  var data = (DB.nasabah||[]).filter(function(n){
+    return !q || (n.nama||'').toLowerCase().indexOf(q) >= 0;
+  }).sort(function(a,b){ return (a.nama||'').localeCompare(b.nama||''); });
+  if (!data.length) { list.innerHTML = '<div class="bk-wa-empty">Nasabah tidak ditemukan</div>'; return; }
+  var html = '';
+  data.forEach(function(n){
+    var inisial = (n.nama||'?').trim().charAt(0).toUpperCase() || '?';
+    var hpOk = !!n.hp;
+    html += '<div class="bk-snap-item bk-wa-item"' + (hpOk ? ' onclick="_bcKirimWaSatu(\''+n.id+'\')"' : ' style="opacity:0.45"') + '>'
+      + '<div class="bk-snap-num">'+inisial+'</div>'
+      + '<div class="bk-snap-info"><div class="bk-snap-name">'+(n.nama||'-')+'</div>'
+      + '<div class="bk-snap-meta">'+(hpOk ? n.hp : 'Tanpa No. HP')+'</div></div>'
+      + (hpOk ? '<div class="bk-snap-restore">Kirim</div>' : '')
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+function _bcKirimWaSatu(kkId) {
+  var msg = _bcGetPesan();
+  if (!msg) return;
+  var n = (DB.nasabah||[]).find(function(x){ return x.id === kkId; });
+  if (!n || !n.hp) return;
+  var hp = n.hp.replace(/[^0-9]/g,'');
+  if (hp.startsWith('0')) hp = '62' + hp.slice(1);
+  window.open('https://wa.me/' + hp + '?text=' + encodeURIComponent(msg.full), '_blank');
+}
+
+async function _bcKirimEmail() {
+  var msg = _bcGetPesan();
+  if (!msg) return;
+  var emails = (DB.nasabah||[]).map(function(n){ return (n.email||'').trim(); }).filter(function(e){ return e.indexOf('@') > 0; });
+  if (!emails.length) { showToast('⚠️ Belum ada Nasabah dengan email terdaftar'); return; }
+  _bcMaybePublish(msg.judul, msg.pesan);
+  var subjek = encodeURIComponent(msg.judul || 'Pemberitahuan Koperasi RENCO');
+  var body = encodeURIComponent(msg.pesan + '\n\n— Koperasi RENCO');
+  // Dipecah per batch — URL mailto: punya batas panjang; batch kecil lebih
+  // aman lintas aplikasi Email (Gmail, Outlook, Mail bawaan HP, dll).
+  var BATCH = 40;
+  var batches = [];
+  for (var i = 0; i < emails.length; i += BATCH) batches.push(emails.slice(i, i + BATCH));
+  showToast('📧 Membuka ' + batches.length + ' email (BCC total ' + emails.length + ' nasabah)...');
+  for (var b = 0; b < batches.length; b++) {
+    var bcc = encodeURIComponent(batches[b].join(','));
+    window.open('mailto:?bcc=' + bcc + '&subject=' + subjek + '&body=' + body, '_blank');
+    if (b < batches.length - 1) await new Promise(function(res){ setTimeout(res, 700); });
+  }
+  closeModal('modalBroadcast');
+}
+
 function openBackupModal() {
   _refreshBkHero();
   _renderBkSnapshots();
@@ -39818,6 +40066,13 @@ function renderSlideBanner() {
   const dots = document.getElementById('slideDots');
   if (!track || !dots) return;
 
+  // Nasabah hanya boleh MELIHAT pengumuman, tidak boleh mengeditnya —
+  // hanya Admin yang boleh menekan "Edit Slide".
+  var editBtn = document.getElementById('editSlideBtn');
+  if (editBtn) editBtn.style.display = (typeof isAdmin === 'function' && isAdmin()) ? '' : 'none';
+  var bcBtn = document.getElementById('broadcastBtn');
+  if (bcBtn) bcBtn.style.display = (typeof isAdmin === 'function' && isAdmin()) ? '' : 'none';
+
   // Load from storage (may have been edited)
   const slides = _loadSlides();
   // Sync SLIDES global
@@ -39893,18 +40148,52 @@ const CTA_ACTIONS = [
   { label:'Ajukan Pinjaman / Pembiayaan', fn:"openModal('modalPinjam')" },
 ];
 
+// ── Sumber data slide (Informasi & Pengumuman): DB.slideBanner ──
+// SEBELUMNYA disimpan HANYA di localStorage ('renco_slides_v1') — artinya
+// saat Admin mengedit pengumuman, perubahan itu TIDAK PERNAH tersinkron ke
+// Supabase/cloud, dan Nasabah di HP lain tidak akan pernah melihatnya sama
+// sekali (localStorage bersifat per-device, tidak per-koperasi). Sekarang
+// disimpan di DB.slideBanner sehingga ikut ter-upload & disinkronkan ke
+// semua device lewat jalur cloud yang sama seperti data lainnya.
 function _loadSlides() {
+  // Selalu utamakan DB.slideBanner yang "hidup" (bukan cache lama) —
+  // supaya begitu ada pembaruan dari device lain (realtime/polling), isi
+  // slide ikut segar tanpa perlu reload manual.
+  if (window.DB && Array.isArray(DB.slideBanner) && DB.slideBanner.length) {
+    _slidesData = DB.slideBanner;
+    return _slidesData;
+  }
   if (_slidesData) return _slidesData;
+  if (window.DB && Array.isArray(DB.slideBanner) && DB.slideBanner.length) {
+    _slidesData = DB.slideBanner;
+    return _slidesData;
+  }
+  // Migrasi satu kali: kalau device ini (biasanya Admin) masih punya slide
+  // lama tersimpan di localStorage tapi DB.slideBanner belum ada, pindahkan
+  // ke DB sekali supaya ikut tersinkron ke cloud untuk semua Nasabah.
   try {
     const saved = localStorage.getItem(SLIDE_DB_KEY);
-    if (saved) { _slidesData = JSON.parse(saved); return _slidesData; }
+    if (saved) {
+      _slidesData = JSON.parse(saved);
+      if (window.DB) {
+        DB.slideBanner = _slidesData;
+        if (typeof saveDB === 'function') saveDB();
+        if (typeof window._doSync === 'function') window._doSync();
+      }
+      return _slidesData;
+    }
   } catch(e) {}
   _slidesData = JSON.parse(JSON.stringify(SLIDES));
   return _slidesData;
 }
 
 function _saveSlides() {
-  try { localStorage.setItem(SLIDE_DB_KEY, JSON.stringify(_slidesData)); } catch(e) {}
+  if (window.DB) {
+    DB.slideBanner = _slidesData;
+    if (typeof saveDB === 'function') saveDB();
+    if (typeof window._doSync === 'function') { setTimeout(function(){ window._doSync(); }, 100); }
+  }
+  try { localStorage.setItem(SLIDE_DB_KEY, JSON.stringify(_slidesData)); } catch(e) {} // cache lokal, bukan sumber utama lagi
   // Sync to SLIDES for live rendering
   SLIDES.length = 0;
   _slidesData.forEach(s => SLIDES.push(s));
