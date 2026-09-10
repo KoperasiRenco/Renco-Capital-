@@ -37790,7 +37790,7 @@ function _bkWaRenderList(filter) {
   html += '<div class="bk-snap-item bk-wa-item" onclick="shareBackupWhatsApp(null)">'
     + '<div class="bk-snap-num">🌐</div>'
     + '<div class="bk-snap-info"><div class="bk-snap-name">Kirim tanpa memilih nasabah</div>'
-    + '<div class="bk-snap-meta">Buka menu share umum</div></div>'
+    + '<div class="bk-snap-meta">Buka menu share umum (WA, Email, dkk)</div></div>'
     + '<div class="bk-snap-restore">Kirim</div></div>';
 
   if (!data.length && q) {
@@ -37798,63 +37798,139 @@ function _bkWaRenderList(filter) {
   } else {
     data.slice(0, 50).forEach(function(n){
       var inisial = (n.nama||'?').trim().charAt(0).toUpperCase() || '?';
-      var hpText = n.hp ? n.hp : 'Tanpa No. HP';
-      html += '<div class="bk-snap-item bk-wa-item" onclick="shareBackupWhatsApp(\''+n.id+'\')">'
+      var metaText = (n.hp || 'Tanpa No. HP') + (n.email ? ' · ' + n.email : '');
+      html += '<div class="bk-snap-item bk-wa-item" style="cursor:default">'
         + '<div class="bk-snap-num">'+inisial+'</div>'
         + '<div class="bk-snap-info"><div class="bk-snap-name">'+(n.nama||'-')+'</div>'
-        + '<div class="bk-snap-meta">'+hpText+'</div></div>'
-        + '<div class="bk-snap-restore">Kirim</div></div>';
+        + '<div class="bk-snap-meta">'+metaText+'</div></div>'
+        + '<div style="display:flex;gap:5px;flex-shrink:0">'
+        + (n.hp ? '<button class="bk-snap-restore" style="background:linear-gradient(135deg,#128c7e,#25d366)" onclick="event.stopPropagation();shareBackupWhatsApp(\''+n.id+'\')">WA</button>' : '')
+        + (n.email ? '<button class="bk-snap-restore" onclick="event.stopPropagation();shareBackupEmail(\''+n.id+'\')">Email</button>' : '')
+        + (!n.hp && !n.email ? '<span style="font-size:10px;color:#9ca3af">Tanpa kontak</span>' : '')
+        + '</div></div>';
     });
   }
   list.innerHTML = html;
 }
-async function shareBackupWhatsApp(kkId) {
-  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa mengirim backup'); return; }
-  var nb = kkId ? (DB.nasabah||[]).find(function(n){ return n.id === kkId; }) : null;
 
-  if (typeof saveDB === 'function') saveDB(); // pastikan data yang dikirim adalah yang terbaru
-  var exportData = { _exportedAt: new Date().toISOString(), _version: (typeof DB_VERSION!=='undefined'?DB_VERSION:1), db: DB, tagihan: null };
-  try { exportData.tagihan = JSON.parse(localStorage.getItem('rencopay_tagihan_automate') || 'null'); } catch(e) {}
-  var tgl = new Date().toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'});
-  var pesan = nb
-    ? 'Halo *'+nb.nama+'*, ini file backup data Koperasi RENCO per '+tgl+'.\n\nCara memuatnya: buka app RENCO → menu ☰ → *Backup Data* → *Pulihkan Data* → pilih file ini.'
-    : 'Backup data Koperasi RENCO per '+tgl+'.\n\nCara memuatnya: buka app RENCO → menu ☰ → *Backup Data* → *Pulihkan Data* → pilih file ini.';
-
-  var raw = JSON.stringify(exportData, null, 2);
-  var fname = 'backup-renco-' + new Date().toISOString().slice(0,10) + '.json';
-  var file;
-  try { file = new File([raw], fname, { type: 'application/json' }); }
-  catch(e) { showToast('❌ Gagal menyiapkan file backup'); return; }
-
-  // Salin nomor HP nasabah ke clipboard supaya admin gampang cari kontaknya di WhatsApp
-  if (nb && nb.hp && navigator.clipboard && navigator.clipboard.writeText) {
-    try { await navigator.clipboard.writeText(nb.hp); } catch(e) {}
-  }
-
-  if (navigator.share && (!navigator.canShare || navigator.canShare({ files:[file] }))) {
-    try {
-      await navigator.share({ files:[file], title:'Backup Data Koperasi RENCO', text: pesan });
-      showToast(nb ? ('✅ Pilih WhatsApp, lalu cari kontak '+nb.nama+' ('+(nb.hp||'-')+')') : '✅ Pilih WhatsApp lalu kirim ke user');
-      closeBkWaShare();
-    } catch(e) {
-      if (e && e.name !== 'AbortError') { showToast('❌ Gagal membuka menu share'); console.error(e); }
-    }
-    return;
-  }
-
-  // Fallback: perangkat/browser tidak mendukung share file (mis. desktop) —
-  // unduh file dulu, lalu buka WhatsApp (teks saja, file dilampirkan manual).
-  var blob = new Blob([raw], {type:'application/json'});
+// Helper: unduh file secara langsung — dijalankan SEGERA (sinkron), bukan
+// setelah menunggu proses lain, supaya tidak berisiko diblokir browser.
+function _bkDownloadBlob(raw, fname) {
+  var blob = new Blob([raw], { type:'application/json' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = fname;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// Siapkan data backup (dipakai bersama oleh jalur WhatsApp & Email)
+function _bkSiapkanExport() {
+  if (typeof saveDB === 'function') saveDB(); // pastikan data yang dikirim adalah yang terbaru
+  var exportData = { _exportedAt: new Date().toISOString(), _version: (typeof DB_VERSION!=='undefined'?DB_VERSION:1), db: DB, tagihan: null };
+  try { exportData.tagihan = JSON.parse(localStorage.getItem('rencopay_tagihan_automate') || 'null'); } catch(e) {}
+  var raw = JSON.stringify(exportData, null, 2);
+  var fname = 'backup-renco-' + new Date().toISOString().slice(0,10) + '.json';
+  return { raw: raw, fname: fname };
+}
+
+async function shareBackupWhatsApp(kkId) {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa mengirim backup'); return; }
+  var nb = kkId ? (DB.nasabah||[]).find(function(n){ return n.id === kkId; }) : null;
+
+  var exp = _bkSiapkanExport();
+  var raw = exp.raw, fname = exp.fname;
+  var tgl = new Date().toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'});
+  var pesan = nb
+    ? 'Halo *'+nb.nama+'*, ini file backup data Koperasi RENCO per '+tgl+'.\n\nCara memuatnya: buka app RENCO → menu ☰ → *Backup Data* → *Pulihkan Data* → pilih file ini.'
+    : 'Backup data Koperasi RENCO per '+tgl+'.\n\nCara memuatnya: buka app RENCO → menu ☰ → *Backup Data* → *Pulihkan Data* → pilih file ini.';
+
+  var file = null;
+  try { file = new File([raw], fname, { type: 'application/json' }); } catch(e) { console.warn('[RENCO] File API tidak tersedia:', e); }
+
+  // PENTING: cek dukungan share SEBELUM melakukan apa pun yang memakai
+  // `await` (mis. clipboard). Kalau ada `await` lain lebih dulu, sebagian
+  // browser mobile menganggap "izin interaksi pengguna" dari tombol yang
+  // baru ditekan sudah basi, dan diam-diam MEMBLOKIR popup/share
+  // berikutnya — inilah salah satu sebab "kirim WA tidak jalan" walau
+  // tidak ada error yang terlihat.
+  var canShareFile = !!(file && navigator.share && (!navigator.canShare || navigator.canShare({ files:[file] })));
+
+  if (canShareFile) {
+    try {
+      await navigator.share({ files:[file], title:'Backup Data Koperasi RENCO', text: pesan });
+      showToast(nb ? ('✅ Pilih WhatsApp, lalu cari kontak '+nb.nama+' ('+(nb.hp||'-')+')') : '✅ Pilih WhatsApp lalu kirim ke user');
+      closeBkWaShare();
+    } catch(e) {
+      if (e && e.name === 'AbortError') return; // admin membatalkan sendiri dari menu share
+      console.warn('[RENCO] navigator.share gagal, pakai fallback unduh+WA:', e);
+      _bkFallbackWa(raw, fname, pesan, nb);
+    }
+    // Salin nomor HP setelah share selesai (fire & forget, tidak menunda apa pun di atas)
+    if (nb && nb.hp && navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(nb.hp).catch(function(){}); }
+    return;
+  }
+
+  // Fallback: perangkat/browser tidak mendukung share file (mis. Chrome
+  // Desktop, atau dibuka lewat file:// bukan https://) — unduh file dulu
+  // (ini SELALU berhasil), lalu coba buka WhatsApp.
+  _bkFallbackWa(raw, fname, pesan, nb);
+  if (nb && nb.hp && navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(nb.hp).catch(function(){}); }
+}
+
+function _bkFallbackWa(raw, fname, pesan, nb) {
+  _bkDownloadBlob(raw, fname); // selalu jalan duluan, sinkron — jaminan minimal admin dapat filenya
   var hpDigits = nb && nb.hp ? nb.hp.replace(/[^0-9]/g,'') : '';
   if (hpDigits.startsWith('0')) hpDigits = '62' + hpDigits.slice(1);
   var waUrl = 'https://wa.me/' + hpDigits + '?text=' + encodeURIComponent(pesan + '\n\n(Lampirkan file JSON yang baru terunduh secara manual)');
-  window.open(waUrl, '_blank');
-  showToast('📥 File diunduh — lampirkan manual di WhatsApp yang baru terbuka');
+  var opened = window.open(waUrl, '_blank');
+  if (!opened) {
+    showToast('📥 File terunduh. Popup WhatsApp diblokir browser — izinkan popup untuk situs ini, atau buka WhatsApp manual & lampirkan file tadi.');
+  } else {
+    showToast('📥 File diunduh — lampirkan manual di WhatsApp yang baru terbuka');
+  }
+  closeBkWaShare();
+}
+
+// ── Kirim backup lewat Email ──
+// mailto: TIDAK BISA melampirkan file sama sekali (batasan browser/OS, bukan
+// bug) — jadi jalur yang benar-benar bekerja adalah: unggah file backup ke
+// Supabase Storage (bucket sama seperti foto, folder 'backup/', nama file
+// diberi kode acak agar tidak mudah ditebak orang lain), lalu kirim LINK
+// unduhannya lewat email. Kalau upload gagal (offline dsb), fallback unduh
+// file ke perangkat + buka email kosong dengan instruksi lampirkan manual.
+async function shareBackupEmail(kkId) {
+  if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa mengirim backup'); return; }
+  var nb = kkId ? (DB.nasabah||[]).find(function(n){ return n.id === kkId; }) : null;
+  if (!nb || !nb.email) { showToast('⚠️ Nasabah ini belum punya email terdaftar'); return; }
+
+  var exp = _bkSiapkanExport();
+  var tgl = new Date().toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'});
+  var subjek = encodeURIComponent('Backup Data Koperasi RENCO — ' + tgl);
+  showToast('📤 Menyiapkan link unduhan...');
+
+  var link = null;
+  try {
+    if (!window.supabaseClient) throw new Error('Supabase belum siap');
+    var rand = Math.random().toString(36).slice(2, 8);
+    var path = 'backup/' + Date.now() + '-' + rand + '.json';
+    var up = await window.supabaseClient.storage.from(FOTO_BUCKET).upload(path, new Blob([exp.raw], {type:'application/json'}), { contentType:'application/json' });
+    if (up.error) throw up.error;
+    link = window.supabaseClient.storage.from(FOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+  } catch(e) {
+    console.warn('[RENCO] Upload backup ke Storage gagal, fallback lampirkan manual:', e);
+  }
+
+  var body = link
+    ? ('Halo *'+nb.nama+'*,\n\nBerikut link unduhan backup data Koperasi RENCO per '+tgl+':\n'+link+'\n\nCara memuatnya: unduh file itu, lalu di app RENCO buka menu ☰ → Backup Data → Pulihkan Data → pilih file tersebut.\n\n(Link ini tidak terdaftar di pencarian manapun, tapi tidak dikunci kata sandi — jangan disebar ke pihak yang tidak berkepentingan.)').replace(/\*/g,'')
+    : ('Halo '+nb.nama+', mohon lampirkan file backup yang baru terunduh ke email ini secara manual (upload otomatis sedang tidak tersedia).');
+
+  if (!link) _bkDownloadBlob(exp.raw, exp.fname); // fallback: minimal filenya ada di perangkat
+
+  var mailUrl = 'mailto:' + encodeURIComponent(nb.email) + '?subject=' + subjek + '&body=' + encodeURIComponent(body);
+  var opened = window.open(mailUrl, '_blank');
+  if (!opened) window.location.href = mailUrl; // sebagian browser mobile lebih andal dengan cara ini untuk mailto:
+  showToast(link ? '✅ Email dibuka dengan link backup untuk '+nb.nama : '📥 File diunduh — lampirkan manual di email yang terbuka');
   closeBkWaShare();
 }
 
