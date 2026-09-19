@@ -2143,6 +2143,129 @@ body {
 
 .splash-logo-wrap { position: relative; z-index: 2; }
 
+/* ── Ayat di bawah sub menu Keuangan (QS. Al-Baqarah: 278–279 dan 25) ──
+   Default tertutup: hanya referensi + petunjuk ketuk. Saat diketuk, panel kaca berisi ayat muncul.
+   Ayat 278–279 mengalir sebagai SATU paragraf; pemisahnya hanya tanda akhir ayat ﴿٢٧٨﴾ ﴿٢٧٩﴾.
+   Murni HTML <details> + CSS (tanpa JS). */
+.keu-ayat{ display:block; text-align:left; }
+.keu-ayat-sum{
+  list-style:none; cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none;
+  display:flex; flex-direction:column; align-items:flex-start; gap:3px;
+  min-height:44px; padding:8px 12px; box-sizing:border-box; border-radius:14px;
+}
+.keu-ayat-sum::-webkit-details-marker{ display:none; }
+.keu-ayat-sum::marker{ content:''; }
+.keu-ayat-sum:focus-visible{ outline:2px solid var(--forest-mid); outline-offset:2px; }
+.keu-ayat-ref{
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:12.5px; font-weight:700; color:var(--forest-mid);
+}
+.keu-ayat-chev{
+  width:6px; height:6px; margin-top:-3px; flex:none;
+  border-right:2px solid currentColor; border-bottom:2px solid currentColor;
+  transform:rotate(45deg); transition:transform .25s ease, margin .25s ease;
+}
+.keu-ayat[open] .keu-ayat-chev{ transform:rotate(-135deg); margin-top:3px; }
+.keu-ayat-hint{ font-size:10.5px; font-weight:500; color:var(--text-soft); }
+.keu-ayat-hint .ho{ display:none; }
+.keu-ayat[open] .keu-ayat-hint .hs{ display:none; }
+.keu-ayat[open] .keu-ayat-hint .ho{ display:inline; }
+
+/* Panel kaca (frosted glass) — hanya tampil saat dibuka */
+.keu-ayat-glass{
+  margin-top:6px; padding:14px 18px 12px; border-radius:16px;
+  /* Kesan kaca dibuat dari gradasi transparan + kilau tepi, TANPA backdrop-filter
+     (backdrop-filter bisa mengaburkan area di luar panel pada sebagian browser HP). */
+  background:linear-gradient(145deg, rgba(255,255,255,0.86) 0%, rgba(240,248,243,0.62) 55%, rgba(255,255,255,0.78) 100%);
+  border:1px solid rgba(255,255,255,0.9);
+  box-shadow:0 8px 26px rgba(26,71,42,0.12),
+             inset 0 1px 0 rgba(255,255,255,0.95),
+             inset 0 0 0 1px rgba(45,106,79,0.07);
+  animation:keuAyatOpen .28s ease-out;
+}
+@keyframes keuAyatOpen{
+  from{ opacity:0; transform:translateY(-6px); }
+  to  { opacity:1; transform:none; }
+}
+.keu-ayat-ar{
+  margin:0; font-family:'Amiri','Scheherazade New','Noto Naskh Arabic','Traditional Arabic',serif;
+  font-size:clamp(15px, 4.4vw, 19px); line-height:2.1; color:var(--forest);
+  text-align:left; text-wrap:balance; font-kerning:normal;
+  font-feature-settings:"liga" 1, "calt" 1;
+  -webkit-font-smoothing:antialiased;
+}
+.keu-ayat-ar .nb{ white-space:nowrap; }
+.keu-ayat-ar .ay-no{ color:var(--forest-mid); font-size:0.94em; margin-inline:0.12em; }
+/* ── Mode fokus: saat ayat dibuka, halaman lain (header, menu, navigasi bawah) diburamkan.
+      Overlay ada di dalam #app (z 150: di atas nav = 100, di bawah panel/modal lain = 199+),
+      dan ayat diangkat ke z 160 sehingga tetap tajam di atas overlay. ── */
+.keu-ayat-backdrop{
+  position:fixed; inset:0; z-index:150;
+  background:rgba(20,45,30,0.20);
+  -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+  visibility:hidden; opacity:0; pointer-events:none;
+  transition:opacity .25s ease, visibility 0s linear .25s;
+  -webkit-tap-highlight-color:transparent;
+}
+.keu-ayat-backdrop.show{
+  visibility:visible; opacity:1; pointer-events:auto;
+  transition:opacity .25s ease, visibility 0s;
+}
+.keu-ayat[open]{
+  position:fixed; z-index:160;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:min(90vw, 430px);
+  max-width:calc(100vw - 32px);
+  max-height:min(78vh, 620px);
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  background:linear-gradient(145deg, rgba(255,255,255,0.97) 0%, rgba(240,248,243,0.95) 100%);
+  border-radius:20px;
+  box-shadow:0 20px 60px rgba(13,44,25,0.35), inset 0 1px 0 rgba(255,255,255,0.9);
+  padding:2px 2px 8px;
+}
+.keu-ayat[open] .keu-ayat-sum{
+  border-bottom:1px solid rgba(45,106,79,0.10);
+  margin-bottom:2px; border-radius:18px 18px 0 0;
+}
+.keu-ayat[open] .keu-ayat-glass{
+  margin-top:0; border:none; background:transparent;
+  box-shadow:none;
+}
+@media (prefers-reduced-motion: reduce){
+  .keu-ayat-glass{ animation:none; }
+  .keu-ayat-chev{ transition:none; }
+  .keu-ayat-backdrop, .keu-ayat-backdrop.show{ transition:none; }
+}
+
+/* ── Judul laporan (Nasabah Pribadi/Koperasi/Renco Capital/Keseluruhan): rincian di bawah judul
+   disembunyikan secara default, klik judul untuk membuka. Lihat _sectionHeader() & _toggleLapSec(). ── */
+.lap-sec-header .lap-sec-chev{ display:inline-block; }
+.lap-sec-header.lap-sec-open .lap-sec-chev{ transform:rotate(180deg); }
+
+/* ── Tombol Pedoman Muamalah (di area bawah sub menu Keuangan) ── */
+.keu-pedoman-btn{
+  display:flex; align-items:center; gap:9px; width:100%;
+  font-family:inherit; text-align:left; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  padding:11px 14px; border-radius:14px; border:1px solid rgba(45,106,79,0.14);
+  background:linear-gradient(135deg, rgba(255,255,255,0.75) 0%, rgba(240,248,243,0.55) 100%);
+  box-shadow:0 2px 8px rgba(26,71,42,0.06);
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.keu-pedoman-btn:active{ transform:scale(0.98); box-shadow:0 1px 4px rgba(26,71,42,0.08); }
+.keu-pedoman-icon{ font-size:17px; line-height:1; flex:none; }
+.keu-pedoman-label{ flex:1; font-size:12.5px; font-weight:700; color:var(--forest-mid); }
+.keu-pedoman-arrow{ font-size:16px; font-weight:700; color:var(--text-soft); flex:none; }
+/* Panel Pedoman Muamalah muncul lewat <details> tersembunyi (tanpa summary terlihat),
+   dibuka via JS saat tombol di atas diketuk — pakai overlay fokus yang sama dengan ayat. */
+#pedomanMuamalahDetail{ text-align:left; }
+#pedomanMuamalahDetail[open]{ display:block !important; }
+.keu-pedoman-title{ font-size:13.5px; font-weight:800; color:var(--forest); margin-bottom:8px; }
+.keu-pedoman-list{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:8px; }
+.keu-pedoman-list li{ font-size:12px; line-height:1.55; color:var(--text); }
+.keu-pedoman-list b{ color:var(--forest-mid); }
+
 /* ── Basmalah di splash: emas, tipografi Naskh klasik, fade masuk-keluar halus ──
    Murni CSS (tanpa JS) sehingga tidak menambah waktu muat aplikasi. */
 .splash-bismillah {
@@ -7184,6 +7307,7 @@ function _renderNasabahDashboard(kkId) {
         }).join('')
       : '<div class="hb-empty">Belum ada rekening bank.<button type="button" class="hb-link" onclick="openBankModal(\'' + _hbEsc(kkId) + '\')">Tambah rekening</button></div>';
     var _hbNetTxt = (myBersih < 0 ? '-' : '') + fmtFn(Math.abs(myBersih));
+    var _hbDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     var _hbExtraHTML =
       '<div class="hb-extra">' +
         '<div class="hb-row" data-hb="bank">' +
@@ -7210,9 +7334,11 @@ function _renderNasabahDashboard(kkId) {
         '<div class="hb-main">' +
           '<h3>SIMPANAN SAYA</h3>' +
           '<div class="amount">' + fmtFn(mySimpanan) + '</div>' +
-          '<div class="sub" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
-            '<span>\ud83d\udc64 ' + (a ? a.nama : 'Anggota') + '</span>' +
+          '<div class="sub" style="display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap">' +
+            '<span>' + (a ? a.nama : 'Anggota') + '</span>' +
             '<span style="opacity:0.4">\u00b7</span>' +
+            '<span>' + _hbDate + '</span>' +
+            '<span style="flex-basis:100%;height:0"></span>' +
             '<span style="background:' + (mySukarela<0 ? 'rgba(230,57,70,0.2)' : 'rgba(244,169,34,0.2)') + ';color:' + (mySukarela<0 ? '#e63946' : '#ffd166') + ';padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">' + (mySukarela<0 ? '⚠️ Utang: ' + fmtFn(Math.abs(mySukarela)) : 'Sukarela: ' + fmtFn(mySukarela)) + '</span>' +
           '</div>' +
         '</div>' +
@@ -11056,77 +11182,95 @@ window.deletePengurus = function(id) {
 
       <!-- ══ SUB MENU GRID KEUANGAN ══ -->
       <div id="keuanganGridMenu" style="background:linear-gradient(160deg,#eef5ef 0%,#f0f4f8 60%,#e8f0ee 100%);padding:0 0 20px;border-bottom:1.5px solid rgba(45,106,79,0.10);position:relative">
-        <!-- Banner motivasi -->
-        <div style="width:100%;padding:12px 14px 10px">
-          <img src="assets/banner-motivasi.jpg"
-               alt="Setiap tabungan adalah harapan"
-               style="width:100%;height:auto;border-radius:16px;display:block;box-shadow:0 4px 18px rgba(0,0,0,0.14);object-fit:cover" />
+        <div id="keuanganGridInner" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px 0"><!-- diisi oleh renderKeuanganGrid() --></div>
+
+        <!-- ══ AREA BAWAH SUB MENU: Pedoman Muamalah + Ayat pengingat ══ -->
+        <div style="width:100%;padding:14px 14px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:8px">
+          <button type="button" class="keu-pedoman-btn" onclick="document.getElementById('pedomanMuamalahDetail').open = true">
+            <span class="keu-pedoman-icon">📖</span>
+            <span class="keu-pedoman-label">Pedoman Muamalah</span>
+            <span class="keu-pedoman-arrow">›</span>
+          </button>
+
+          <details class="keu-ayat" aria-label="QS. Al-Baqarah ayat 25">
+            <summary class="keu-ayat-sum">
+              <span class="keu-ayat-ref">QS. Al-Baqarah: 25<span class="keu-ayat-chev" aria-hidden="true"></span></span>
+              <span class="keu-ayat-hint"><span class="hs">Ketuk untuk menampilkan ayatnya</span><span class="ho">Ketuk untuk menyembunyikan</span></span>
+            </summary>
+            <div class="keu-ayat-glass">
+              <p class="keu-ayat-ar" lang="ar" dir="rtl">وَبَشِّرِ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ أَنَّ لَهُمْ جَنَّاتٍ تَجْرِي مِنْ تَحْتِهَا الْأَنْهَارُ ۖ كُلَّمَا رُزِقُوا مِنْهَا مِنْ ثَمَرَةٍ <span class="nb">رِّزْقًا ۙ</span> قَالُوا هَٰذَا الَّذِي رُزِقْنَا مِنْ قَبْلُ ۖ وَأُتُوا بِهِ <span class="nb">مُتَشَابِهًا ۖ</span> وَلَهُمْ فِيهَا أَزْوَاجٌ <span class="nb">مُّطَهَّرَةٌ ۖ</span> وَهُمْ فِيهَا خَالِدُونَ</p>
+            </div>
+          </details>
+
+          <details class="keu-ayat" aria-label="QS. Al-Baqarah ayat 278 sampai 279">
+            <summary class="keu-ayat-sum">
+              <span class="keu-ayat-ref">QS. Al-Baqarah: 278–279<span class="keu-ayat-chev" aria-hidden="true"></span></span>
+              <span class="keu-ayat-hint"><span class="hs">Ketuk untuk menampilkan ayatnya</span><span class="ho">Ketuk untuk menyembunyikan</span></span>
+            </summary>
+            <div class="keu-ayat-glass">
+              <p class="keu-ayat-ar" lang="ar" dir="rtl">يَا أَيُّهَا الَّذِينَ آمَنُوا اتَّقُوا اللَّهَ وَذَرُوا مَا بَقِيَ مِنَ الرِّبَا إِنْ كُنْتُمْ <span class="nb">مُؤْمِنِينَ <span class="ay-no">﴿٢٧٨﴾</span></span> فَإِنْ لَمْ تَفْعَلُوا فَأْذَنُوا بِحَرْبٍ مِنَ اللَّهِ <span class="nb">وَرَسُولِهِ ۖ</span> وَإِنْ تُبْتُمْ فَلَكُمْ رُءُوسُ <span class="nb">أَمْوَالِكُمْ ۖ</span> لَا تَظْلِمُونَ <span class="nb">وَلَا تُظْلَمُونَ <span class="ay-no">﴿٢٧٩﴾</span></span></p>
+            </div>
+          </details>
+
+          <!-- Pedoman Muamalah: panel penjelasan, dibuka lewat tombol di atas -->
+          <details class="keu-ayat" id="pedomanMuamalahDetail" aria-label="Pedoman Muamalah" style="display:none">
+            <summary class="keu-ayat-sum" style="display:none"></summary>
+            <div class="keu-ayat-glass keu-pedoman-glass">
+              <div class="keu-pedoman-title">📖 Pedoman Muamalah</div>
+              <ul class="keu-pedoman-list">
+                <li><b>Bebas Riba</b> — tidak ada tambahan/bunga yang dipersyaratkan di muka atas pinjaman.</li>
+                <li><b>Bebas Gharar</b> — akad dan objeknya jelas, tidak ada ketidakpastian yang merugikan.</li>
+                <li><b>Bebas Maysir</b> — tidak mengandung unsur spekulasi atau untung-untungan.</li>
+                <li><b>Akad Jelas di Awal</b> — jenis akad (Qardh, Murabahah, Mudharabah, Musyarakah, Ijarah, Istishna') disepakati sebelum transaksi berjalan.</li>
+                <li><b>Saling Ridha</b> — transaksi dilakukan atas dasar kerelaan kedua pihak, transparan, dan tercatat.</li>
+                <li><b>Berbagi Hasil & Risiko yang Adil</b> — pada akad bagi hasil, nisbah keuntungan disepakati di depan, bukan besaran pasti.</li>
+              </ul>
+            </div>
+          </details>
         </div>
-        <div id="keuanganGridInner" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 14px">
-          <!-- diisi oleh renderKeuanganGrid() -->
-        </div>
+
+        <script>
+        /* Fokus ayat & pedoman: overlay blur muncul saat panel dibuka; ketuk area buram / tekan Esc untuk menutup. */
+        (function(){
+          var bd = null, io = null;
+          function ensure(){
+            if (bd) return bd;
+            bd = document.createElement('div');
+            bd.className = 'keu-ayat-backdrop';
+            bd.setAttribute('aria-hidden', 'true');
+            bd.addEventListener('click', closeAyat);
+            (document.getElementById('app') || document.body).appendChild(bd);
+            return bd;
+          }
+          function closeAyat(){
+            var d = document.querySelector('details.keu-ayat[open]');
+            if (d) d.open = false;
+          }
+          document.addEventListener('toggle', function(e){
+            var d = e.target;
+            if (!d || !d.matches || !d.matches('details.keu-ayat')) return;
+            var el = ensure();
+            if (io) { io.disconnect(); io = null; }
+            if (d.open){
+              void el.offsetWidth;            // pastikan transisi fade berjalan
+              el.classList.add('show');
+              if ('IntersectionObserver' in window){
+                // bila halaman Keuangan disembunyikan (pindah menu), tutup ayat & lepas blur
+                io = new IntersectionObserver(function(ents){
+                  if (!ents[0].isIntersecting) closeAyat();
+                });
+                io.observe(d);
+              }
+            } else {
+              el.classList.remove('show');
+            }
+          }, true);
+          document.addEventListener('keydown', function(e){
+            if (e.key === 'Escape') closeAyat();
+          });
+        })();
+        </script>
       </div>
-
-      <!-- ══ SLIDE BANNER DI KEUANGAN ══ -->
-      <div id="keuSlideSection" style="padding:14px 0 4px">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px 10px">
-          <span style="font-size:13px;font-weight:800;color:var(--forest-mid);letter-spacing:0.2px">Informasi &amp; Pengumuman</span>
-          <span id="keuSlideDots" style="display:flex;gap:5px;align-items:center"></span>
-        </div>
-        <div class="slide-banner-wrap" id="keuSlideBannerWrap">
-          <div class="slide-track" id="keuSlideTrack"></div>
-
-        </div>
-      </div>
-      <script>
-      var _keuSlideIdx = 0;
-      var _keuSlideTimer = null;
-
-      function _keuGoSlide(n) {
-        var track = document.getElementById('keuSlideTrack');
-        var dots  = document.getElementById('keuSlideDots');
-        if (!track) return;
-        var items = track.querySelectorAll('.slide-item');
-        if (!items.length) return;
-        _keuSlideIdx = (n + items.length) % items.length;
-        track.style.transform = 'translateX(-' + (_keuSlideIdx * 100) + '%)';
-        if (dots) dots.querySelectorAll('button').forEach(function(b,i){
-          b.className = 'slide-dot' + (i===_keuSlideIdx ? ' active' : '');
-        });
-      }
-      function keuSlidePrev(){ _keuGoSlide(_keuSlideIdx - 1); _keuRestartTimer(); }
-      function keuSlideNext(){ _keuGoSlide(_keuSlideIdx + 1); _keuRestartTimer(); }
-      function _keuRestartTimer() {
-        if (_keuSlideTimer) clearInterval(_keuSlideTimer);
-        _keuSlideTimer = setInterval(function(){ _keuGoSlide(_keuSlideIdx + 1); }, 4500);
-      }
-
-      function renderKeuSlideBanner() {
-        var track = document.getElementById('keuSlideTrack');
-        var dots  = document.getElementById('keuSlideDots');
-        if (!track || !dots) return;
-        var slides = (typeof _loadSlides === 'function') ? _loadSlides() : (window.SLIDES || []);
-        if (!slides || !slides.length) return;
-        _keuSlideIdx = 0;
-        track.innerHTML = slides.map(function(s) {
-          return '<div class="slide-item" onclick="(function(){' + s.ctaFn + '})()">'
-            + '<div class="slide-item-bg" style="background:' + s.gradient + '"></div>'
-            + '<div class="slide-item-overlay" style="background:' + s.overlay + '"></div>'
-            + '<div class="slide-emoji-bg">' + s.emoji + '</div>'
-            + '<div class="slide-item-inner">'
-            + '<div class="slide-badge">' + s.badge + '</div>'
-            + '<div class="slide-title">' + s.title + '</div>'
-            + '<div class="slide-desc">' + s.desc + '</div>'
-            + '<button class="slide-cta" style="background:' + s.ctaBg + ';color:' + s.ctaColor + '" onclick="event.stopPropagation();(function(){' + s.ctaFn + '})()">' + s.cta + '</button>'
-            + '</div></div>';
-        }).join('');
-        dots.innerHTML = slides.map(function(_, i) {
-          return '<button class="slide-dot' + (i === 0 ? ' active' : '') + '" onclick="_keuGoSlide(' + i + ');_keuRestartTimer()"></button>';
-        }).join('');
-        _keuGoSlide(0);
-        _keuRestartTimer();
-      }
-      </script>
 
       <!-- ══ FULLSCREEN PANEL (muncul dari card) ══ -->
       <div id="keuPanelOverlay" style="
@@ -18585,8 +18729,6 @@ function renderPage(p) {
     renderKeuanganGrid(lastTab);
     // Jika panel sedang terbuka, refresh kontennya
     if (_keuPanelActiveTab) keuanganTab(_keuPanelActiveTab, null);
-    // Render slide banner di bawah grid
-    setTimeout(function(){ if(typeof renderKeuSlideBanner==='function') renderKeuSlideBanner(); }, 80);
   }
   else if (p==='arisan') { renderForum(); forumTab('arisan'); }
   else if (p==='forum') { renderForum(); forumTab('diskusi'); setTimeout(_updateBersihkanChatBtn, 100); }
@@ -35854,6 +35996,9 @@ function laporanTab(tab, el) {
   else if (tab==='kartu')           c.innerHTML = renderKartuHTML();
   else if (tab==='nasabah')         c.innerHTML = typeof renderLaporanNasabahHTML==='function' ? renderLaporanNasabahHTML() : '';
 
+  // ── Rincian tiap judul laporan disembunyikan secara default; hanya judul yang tampil ──
+  if (typeof window._initLapSecHeaders === 'function') window._initLapSecHeaders(c);
+
   // ── Tambahkan toolbar Download PDF + Google Drive untuk tab laporan utama ──
   var downloadTabs = ['nasabah-pribadi','koperasi','renco-capital','keseluruhan','arsip','tunggakan'];
   if (downloadTabs.indexOf(tab) !== -1) {
@@ -50845,11 +50990,41 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
   }
 
   function _sectionHeader(title, color) {
-    return `<div style="padding:16px 16px 8px;display:flex;align-items:center;gap:8px">
+    return `<div class="lap-sec-header" onclick="window._toggleLapSec(this)" style="padding:16px 16px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent">
       <div style="width:4px;height:18px;border-radius:99px;background:${color}"></div>
-      <div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">${title}</div>
+      <div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;flex:1">${title}</div>
+      <span class="lap-sec-chev" style="font-size:11px;color:var(--text-soft);transition:transform .2s ease;flex-shrink:0">▾</span>
     </div>`;
   }
+
+  /* Toggle satu bagian laporan: klik judul untuk buka/tutup rincian di bawahnya.
+     Menyimpan display asli elemen (grid/block/dst) di dataset agar tidak rusak saat dibuka kembali. */
+  window._toggleLapSec = function(header) {
+    var body = header.nextElementSibling;
+    if (!body) return;
+    if (body.dataset.lapSecInit !== '1') {
+      body.dataset.lapSecOrigDisplay = body.style.display || '';
+      body.dataset.lapSecInit = '1';
+    }
+    var isHidden = body.style.display === 'none';
+    body.style.display = isHidden ? (body.dataset.lapSecOrigDisplay || '') : 'none';
+    header.classList.toggle('lap-sec-open', isHidden);
+  };
+
+  /* Sembunyikan semua rincian laporan secara default — dipanggil tiap kali konten laporan baru dirender.
+     Hanya judul (lap-sec-header) yang tampil; isi di baliknya (elemen setelahnya) disembunyikan. */
+  window._initLapSecHeaders = function(container) {
+    var root = container || document;
+    var headers = root.querySelectorAll('.lap-sec-header');
+    headers.forEach(function(h){
+      var body = h.nextElementSibling;
+      if (!body || body.dataset.lapSecInit === '1') return;
+      body.dataset.lapSecOrigDisplay = body.style.display || '';
+      body.style.display = 'none';
+      body.dataset.lapSecInit = '1';
+      h.classList.remove('lap-sec-open');
+    });
+  };
 
   function _tableRow(label, val, bold, color) {
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid rgba(0,0,0,0.04)">
@@ -57274,6 +57449,7 @@ window.renderTransparansiDanaHTML = function() {
 
   // ── Pie/Donut chart alokasi dana DIHAPUS (dobel dengan bar+legend di bawah) ──
 
+  // Catatan: angka Total Dana ditampilkan apa adanya untuk semua pengguna (tanpa blur & tanpa ikon gembok).
   // ── Rincian Sumber Dana — sekarang ditampilkan untuk SEMUA pengguna (admin & nasabah) ──
   // sebagai bentuk transparansi pengelolaan dana kepada seluruh anggota, bukan hanya admin.
   var rows = [
@@ -57287,7 +57463,7 @@ window.renderTransparansiDanaHTML = function() {
   var rincianSumberDana = '<div class="card" style="margin:14px 16px 0;padding:16px">'
     + '<div style="font-size:12.5px;font-weight:800;margin-bottom:10px;color:var(--text)">📥 Rincian Sumber Dana</div>'
     + rows
-    + '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:9px 0 0;font-weight:800"><span>Total Dana Anggota</span><span style="color:var(--forest)">' + rahasiaNominal(fmt(d.totalDanaAnggota)) + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:9px 0 0;font-weight:800"><span>Total Dana Anggota</span><span style="color:var(--forest)">' + fmt(d.totalDanaAnggota) + '</span></div>'
     + '</div>';
 
   var myId = (typeof isNasabah === 'function' && isNasabah() && window.AUTH && AUTH.user) ? AUTH.user.nasabahId : null;
@@ -57304,7 +57480,7 @@ window.renderTransparansiDanaHTML = function() {
   return '<div class="keu-hero" style="background:linear-gradient(135deg,#0d2016 0%,#1a472a 50%,#2d6a4f 100%);box-shadow:0 8px 32px rgba(26,71,42,0.3)">'
     + '<div style="position:absolute;right:-12px;top:-12px;font-size:110px;opacity:0.07;line-height:1;pointer-events:none">📊</div>'
     + '<div class="keu-hero-label">Total Dana Dikelola Koperasi</div>'
-    + '<div class="keu-hero-amount">' + rahasiaNominal(fmt(d.totalDanaAnggota)) + '</div>'
+    + '<div class="keu-hero-amount">' + fmt(d.totalDanaAnggota) + '</div>'
     + '<div class="keu-hero-sub">Data real-time · diperbarui ' + fmtDate(nowISO()) + '</div>'
     + '</div>'
     + personalNote
