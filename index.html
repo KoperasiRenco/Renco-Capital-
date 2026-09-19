@@ -42,9 +42,6 @@ if ('serviceWorker' in navigator) {
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
-<!-- Leaflet: peta interaktif untuk fitur Jasa Kurir (OpenStreetMap, gratis tanpa API key) -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" defer></script>
 
 <!-- ═══════════════════════════════════════════════════════════
      STEMPEL PENGESAHAN OTOMATIS — RENCO KOPERASI
@@ -5488,7 +5485,6 @@ function authLogout() {
   if (typeof auditLog === 'function' && AUTH && AUTH.user) {
     auditLog('Logout', (AUTH.user.nama || AUTH.user.username) + ' keluar dari sistem', 'login');
   }
-  if (typeof _kfPinUnlocked !== 'undefined') _kfPinUnlocked = false;
   AUTH = { loggedIn: false, user: null };
   try { sessionStorage.removeItem(AUTH_KEY); } catch(e) {}
   closeModal('modalUserProfile');
@@ -13534,9 +13530,7 @@ function _checkEskalasi() {
   today.setHours(0,0,0,0);
   var changed = false;
 
-  // Gabungan Pinjaman Koperasi + Pinjaman Kifayah — dua buku terpisah, tapi
-  // sama-sama perlu mesin eskalasi tunggakan yang sama.
-  (DB.pinjaman || []).concat(DB.pinjamanKifayah || []).forEach(function(pin) {
+  (DB.pinjaman || []).forEach(function(pin) {
     if (pin.status !== 'aktif' && pin.status !== 'menunggak') return;
     if ((pin.sisaPokok||0) <= 0) return; // sudah lunas, skip
 
@@ -13736,7 +13730,7 @@ window._checkEskalasi = _checkEskalasi;
      6. Jumlah Dana Kontribusi (10) — besar kontribusi dana, dibanding sesama nasabah
      7. Frekuensi Keterlambatan(10) — seberapa sering nasabah pernah telat
    Semua data diambil dari data yang SUDAH tercatat oleh sistem
-   (DB.pinjaman, DB.pinjamanKifayah, DB.pembiayaan, DB.pembiayaanSyariah,
+   (DB.pinjaman, DB.pembiayaan, DB.pembiayaanSyariah,
    DB.transaksi, a.iuranMenunggak/a.iuranBulanTunggak) — tidak perlu input
    manual apapun dari admin.
 ════════════════════════════════════════════════════════════════ */
@@ -13784,7 +13778,6 @@ function _skorKumpulkanPinjaman(kkId) {
 
   var db = window.DB || {};
   proses(db.pinjaman, 'tanggal', 'sisaPokok', function(p){ return (p.cicilan||[]).length; });
-  proses(db.pinjamanKifayah, 'tanggal', 'sisaPokok', function(p){ return (p.cicilan||[]).length; });
   proses(db.pembiayaan, 'tglAktif', 'sisaPokokRC', function(p){ return p.angsuranDibayar || 0; });
   proses(db.pembiayaanSyariah, 'tanggal', 'sisaPokok', function(p){ return p.angsuranDibayar || 0; });
 
@@ -14208,31 +14201,6 @@ let DB = {
   nasabah: [],
   transaksi: [],
   pinjaman: [],
-  // ── Buku Cicilan Kifayah: pinjaman Qardh/Murabahah khusus Belanja Kifayah,
-  // buku INTERNAL milik Kifayah sendiri — sepenuhnya TERPISAH dari DB.pinjaman
-  // (Pinjaman Koperasi umum) dan TIDAK didanai/dicatat lewat kas Koperasi.
-  // Minimal belanja & limit bulanan per skema diatur lewat DB.kifayahSetting.qardh/
-  // .murabahah (bisa diubah admin di menu Kifayah > Admin > Pengaturan Cicilan);
-  // dana pencairan cicilan sendiri berasal dari DB.kifayahDompet (Dompet Kifayah) —
-  // lihat fungsi ber-awalan "kifayah"/"_kf" & totalPembayaranKifayah().
-  pinjamanKifayah: [],
-  // ── Gadai Kifayah (Rahn): produk gadai syariah — qardh (pinjaman pokok tanpa
-  // bunga) dijamin dengan barang (marhun) yang dititipkan, dan nasabah membayar
-  // ujrah (jasa simpan/pemeliharaan barang) per periode. Struktur qardh + rahn +
-  // ujrah ini memisahkan akad pinjam-meminjam dari akad jasa penitipan, sehingga
-  // tidak masuk kategori riba (ujrah adalah imbalan jasa penyimpanan, BUKAN bunga
-  // atas pinjaman) — pola yang sama dipakai lembaga gadai syariah. Buku INTERNAL
-  // Kifayah sendiri (dana cair dari & pelunasan kembali ke DB.kifayahDompet),
-  // TERPISAH dari DB.pinjaman/DB.pinjamanKifayah (Qardh biasa) dan dari kas Koperasi.
-  // Lihat fungsi berawalan "kifayahGadai"/"_kfGadai" & DB.kifayahSetting.gadai.
-  gadaiKifayah: [],
-  nextGadaiId: 1,
-  // ── Dompet Kifayah (Admin): Modal / Dana kelola Kifayah — wallet TERPISAH
-  // milik admin sebagai modal kerja modul Kifayah (setoran modal awal & tambahan
-  // dari admin/Koperasi, bisa ditarik kembali). BUKAN kas Koperasi umum dan BUKAN
-  // saldo/dompet nasabah — murni pencatatan dana yang dikelola admin utk Kifayah.
-  // Lihat kifayahDompetSaldo()/kifayahAdminSetorDompet()/kifayahAdminTarikDompet().
-  kifayahDompet: { saldo: 0, riwayat: [] },
   arisanSetting: { nama: 'Arisan 2025', iuran: 200000 },
   arisanPeserta: [],
   arisanHistory: [],
@@ -14244,17 +14212,9 @@ let DB = {
   liabilitas: [],
   pembiayaan: [],
   rencoIncome: [],
-  // ── Buku Transaksi Kifayah: ledger pembayaran & saldo MILIK KIFAYAH SENDIRI,
-  // sepenuhnya TERPISAH dari DB.transaksi (buku besar Koperasi/Simpanan Sukarela).
-  // Semua pembayaran & pencatatan transaksi Kifayah (checkout, cicilan, gadai,
-  // pindah saldo, koreksi saldo warung) dicatat di sini lewat
-  // kifayahCatatTransaksi() — lihat juga saldoKifayahNasabah().
-  kifayahTransaksi: [],
-  nextKifayahTxnId: 1,
   nextKKId: 1,
   nextTxnId: 1,
   nextPinId: 1,
-  nextPinKifayahId: 1,
   nextAsetId: 1,
   nextLiabilitasId: 1,
   shuSetting: {
@@ -14272,23 +14232,6 @@ let DB = {
     multiplierSimpanan: 0
   },
   rencoPay: null,
-  // ── Kifayah Marketplace: warung anggota, produk, & pesanan ──
-  warung: [],
-  produkWarung: [],
-  pesananWarung: [],
-  kurir: [], // Kurir Kifayah — nasabah yang mendaftar khusus mengantarkan pesanan
-  kifayahJasaKurir: [], // Permintaan Jasa Kurir (kirim barang/paket) — tarif per kg + per km, terpisah dari pesanan warung
-  barangBekas: [], // Kifayah Barang Bekas Berkualitas — listing jual/beli barang bekas antar nasabah, transaksi diatur langsung via WhatsApp (bukan lewat cart/checkout)
-  jasaSewa: [], // Kifayah Jasa Sewa — katalog barang sewaan milik nasabah (peer-to-peer), kontak diatur langsung via WhatsApp (belum ada alur booking/checkout)
-  jasaService: [], // Kifayah Jasa Service — katalog jasa perbaikan/servis milik nasabah (peer-to-peer), kontak diatur langsung via WhatsApp (belum ada alur booking/checkout)
-  nextWarungId: 1,
-  nextProdukId: 1,
-  nextPesananId: 1,
-  nextKurirId: 1,
-  nextJasaKurirId: 1,
-  nextBarangBekasId: 1,
-  nextJasaSewaId: 1,
-  nextJasaServiceId: 1,
   users: [],
   pengurusList: [],
   nextPengurusId: 1,
@@ -14299,14 +14242,32 @@ let DB = {
   auditLog: [] // Audit Log permanen — tidak boleh direset/dihapus di mana pun dalam kode ini
 };
 
+/* ── Pembersihan permanen data Kifayah (modul Kifayah & Marketplace sudah dihentikan) ──
+   Dijalankan setiap DB dimuat/dimigrasi (cloud, localStorage, impor backup), jadi
+   sisa data Kifayah di perangkat manapun otomatis terbuang dan ikut hilang dari cloud
+   pada penyimpanan berikutnya. */
+function _purgeKifayah() {
+  if (!DB || typeof DB !== 'object') return;
+  [
+    'pinjamanKifayah','gadaiKifayah','nextGadaiId','kifayahDompet','kifayahTransaksi',
+    'nextKifayahTxnId','nextPinKifayahId','kifayahSetting','pembayaranKifayah','kifayahJasaKurir',
+    'warung','produkWarung','pesananWarung','kurir','barangBekas','jasaSewa','jasaService',
+    'nextWarungId','nextProdukId','nextPesananId','nextKurirId','nextJasaKurirId',
+    'nextBarangBekasId','nextJasaSewaId','nextJasaServiceId','_kifayahBookMigrated'
+  ].forEach(function(k) { if (Object.prototype.hasOwnProperty.call(DB, k)) delete DB[k]; });
+  // Key tambahan apa pun yang berawalan "kifayah" (mis. slide iklan/hero, modal, iklan mengambang)
+  Object.keys(DB).forEach(function(k) { if (/^kifayah/i.test(k)) delete DB[k]; });
+  // Pinjaman asal Kifayah yang dulu sempat tercampur di buku Pinjaman Koperasi
+  if (Array.isArray(DB.pinjaman)) DB.pinjaman = DB.pinjaman.filter(function(p){ return !(p && p.asalKifayah); });
+}
+
 /* ── Migrasi skema: tambah kolom baru yang belum ada ── */
 function _dbMigrate() {
+  _purgeKifayah();
   // Pastikan semua koleksi array ada
   const ARRAYS = [
-    'nasabah','transaksi','pinjaman','pinjamanKifayah','gadaiKifayah','aset','liabilitas','pembiayaan','pembiayaanSyariah','rencoIncome','phuPendapatan','phuPengeluaran',
+    'nasabah','transaksi','pinjaman','aset','liabilitas','pembiayaan','pembiayaanSyariah','rencoIncome','phuPendapatan','phuPengeluaran',
     'shuDistribusi','arisanPeserta','arisanHistory','forum','polling','pohonImpian',
-    'warung','produkWarung','pesananWarung','kurir','barangBekas','jasaSewa','jasaService', // Kifayah Marketplace
-    'kifayahTransaksi', // Buku Transaksi Kifayah sendiri — terpisah dari DB.transaksi (Koperasi)
     'users',  // akun nasabah & admin — disimpan di DB agar sync ke Supabase
     'pengurusList',  // struktur pengurus koperasi (nama, jabatan, pendidikan, pengalaman, foto)
     'auditLog'  // jejak audit permanen — TIDAK PERNAH direset/dihapus oleh migrasi ini
@@ -14350,62 +14311,11 @@ function _dbMigrate() {
   if (typeof DB.nextKKId  !== 'number' || DB.nextKKId  < 1) DB.nextKKId  = _maxId(DB.nasabah,  'kk')  + 1;
   if (typeof DB.nextTxnId !== 'number' || DB.nextTxnId < 1) DB.nextTxnId = _maxId(DB.transaksi,'txn') + 1;
   if (typeof DB.nextPinId !== 'number' || DB.nextPinId < 1) DB.nextPinId = _maxId(DB.pinjaman,  'pin') + 1;
-  // ── Migrasi Buku Kifayah: pindahkan pinjaman Qardh asal Kifayah (asalKifayah:true)
-  // yang selama ini nyampur di DB.pinjaman umum, ke buku terpisah DB.pinjamanKifayah.
-  // Dijalankan sekali saja (ditandai DB._kifayahBookMigrated) supaya tidak dobel-proses.
-  if (!DB._kifayahBookMigrated) {
-    var _kfMigrasi = (DB.pinjaman || []).filter(function(p){ return p && p.asalKifayah; });
-    if (_kfMigrasi.length) {
-      DB.pinjaman = DB.pinjaman.filter(function(p){ return !(p && p.asalKifayah); });
-      _kfMigrasi.forEach(function(p){ DB.pinjamanKifayah.push(p); });
-    }
-    DB._kifayahBookMigrated = true;
-  }
-  if (typeof DB.nextPinKifayahId !== 'number' || DB.nextPinKifayahId < 1) DB.nextPinKifayahId = _maxId(DB.pinjamanKifayah, 'pinkf') + 1;
-  if (typeof DB.nextGadaiId !== 'number' || DB.nextGadaiId < 1) DB.nextGadaiId = _maxId(DB.gadaiKifayah, 'gdk') + 1;
   if (typeof DB.nextAsetId!== 'number' || DB.nextAsetId< 1) DB.nextAsetId= _maxId(DB.aset,     'aset')+ 1;
   if (typeof DB.nextLiabilitasId !== 'number' || DB.nextLiabilitasId < 1) DB.nextLiabilitasId = _maxId(DB.liabilitas, 'liab') + 1;
   // Migrasi: pastikan tiap aset punya array dokumen (arsip dokumen asli)
   (DB.aset||[]).forEach(function(a){ if (!Array.isArray(a.dokumen)) a.dokumen = []; });
   if (typeof DB.nextPengurusId !== 'number' || DB.nextPengurusId < 1) DB.nextPengurusId = _maxId(DB.pengurusList, 'peng') + 1;
-  // Migrasi Kifayah Marketplace: pastikan counter & field ada.
-  // PENTING: counter ini di-reset ke MAX ID yang sudah ada (bukan cuma dicek >=1),
-  // supaya kalau counter ketinggalan/reset akibat sinkronisasi cloud antar-device,
-  // ia tidak membuat ID baru yang BENTROK dengan pesanan/warung/produk/kurir yang
-  // sudah ada. ID bentrok inilah penyebab bug "Terima Pesanan" mengubah status
-  // pesanan LAMA (Array.find mengambil kecocokan pertama, bukan pesanan yang baru
-  // diklik) — lihat kifayahUpdatePesananStatus().
-  if (typeof DB.nextWarungId  !== 'number' || DB.nextWarungId  <= _maxId(DB.warung,       'warung-'))  DB.nextWarungId  = _maxId(DB.warung,       'warung-')  + 1;
-  if (typeof DB.nextProdukId  !== 'number' || DB.nextProdukId  <= _maxId(DB.produkWarung, 'produk-'))  DB.nextProdukId  = _maxId(DB.produkWarung, 'produk-')  + 1;
-  if (typeof DB.nextPesananId !== 'number' || DB.nextPesananId <= _maxId(DB.pesananWarung,'pesanan-')) DB.nextPesananId = _maxId(DB.pesananWarung,'pesanan-') + 1;
-  if (typeof DB.nextKurirId   !== 'number' || DB.nextKurirId   <= _maxId(DB.kurir,        'kurir-'))   DB.nextKurirId   = _maxId(DB.kurir,        'kurir-')   + 1;
-  if (!Array.isArray(DB.kifayahJasaKurir)) DB.kifayahJasaKurir = [];
-  if (typeof DB.nextJasaKurirId !== 'number' || DB.nextJasaKurirId <= _maxId(DB.kifayahJasaKurir, 'jkurir-')) DB.nextJasaKurirId = _maxId(DB.kifayahJasaKurir, 'jkurir-') + 1;
-  if (!Array.isArray(DB.barangBekas)) DB.barangBekas = [];
-  if (typeof DB.nextBarangBekasId !== 'number' || DB.nextBarangBekasId <= _maxId(DB.barangBekas, 'bb-')) DB.nextBarangBekasId = _maxId(DB.barangBekas, 'bb-') + 1;
-  if (!Array.isArray(DB.jasaSewa)) DB.jasaSewa = [];
-  if (typeof DB.nextJasaSewaId !== 'number' || DB.nextJasaSewaId <= _maxId(DB.jasaSewa, 'sewa-')) DB.nextJasaSewaId = _maxId(DB.jasaSewa, 'sewa-') + 1;
-  if (!Array.isArray(DB.jasaService)) DB.jasaService = [];
-  if (typeof DB.nextJasaServiceId !== 'number' || DB.nextJasaServiceId <= _maxId(DB.jasaService, 'svc-')) DB.nextJasaServiceId = _maxId(DB.jasaService, 'svc-') + 1;
-  // Perbaikan data lama: kalau ternyata SUDAH ada 2+ pesanan dengan id yang sama persis
-  // (akibat bug di atas sebelum diperbaiki), beri id baru yang unik ke duplikatnya
-  // (entri pertama tetap dipertahankan) supaya tidak ada lagi salah-sasaran saat update status.
-  (function _kfFixDuplicatePesananId() {
-    var seen = {};
-    (DB.pesananWarung || []).forEach(function(p) {
-      if (!p || !p.id) return;
-      if (seen[p.id]) {
-        p.id = 'pesanan-' + (DB.nextPesananId++);
-      } else {
-        seen[p.id] = true;
-      }
-    });
-  })();
-  (DB.warung||[]).forEach(function(w){ if (!w.status) w.status = 'aktif'; });
-  (DB.produkWarung||[]).forEach(function(p){ if (!p.status) p.status = 'aktif'; if (typeof p.stok !== 'number') p.stok = 0; if (typeof p.ratingAvg !== 'number') p.ratingAvg = 0; if (typeof p.ratingCount !== 'number') p.ratingCount = 0; if (!Array.isArray(p.ulasan)) p.ulasan = []; });
-  (DB.pesananWarung||[]).forEach(function(p){ if (!p.status) p.status = 'menunggu'; if (!Array.isArray(p.items)) p.items = []; });
-  // Kurir Kifayah: pastikan tiap kurir punya status, saldo & rating
-  (DB.kurir||[]).forEach(function(k){ if (!k.status) k.status = 'aktif'; if (typeof k.saldoKurir !== 'number') k.saldoKurir = 0; if (typeof k.ratingAvg !== 'number') k.ratingAvg = 0; if (typeof k.ratingCount !== 'number') k.ratingCount = 0; });
   // Pastikan tiap entri pengurus punya field lengkap (migrasi data lama)
   (DB.pengurusList||[]).forEach(function(p, idx) {
     if (typeof p.urutan !== 'number') p.urutan = idx;
@@ -14419,67 +14329,6 @@ function _dbMigrate() {
   // Pastikan objek setting ada
   if (!DB.shuSetting || typeof DB.shuSetting !== 'object') DB.shuSetting = { pctSHU:70, pctNasabah:40, pctPengurus:20, pctCadangan:20, pctSosial:10, pctPendidikan:10 };
   if (!DB.kasSettings|| typeof DB.kasSettings!== 'object') DB.kasSettings= { rasioMaks:80, limitPerNasabah:0, multiplierSimpanan:0 };
-  // Pengaturan Kifayah: limit cicilan Qardh untuk semua nasabah, bisa diubah admin
-  // lewat menu Kifayah > Admin > Pengaturan. (Akad Murabahah khusus Mitra Warung
-  // sudah dihapus dari checkout Kifayah — sisa field lama dibiarkan tidak terpakai
-  // untuk kompatibilitas data lama, tidak dibaca lagi oleh kode manapun.)
-  if (!DB.kifayahSetting || typeof DB.kifayahSetting !== 'object') DB.kifayahSetting = {};
-  // Cicilan Kifayah — 2 skema berbeda, masing-masing dgn tenor tetap tapi minimal
-  // belanja & limit bulanan per-nasabah bisa diatur admin lewat menu Kifayah > Admin > Pengaturan.
-  if (!DB.kifayahSetting.qardh || typeof DB.kifayahSetting.qardh !== 'object') {
-    DB.kifayahSetting.qardh = { tenorOpsi: [1], minBelanja: 50000, limitBulanan: 200000, feeLayanan: 10000 };
-  }
-  // Migrasi data lama: pastikan field feeLayanan ada meski objek qardh sudah pernah dibuat sebelumnya
-  if (typeof DB.kifayahSetting.qardh.feeLayanan !== 'number' || isNaN(DB.kifayahSetting.qardh.feeLayanan)) {
-    DB.kifayahSetting.qardh.feeLayanan = 10000;
-  }
-  if (!DB.kifayahSetting.murabahah || typeof DB.kifayahSetting.murabahah !== 'object') {
-    DB.kifayahSetting.murabahah = { tenorOpsi: [2,3,4], minBelanja: 100000, limitBulanan: 400000, marginTable: {2:0.5,3:0.75,4:1.0}, feeLayanan: 10000 };
-  }
-  // Migrasi data lama: pastikan field marginTable & feeLayanan ada meski objek murabahah sudah pernah dibuat sebelumnya
-  if (!DB.kifayahSetting.murabahah.marginTable || typeof DB.kifayahSetting.murabahah.marginTable !== 'object') {
-    DB.kifayahSetting.murabahah.marginTable = {2:0.5,3:0.75,4:1.0};
-  }
-  if (typeof DB.kifayahSetting.murabahah.feeLayanan !== 'number' || isNaN(DB.kifayahSetting.murabahah.feeLayanan)) {
-    DB.kifayahSetting.murabahah.feeLayanan = 10000;
-  }
-  // Skema cicilan Kifayah disederhanakan jadi 4 opsi saja: 1,2,3,4 — tenor 1 = Qardh
-  // (bayar lunas bulan depan, tanpa margin), tenor 2/3/4 = Murabahah (dengan margin
-  // keuntungan). Dipaksa (bukan hanya default) supaya data lama dari skema sebelumnya
-  // (Qardh 2–3 / Murabahah 4,6,8,10,12) otomatis termigrasi ke skema baru ini.
-  DB.kifayahSetting.qardh.tenorOpsi = [1];
-  DB.kifayahSetting.murabahah.tenorOpsi = [2,3,4];
-  [2,3,4].forEach(function(t){
-    if (typeof DB.kifayahSetting.murabahah.marginTable[t] !== 'number' || isNaN(DB.kifayahSetting.murabahah.marginTable[t])) {
-      DB.kifayahSetting.murabahah.marginTable[t] = {2:0.5,3:0.75,4:1.0}[t];
-    }
-  });
-  // Jasa Kurir (kirim barang/paket) — tarif per kg + tarif per km, diatur admin
-  // lewat menu Kifayah > Admin > Pengaturan.
-  if (!DB.kifayahSetting.jasaKurir || typeof DB.kifayahSetting.jasaKurir !== 'object') {
-    DB.kifayahSetting.jasaKurir = { tarifPerKg: 3000, tarifPerKm: 2000, minimum: 5000 };
-  }
-  if (typeof DB.kifayahSetting.jasaKurir.tarifPerKg !== 'number' || isNaN(DB.kifayahSetting.jasaKurir.tarifPerKg)) DB.kifayahSetting.jasaKurir.tarifPerKg = 3000;
-  if (typeof DB.kifayahSetting.jasaKurir.tarifPerKm !== 'number' || isNaN(DB.kifayahSetting.jasaKurir.tarifPerKm)) DB.kifayahSetting.jasaKurir.tarifPerKm = 2000;
-  if (typeof DB.kifayahSetting.jasaKurir.minimum !== 'number' || isNaN(DB.kifayahSetting.jasaKurir.minimum)) DB.kifayahSetting.jasaKurir.minimum = 5000;
-  // Gadai Kifayah (Rahn): ujrah dihitung dari % pokok qardh per periode (bukan dari
-  // nilai taksiran barang) — sesuai kesepakatan pengaturan modul ini. Maks. rasio
-  // pencairan qardh terhadap taksiran barang jaminan (marhun) default 75% (rentang
-  // aman 70–80% yang lazim dipakai lembaga gadai syariah), dapat diubah admin.
-  if (!DB.kifayahSetting.gadai || typeof DB.kifayahSetting.gadai !== 'object') {
-    DB.kifayahSetting.gadai = { ujrahPctPerPeriode: 1.5, periodeHari: 10, maxRasioPencairan: 75, tenorOpsiBulan: [1,2,3,4] };
-  }
-  if (typeof DB.kifayahSetting.gadai.ujrahPctPerPeriode !== 'number' || isNaN(DB.kifayahSetting.gadai.ujrahPctPerPeriode)) DB.kifayahSetting.gadai.ujrahPctPerPeriode = 1.5;
-  if (typeof DB.kifayahSetting.gadai.periodeHari !== 'number' || isNaN(DB.kifayahSetting.gadai.periodeHari)) DB.kifayahSetting.gadai.periodeHari = 10;
-  if (typeof DB.kifayahSetting.gadai.maxRasioPencairan !== 'number' || isNaN(DB.kifayahSetting.gadai.maxRasioPencairan)) DB.kifayahSetting.gadai.maxRasioPencairan = 75;
-  if (!Array.isArray(DB.kifayahSetting.gadai.tenorOpsiBulan) || !DB.kifayahSetting.gadai.tenorOpsiBulan.length) DB.kifayahSetting.gadai.tenorOpsiBulan = [1,2,3,4];
-  // Ambang batas keterlambatan (hari sejak jatuh tempo terlewat) sebelum barang
-  // jaminan boleh dieksekusi/dilelang oleh admin — default 30 hari.
-  if (typeof DB.kifayahSetting.gadai.batasLelangHari !== 'number' || isNaN(DB.kifayahSetting.gadai.batasLelangHari)) DB.kifayahSetting.gadai.batasLelangHari = 30;
-  // Dompet Kifayah (Admin): pastikan objek modal/dana kelola Kifayah ada utk data lama.
-  if (!DB.kifayahDompet || typeof DB.kifayahDompet !== 'object') DB.kifayahDompet = { saldo:0, riwayat:[] };
-  if (!Array.isArray(DB.kifayahDompet.riwayat)) DB.kifayahDompet.riwayat = [];
-  if (typeof DB.kifayahDompet.saldo !== 'number' || isNaN(DB.kifayahDompet.saldo)) DB.kifayahDompet.saldo = 0;
   if (!DB.arisanSetting||typeof DB.arisanSetting!=='object') DB.arisanSetting={ nama:'Arisan 2025', iuran:200000 };
 
   // RencoPay
@@ -14662,7 +14511,7 @@ window.dbCheck = function() {
   var info   = [];
 
   // Koleksi dasar
-  ['nasabah','transaksi','pinjaman','pinjamanKifayah','aset','pembiayaan'].forEach(function(k) {
+  ['nasabah','transaksi','pinjaman','aset','pembiayaan'].forEach(function(k) {
     info.push(k + ': ' + (DB[k]||[]).length + ' item');
   });
 
@@ -17940,25 +17789,7 @@ function saldoSukarelaNasabah(kkId) {
   return setor - tarik;
 }
 function totalPinjamanAktifKK(kkId) {
-  // Kuota pinjaman pribadi nasabah TETAP menghitung gabungan Pinjaman Koperasi +
-  // Pinjaman Kifayah (dua buku terpisah), sesuai mekanisme awal: hanya BUKUnya
-  // yang dipisah, kuota qardh per-nasabah tetap dihitung total.
-  var totalKop = DB.pinjaman.filter(p=>p.kkId===kkId && (p.status==='aktif'||p.status==='menunggak')).reduce((a,b)=>a+(b.sisaPokok||0),0);
-  var totalKf  = (DB.pinjamanKifayah||[]).filter(p=>p.kkId===kkId && (p.status==='aktif'||p.status==='menunggak')).reduce((a,b)=>a+(b.sisaPokok||0),0);
-  return totalKop + totalKf;
-}
-// ── Cari data pinjaman di KEDUA buku (Pinjaman Koperasi & Pinjaman Kifayah).
-// Dipakai oleh alur pembayaran cicilan generik (modal "Bayar Cicilan") yang
-// juga dipakai ulang untuk membayar cicilan Kifayah — supaya satu mesin
-// pembayaran/approval bisa melayani kedua buku tanpa duplikasi logika.
-function _cariPinjamanGabungan(id) {
-  var f = (DB.pinjaman || []).find(function(p){ return p.id === id; });
-  if (f) return f;
-  return (DB.pinjamanKifayah || []).find(function(p){ return p.id === id; }) || null;
-}
-// Kumpulan pinjaman dari kedua buku sekaligus (untuk dropdown/list pembayaran)
-function _semuaPinjamanGabungan() {
-  return (DB.pinjaman || []).concat(DB.pinjamanKifayah || []);
+  return DB.pinjaman.filter(p=>p.kkId===kkId && (p.status==='aktif'||p.status==='menunggak')).reduce((a,b)=>a+(b.sisaPokok||0),0);
 }
 
 // ========== KAS HEALTH SYSTEM ==========
@@ -17966,37 +17797,16 @@ function getKasSettings() {
   return { rasioMaks:80, limitPerNasabah:0, multiplierSimpanan:0, ...(DB.kasSettings||{}) };
 }
 
-// Kas koperasi yang berkurang akibat Kifayah cicilan = SISA POKOK pinjaman Qardh
-// asal-Kifayah yang masih aktif (otomatis mengecil/pulih tiap kali nasabah mencicil —
-// sama seperti pinjaman biasa, hanya dihitung terpisah dari totalPinjaman umum).
-// Buku DB.pembayaranKifayah sendiri adalah CATATAN/AUDIT setiap pembayaran ke warung
-// (untuk ditampilkan sebagai riwayat "buku Pembayaran Kifayah"), bukan sumber hitung kas.
-function totalPembayaranKifayah() {
-  return (DB.pinjamanKifayah || []).filter(function(p){ return p.status === 'aktif' || p.status === 'menunggak'; })
-    .reduce(function(a, b) { return a + (b.sisaPokok || 0); }, 0);
-}
-// Deteksi apakah sebuah baris DB.transaksi berasal dari Kifayah — dipakai untuk
-// membedakan warna teks di catatan transaksi koperasi (Beranda) supaya mudah dikenali.
-function _isTxnKifayah(t) {
-  if (!t) return false;
-  if (t.keterangan && /kifayah/i.test(t.keterangan)) return true;
-  if (t.refId && Array.isArray(DB.pinjamanKifayah) && DB.pinjamanKifayah.some(function(p){ return p.id === t.refId; })) return true;
-  return false;
-}
-
 function calcKas() {
   // Hanya simpanan pokok + wajib yang jadi basis kas (sukarela TIDAK termasuk)
   const totalSimpanan = DB.transaksi.filter(t=>t.type==='simpanan' && t.jenis!=='sukarela').reduce((a,b)=>a+b.jumlah,0);
-  // Pinjaman Kifayah (DB.pinjamanKifayah) adalah buku internal Kifayah sendiri —
-  // TIDAK didanai/dicatat lewat kas Koperasi, jadi tidak ikut dihitung di sini.
   const totalPinjaman = DB.pinjaman.filter(p=>p.status==='aktif'||p.status==='menunggak').reduce((a,b)=>a+(b.sisaPokok||0),0);
-  const totalKifayah = totalPembayaranKifayah(); // ditampilkan utk info saja, TIDAK memengaruhi kas Koperasi
   const ks = getKasSettings();
   const kasMaks = Math.floor(totalSimpanan * ks.rasioMaks / 100);
   const kasAvailable = Math.max(0, kasMaks - totalPinjaman);
   const kasUsedPct = totalSimpanan > 0 ? Math.min(100, (totalPinjaman / totalSimpanan) * 100) : 0;
   const limitMaks = Math.max(0, kasMaks - totalPinjaman);
-  return { totalSimpanan, totalPinjaman, totalKifayah, kasMaks, kasAvailable, kasUsedPct, limitMaks, ks };
+  return { totalSimpanan, totalPinjaman, kasMaks, kasAvailable, kasUsedPct, limitMaks, ks };
 }
 
 function renderKasHealth() {
@@ -21717,15 +21527,9 @@ function rpDetailTagihan(id) {
   const getPinjamanAktif = () => {
     const db = getDB();
     const nasabah = db.nasabah || [];
-    // Gabungkan Pinjaman Koperasi umum + Pinjaman Kifayah (buku terpisah) —
-    // keduanya tetap butuh reminder tagihan bulanan yang sama, hanya labelnya
-    // dibedakan supaya kelihatan mana yang berasal dari Belanja Kifayah.
-    const sumberPin = (db.pinjaman || []).map(p => ({ p, _kf: false }))
-      .concat((db.pinjamanKifayah || []).map(p => ({ p, _kf: true })));
-    return sumberPin
-      .filter(x => (x.p.status === 'aktif' || x.p.status === 'menunggak') && (x.p.sisaPokok || 0) > 0)
-      .map(x => {
-        const p = x.p;
+    return (db.pinjaman || [])
+      .filter(p => (p.status === 'aktif' || p.status === 'menunggak') && (p.sisaPokok || 0) > 0)
+      .map(p => {
         const kk = nasabah.find(n => n.id === p.kkId);
         const sisa   = p.sisaPokok || p.jumlah || 0;
         const tenor  = Math.max(1, p.tenor || 12);
@@ -21755,7 +21559,7 @@ function rpDetailTagihan(id) {
 
         return {
           id:      p.id,
-          sumber:  x._kf ? 'Koperasi Renco — Kifayah' : 'Koperasi Renco',
+          sumber:  'Koperasi Renco',
           name:    kk ? kk.nama : ('Nasabah ' + (p.kkId||'')),
           kkId:    p.kkId,
           cicilan,
@@ -25503,6 +25307,82 @@ window._downloadPosisiBersihSatuNasabahPDF = function(id) {
   }
 };
 
+// ═══════════════════════════════════════════════════════════
+//  PANEL DIAGNOSTIK — RINCIAN PERHITUNGAN SISA PINJAMAN & POSISI
+//  BERSIH (khusus Admin). Menampilkan setiap komponen mentah
+//  (tiap pinjaman, tiap Berjangka, tiap transaksi simpanan) agar
+//  admin bisa mencocokkan dengan catatan manual dan menemukan
+//  persis baris mana yang tidak sesuai bila ada selisih angka.
+// ═══════════════════════════════════════════════════════════
+function _renderDebugPosisiBersihHTML(id) {
+  var pinjKop = (DB.pinjaman || []).filter(function(p){ return p.kkId === id; });
+  var tbAll   = (DB.tabunganBerjangka || []).filter(function(t){ return t.kkId === id; });
+  var txnSim  = (DB.transaksi || []).filter(function(t){
+    return t.kkId === id && (t.type === 'simpanan' || t.type === 'tarik-sukarela');
+  }).slice().reverse();
+
+  function _row(kiri, kanan, warna) {
+    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:10.5px;padding:5px 0;border-bottom:1px dashed rgba(0,0,0,0.06)">'
+      + '<span style="color:#6b7280">' + kiri + '</span>'
+      + '<span style="font-weight:700;' + (warna ? 'color:' + warna : '') + '">' + kanan + '</span>'
+    + '</div>';
+  }
+  function _sectionPinjaman(list, judul) {
+    if (!list.length) return '<div style="font-size:10.5px;color:#aaa;padding:4px 0">Tidak ada data ' + judul + '</div>';
+    var totalSisa = 0;
+    var rows = list.map(function(p) {
+      var dihitung = (p.status === 'aktif' || p.status === 'menunggak');
+      if (dihitung) totalSisa += (p.sisaPokok || 0);
+      return _row(
+        p.id + ' · ' + (p.status || '-') + (dihitung ? '' : ' <span style="color:#c9924a">(tidak dihitung)</span>') + ' · ' + fmtDate(p.tanggal),
+        'Pokok ' + fmt(p.jumlah || 0) + ' → Sisa ' + fmt(p.sisaPokok || 0),
+        dihitung ? '#dc2626' : '#9ca3af'
+      );
+    }).join('');
+    return rows + _row('Subtotal ' + judul + ' (status aktif/menunggak saja)', fmt(totalSisa), '#dc2626');
+  }
+  var rowsTB = tbAll.length ? tbAll.map(function(t) {
+    var dihitung = (t.status === 'aktif');
+    return _row(
+      t.id + ' · ' + (t.status || '-') + (dihitung ? '' : ' <span style="color:#c9924a">(tidak dihitung)</span>') + ' · dibuka ' + fmtDate(t.tanggalMulai || t.tanggalDiajukan),
+      fmt(t.jumlah || 0),
+      dihitung ? '#b07a00' : '#9ca3af'
+    );
+  }).join('') : '<div style="font-size:10.5px;color:#aaa;padding:4px 0">Tidak ada data Simpanan Berjangka</div>';
+  var rowsTxn = txnSim.length ? txnSim.slice(0, 15).map(function(t) {
+    var masuk = t.type === 'simpanan';
+    return _row(
+      (masuk ? '+ ' : '− ') + (t.keterangan || t.jenis || t.type) + (t.tbId ? ' <span style="color:#b07a00">[' + t.tbId + ']</span>' : '') + ' · ' + fmtDate(t.tanggal),
+      fmt(t.jumlah || 0),
+      masuk ? '#16a34a' : '#dc2626'
+    );
+  }).join('') : '<div style="font-size:10.5px;color:#aaa;padding:4px 0">Belum ada transaksi simpanan/penarikan</div>';
+
+  return '<div style="margin:0 16px 16px">'
+    + '<button onclick="_toggleDbgPosisi(\'' + id + '\')" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-radius:11px;border:1.5px dashed rgba(0,0,0,0.15);background:rgba(0,0,0,0.02);color:#6b7280;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'
+      + '<span>🔍 Rincian Perhitungan (khusus Admin)</span>'
+      + '<span id="dbgPosisiChev_' + id + '" style="transition:transform 0.2s">▾</span>'
+    + '</button>'
+    + '<div id="dbgPosisi_' + id + '" style="display:none;margin-top:8px;padding:12px 13px;border-radius:12px;background:#fafafa;border:1px solid rgba(0,0,0,0.06)">'
+      + '<div style="font-size:10px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:2px">Pinjaman Koperasi</div>'
+      + _sectionPinjaman(pinjKop, 'Pinjaman Koperasi')
+      + '<div style="font-size:10px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.4px;margin:10px 0 2px">Simpanan Berjangka</div>'
+      + rowsTB
+      + '<div style="font-size:10px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.4px;margin:10px 0 2px">Transaksi Simpanan / Penarikan Terakhir (maks. 15)</div>'
+      + rowsTxn
+      + '<div style="font-size:9.5px;color:#9ca3af;margin-top:10px;line-height:1.5">💡 "Sisa Pinjaman" di atas = jumlah baris berwarna merah pada Pinjaman Koperasi. "Posisi Bersih" = Total Simpanan + Simpanan Berjangka (baris berwarna kuning saja) − Sisa Pinjaman. Kalau ada baris berstatus lain yang menurutmu seharusnya ikut/tidak ikut dihitung, atau ada transaksi yang dobel/hilang di atas, itulah sumber selisihnya.</div>'
+    + '</div>'
+  + '</div>';
+}
+window._toggleDbgPosisi = function(id) {
+  var body = document.getElementById('dbgPosisi_' + id);
+  var chev = document.getElementById('dbgPosisiChev_' + id);
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (chev) chev.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
+};
+
 function showDetailNasabah(id) {
   const a = getNasabah(id);
   if (!a) return;
@@ -25685,6 +25565,7 @@ function showDetailNasabah(id) {
         </div>
       </div>`;
     })()}
+    ${(typeof isAdmin==='function' && isAdmin()) ? _renderDebugPosisiBersihHTML(id) : ''}
     ${(typeof _renderSkorKepercayaanHTML === 'function') ? _renderSkorKepercayaanHTML(id) : ''}
     ${(typeof _renderBlacklistCardHTML === 'function') ? _renderBlacklistCardHTML(id) : ''}
     <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:16px">
@@ -33465,7 +33346,7 @@ function openCicilan() {
 
 function onCicilanPinjamanChange() {
   const pinId = document.getElementById('cicilanPinjaman').value;
-  const pin = _cariPinjamanGabungan(pinId);
+  const pin = (DB.pinjaman || []).find(function(p){ return p.id === pinId; }) || null;
   const infoEl = document.getElementById('cicilanSisaInfo');
   if (!pin) { infoEl.style.display='none'; return; }
 
@@ -33624,7 +33505,7 @@ function onCicilanJumlahInput() {
 function saveCicilan() {
   const pinId = document.getElementById('cicilanPinjaman').value;
   let jumlah = parseFloat(document.getElementById('cicilanJumlah').value)||0;
-  const pin = _cariPinjamanGabungan(pinId);
+  const pin = (DB.pinjaman || []).find(function(p){ return p.id === pinId; }) || null;
   if (!pin||jumlah<=0) { showToast('⚠️ Data tidak valid'); return; }
 
   const sisa = pin.sisaPokok||0;
@@ -36110,8 +35991,6 @@ function _pdfGenKoperasi(jsPDFCls) {
   var totalPiutang = pinBerjalan.reduce(function (a, b) { return a + (b.sisaPokok || 0); }, 0);
   var kasKoperasi = saldoSimpanan - totalPiutang;
   var totalAset = (DB.aset || []).reduce(function (a, b) { return a + (b.nilai || 0); }, 0);
-  // Kifayah kini punya pembukuan cicilan sendiri, TIDAK lagi didanai/dicatat lewat
-  // Koperasi, jadi tidak ada lagi pos "Modal Investasi di Kifayah" di neraca ini.
   var totalAktiva = saldoSimpanan + totalPiutang + totalAset;
   var totalBungaEstimasi = pinBerjalan.reduce(function (a, p) { return a + Math.round(p.jumlah * ((p.bunga || 0) / 100) * ((p.tenor || 12) / 12)); }, 0);
   var shuPct = ((DB.shuSetting && DB.shuSetting.pctSHU) || 70) / 100;
@@ -51274,7 +51153,6 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
 
     // ── Neraca ──
     const kasKoperasi = saldoSimpanan - totalPiutang;
-    // Kifayah kini punya pembukuan cicilan sendiri, tidak lagi didanai/dicatat lewat Koperasi.
     const totalAktiva = saldoSimpanan + totalPiutang + totalAset;
 
     // ── Data bulan ini ──
@@ -54908,7 +54786,7 @@ window.nsBayarCicilan = function(pinId) {
       }
       if (item.type==='cicilan') {
         var pinId=d.pinId;
-        var pin=typeof _cariPinjamanGabungan==='function' ? _cariPinjamanGabungan(pinId) : (DB.pinjaman||[]).find(function(p){return p.id===pinId;});
+        var pin=(DB.pinjaman||[]).find(function(p){return p.id===pinId;});
         if(!pin){ if(typeof showToast==='function') showToast('⚠️ Pinjaman tidak ditemukan'); return false; }
         var jml=Math.min(item.jumlah,pin.sisaPokok||0);
         // Hitung nomor angsuran saat ini
