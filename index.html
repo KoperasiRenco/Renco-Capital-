@@ -5158,20 +5158,15 @@ body {
   background:
     radial-gradient(circle at 50% 0%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 35%),
     linear-gradient(165deg, #040e07 0%, #0a1f10 30%, #1a472a 60%, #0d2016 100%);
-  background-size: 100% 100%, 200% 200%;
-  animation: loginBgShift 14s ease-in-out infinite;
   flex-direction: column; align-items: center; justify-content: center;
   padding: 24px;
   display: none;
   overflow: hidden;
 }
-@keyframes loginBgShift {
-  0%, 100% { background-position: 50% 0%, 0% 50%; }
-  50%      { background-position: 50% 0%, 100% 50%; }
-}
 #loginScreen.active { display: flex !important; }
 #loginScreen .merdeka-bunting,
 #loginScreen .merdeka-confetti { display: none; }
+
 .login-card {
   width: 100%; max-width: 380px;
   position: relative; z-index: 2;
@@ -5185,10 +5180,36 @@ body {
   text-align: center;
   opacity: 0; transform: translateY(18px) scale(0.97);
   animation: cardEnter 0.65s cubic-bezier(0.16,1,0.3,1) forwards;
+  transform-style: preserve-3d; will-change: transform;
+  transition: transform 0.12s ease-out;
 }
 @keyframes cardEnter {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* ══ Efek visual futuristik: grid HUD statis + orb cahaya statis ══ */
+.login-fx-grid{
+  position:absolute; inset:-10%; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size:42px 42px;
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, rgba(0,0,0,0.9) 0%, transparent 70%);
+  mask-image: radial-gradient(circle at 50% 40%, rgba(0,0,0,0.9) 0%, transparent 70%);
+}
+.login-fx-orb{
+  position:absolute; z-index:0; pointer-events:none; border-radius:50%;
+  filter:blur(38px); opacity:0.55;
+}
+.login-fx-orb-1{ width:220px; height:220px; left:-60px; top:8%; background:radial-gradient(circle, rgba(244,169,34,0.55), transparent 70%); }
+.login-fx-orb-2{ width:260px; height:260px; right:-80px; bottom:6%; background:radial-gradient(circle, rgba(64,200,170,0.4), transparent 70%); }
+.login-fx-orb-3{ width:160px; height:160px; right:10%; top:-40px; background:radial-gradient(circle, rgba(255,255,255,0.35), transparent 70%); }
+.login-btn{ position:relative; overflow:hidden; }
+.login-ripple{
+  position:absolute; border-radius:50%; background:rgba(20,24,28,0.35);
+  transform:scale(0); animation:loginRippleAnim 0.6s ease-out forwards; pointer-events:none;
+}
+@keyframes loginRippleAnim{ to{ transform:scale(2.6); opacity:0; } }
 
 .login-logo {
   width: 76px; height: 76px; border-radius: 20px;
@@ -5235,7 +5256,45 @@ body {
   transition: all 0.25s; box-sizing: border-box;
 }
 .login-field input::placeholder { color: rgba(244,249,241,0.35); }
-.login-field input:focus { border-color: #ffffff; background: rgba(255,255,255,0.12); box-shadow: 0 0 0 4px rgba(255,255,255,0.16); }
+.login-field input:focus { border-color: #ffffff; background: rgba(255,255,255,0.12); box-shadow: 0 0 0 4px rgba(255,255,255,0.16), 0 0 18px rgba(244,169,34,0.4); }
+
+/* ── Validasi: field goyang singkat kalau kosong saat submit ── */
+.login-field.shake { animation: loginShake 0.42s cubic-bezier(.36,.07,.19,.97); }
+.login-field.shake input { border-color: rgba(255,138,138,0.75) !important; }
+@keyframes loginShake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+
+/* ── Toggle lihat/sembunyikan password ── */
+.login-pw-wrap { position: relative; }
+.login-pw-wrap input { padding-right: 44px; }
+.login-pw-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; border-radius: 9px; border: none; cursor: pointer;
+  background: transparent; color: rgba(244,249,241,0.55);
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.2s, background 0.2s;
+}
+.login-pw-toggle:hover { color: #ffffff; background: rgba(255,255,255,0.1); }
+.login-pw-toggle:active { transform: translateY(-50%) scale(0.9); }
+
+/* ── Peringatan Caps Lock ── */
+.login-capslock {
+  display: none; font-size: 10.5px; font-weight: 700; color: #ffcf6b;
+  margin-top: 6px; letter-spacing: 0.2px;
+}
+.login-capslock.show { display: block; animation: fieldRise 0.25s ease; }
+
+/* ── Badge kepercayaan ── */
+.login-trust {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 10.5px; font-weight: 700; color: rgba(180,255,200,0.75);
+  margin-top: 16px; letter-spacing: 0.3px;
+}
+
 .login-btn {
   width: 100%; padding: 14px; border-radius: 13px;
   background: linear-gradient(135deg, #b8bec6, #d8dde3 55%, #ffffff);
@@ -5259,6 +5318,19 @@ body {
 }
 .login-btn-secondary:hover { background: rgba(255,255,255,0.08); border-color: rgba(244,249,241,0.55); }
 .login-btn-secondary:active { transform: scale(0.97); }
+
+/* ── Link kecil "Belum punya akun?" — tombol Daftar baru muncul setelah ini ditekan ── */
+.login-daftar-toggle {
+  font-size: 11.5px; color: rgba(244,249,241,0.6); text-align: center;
+  margin-top: 14px; cursor: pointer; letter-spacing: 0.2px; user-select: none;
+}
+.login-daftar-toggle span { color: #ffffff; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.login-daftar-toggle:active { opacity: 0.7; }
+.login-btn-secondary.reveal-in { animation: daftarReveal 0.45s cubic-bezier(0.16,1,0.3,1); }
+@keyframes daftarReveal {
+  from { opacity: 0; transform: translateY(-10px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
 .login-error {
   background: rgba(220,38,38,0.14); border: 1px solid rgba(220,38,38,0.4);
   border-radius: 10px; padding: 10px 14px; font-size: 12px;
@@ -5600,7 +5672,7 @@ function renderLoginWatermark() {
   if (!el) return;
   // Jika sedang basi, jangan timpa tombol update dengan teks biasa
   if (window._rencoAppOutdated) { _rencoShowWatermarkUpdateBtn(); return; }
-  var teks = 'Koperasi Renco v0.1 · Diperbarui 04 Agustus 2026';
+  var teks = ''; // kosong secara default — tidak ada tulisan watermark di halaman login
   try {
     if (window.DB && DB.appSettings && DB.appSettings.loginWatermark) {
       teks = DB.appSettings.loginWatermark;
@@ -5720,6 +5792,99 @@ function _rencoFreshReloadBeforeLogin(cb) {
   }
 }
 
+/* ── Interaksi halaman login: toggle password, Caps Lock, navigasi Enter ── */
+function _toggleLoginPw() {
+  var inp = document.getElementById('loginPassword');
+  var icon = document.getElementById('loginPwEyeIcon');
+  if (!inp) return;
+  var showing = inp.type === 'text';
+  inp.type = showing ? 'password' : 'text';
+  icon.innerHTML = showing
+    ? '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>'
+    : '<path d="M3 3l18 18M10.6 10.7a3 3 0 0 0 4.2 4.2M6.7 6.9C4.5 8.3 3 10.5 2 12c0 0 3.6 7 10 7 2 0 3.7-.5 5.1-1.3M9.9 5.2A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7-.5.9-1.2 2-2.2 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+}
+function _checkCapsLock(e) {
+  var warn = document.getElementById('loginCapsWarning');
+  if (!warn) return;
+  var on = e.getModifierState && e.getModifierState('CapsLock');
+  warn.classList.toggle('show', !!on);
+}
+function _loginFieldKeydown(e, which) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  if (which === 'user') {
+    var p = document.getElementById('loginPassword');
+    if (p) p.focus();
+  } else {
+    handleLogin();
+  }
+}
+
+/* ── Efek interaktif kartu login: tilt mengikuti sentuhan/kursor + ripple tombol ── */
+(function _initLoginInteractive(){
+  function bind(){
+    var card = document.querySelector('#loginScreen .login-card');
+    var btn = document.getElementById('loginBtn');
+    if (!card || card.dataset.fxBound) return;
+    card.dataset.fxBound = '1';
+    var maxTilt = 6;
+    function tiltFromPoint(clientX, clientY){
+      var r = card.getBoundingClientRect();
+      var px = (clientX - r.left) / r.width;   // 0..1
+      var py = (clientY - r.top) / r.height;   // 0..1
+      var rx = (0.5 - py) * maxTilt * 2;
+      var ry = (px - 0.5) * maxTilt * 2;
+      card.style.transform = 'translateY(0) scale(1) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    }
+    function resetTilt(){ card.style.transform = 'translateY(0) scale(1) rotateX(0deg) rotateY(0deg)'; }
+    card.addEventListener('mousemove', function(e){ tiltFromPoint(e.clientX, e.clientY); });
+    card.addEventListener('mouseleave', resetTilt);
+    card.addEventListener('touchmove', function(e){
+      if (!e.touches || !e.touches[0]) return;
+      tiltFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    card.addEventListener('touchend', resetTilt);
+    if (btn){
+      btn.addEventListener('click', function(e){
+        var r = btn.getBoundingClientRect();
+        var ripple = document.createElement('span');
+        var size = Math.max(r.width, r.height) * 1.2;
+        ripple.className = 'login-ripple';
+        ripple.style.width = ripple.style.height = size + 'px';
+        var cx = (e.clientX != null ? e.clientX : r.left + r.width / 2) - r.left - size / 2;
+        var cy = (e.clientY != null ? e.clientY : r.top + r.height / 2) - r.top - size / 2;
+        ripple.style.left = cx + 'px';
+        ripple.style.top = cy + 'px';
+        btn.appendChild(ripple);
+        setTimeout(function(){ ripple.remove(); }, 620);
+      });
+    }
+  }
+  document.addEventListener('DOMContentLoaded', bind);
+  // loginScreen bisa diaktifkan belakangan (setelah cek sesi), jadi coba lagi berkala
+  var _fxTry = setInterval(function(){
+    if (document.querySelector('#loginScreen .login-card')) { bind(); clearInterval(_fxTry); }
+  }, 400);
+})();
+function _loginShakeField(which) {
+  var el = (which === 'user' ? document.getElementById('loginUsername') : document.getElementById('loginPassword'));
+  var field = el && el.closest('.login-field');
+  if (!field) return;
+  field.classList.remove('shake'); void field.offsetWidth; // reset supaya animasi bisa diulang
+  field.classList.add('shake');
+  setTimeout(function(){ field.classList.remove('shake'); }, 450);
+}
+function _showDaftarAkunBtn() {
+  var toggle = document.getElementById('daftarAkunToggle');
+  var btn = document.getElementById('daftarAkunBtn');
+  if (toggle) toggle.style.display = 'none';
+  if (btn) {
+    btn.style.display = 'block';
+    btn.classList.remove('reveal-in'); void btn.offsetWidth; // reset supaya animasi bisa diulang
+    btn.classList.add('reveal-in');
+  }
+}
+
 function handleLogin() {
   var u = document.getElementById('loginUsername').value;
   var p = document.getElementById('loginPassword').value;
@@ -5730,7 +5895,13 @@ function handleLogin() {
     err.style.display = 'block';
     return;
   }
-  if (!u || !p) { err.textContent = '&#x26A0;&#xFE0F; Username dan password wajib diisi'; err.style.display = 'block'; return; }
+  if (!u || !p) {
+    err.textContent = '&#x26A0;&#xFE0F; Username dan password wajib diisi';
+    err.style.display = 'block';
+    if (!u) _loginShakeField('user');
+    if (!p) _loginShakeField('pass');
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Memuat data...';
   err.style.display = 'none';
 
@@ -5788,8 +5959,9 @@ function handleLogin() {
         } else {
           err.textContent = '&#x274C; Username atau password salah';
           err.style.display = 'block';
-          btn.disabled = false; btn.textContent = '&#x1F510; Masuk';
+          btn.disabled = false; btn.textContent = 'Masuk';
           document.getElementById('loginPassword').value = '';
+          _loginShakeField('pass');
         }
         });
       }, 300);
@@ -5816,19 +5988,20 @@ function handleLogin() {
           } else {
             err.textContent = '&#x274C; Username atau password salah';
             err.style.display = 'block';
-            btn.disabled = false; btn.textContent = '&#x1F510; Masuk';
+            btn.disabled = false; btn.textContent = 'Masuk';
             document.getElementById('loginPassword').value = '';
+            _loginShakeField('pass');
           }
         }, 300);
       }).catch(function() {
         err.textContent = '&#x26A0;&#xFE0F; Gagal terhubung ke server. Coba lagi.';
         err.style.display = 'block';
-        btn.disabled = false; btn.textContent = '&#x1F510; Masuk';
+        btn.disabled = false; btn.textContent = 'Masuk';
       });
     } else {
       err.textContent = '&#x26A0;&#xFE0F; Server belum siap, coba beberapa saat lagi.';
       err.style.display = 'block';
-      btn.disabled = false; btn.textContent = '&#x1F510; Masuk';
+      btn.disabled = false; btn.textContent = 'Masuk';
     }
   }
   _tryLogin();
@@ -6509,6 +6682,8 @@ function _applyNasabahDataIsolation() {
   var _origRenderNasabah = window.renderNasabah;
   window.renderNasabah = function(filter) {
     if (!isNasabah()) { if (_origRenderNasabah) _origRenderNasabah(filter); return; }
+    var modeBar = document.getElementById('nasabahStatusModeBar');
+    if (modeBar) modeBar.style.display = 'none';
     var el = document.getElementById('nasabahList');
     if (!el) return;
     var db = window.DB || (typeof DB !== 'undefined' ? DB : {});
@@ -6866,26 +7041,26 @@ function _renderNasabahDashboard(kkId) {
   }
 
   /* --- Stat cards --- */
-  var sN = document.getElementById('statNasabah');
   var sS = document.getElementById('statSimpanan');
   var sP = document.getElementById('statPinjaman');
   var sA = document.getElementById('statArisan');
-  if (sN) { sN.textContent = 1; var lN=sN.closest&&sN.closest('.stat-card'); if(lN){var l=lN.querySelector('.stat-lbl');if(l)l.textContent='Nasabah';} }
+  // Kartu jumlah "Nasabah" tidak relevan untuk anggota perorangan — sembunyikan (termasuk salinan marquee-nya)
+  document.querySelectorAll('.stat-nasabah-count').forEach(function(el){ el.style.display = 'none'; });
   if (sS) sS.textContent = fmtFn(mySimpanan);
   if (sP) sP.textContent = fmtFn(mySisaPokok);
   if (sA) {
     sA.textContent = mySukarela<0 ? '⚠️ Utang ' + fmtFn(Math.abs(mySukarela)) : fmtFn(mySukarela);
     sA.style.color = mySukarela<0 ? '#e63946' : '';
     sA.style.fontSize = '13px';
-    var sC=sA.closest&&sA.closest('.stat-card'); if(sC){var lC=sC.querySelector('.stat-lbl');if(lC)lC.textContent='Saldo Sukarela';}
+    var sC=sA.closest&&sA.closest('.stat-slide'); if(sC){var lC=sC.querySelector('.stat-lbl');if(lC)lC.textContent='Saldo Sukarela';}
   }
+  if (typeof window._applySaldoVisibility === 'function') window._applySaldoVisibility();
 
   /* --- Sembunyikan widget kas koperasi --- */
   var kasW = document.getElementById('kasHealthWidget');
   if (kasW) kasW.style.display = 'none';
-  document.querySelectorAll('#page-home .section-title').forEach(function(t){
-    if (t.textContent && t.textContent.trim() === 'Kesehatan Kas') t.style.display = 'none';
-  });
+  var kasT = document.getElementById('kasHealthSectionTitle');
+  if (kasT) kasT.style.display = 'none';
 
   /* --- Slide banner (Informasi & Pengumuman) TETAP TAMPIL untuk Nasabah ---
      Sebelumnya baris ini menyembunyikannya total dari Nasabah — padahal
@@ -6893,6 +7068,7 @@ function _renderNasabahDashboard(kkId) {
      umum ke seluruh anggota. Tombol "Edit Slide"-nya sendiri tetap
      disembunyikan untuk Nasabah lewat _atur VisibilitasEditSlide() di
      renderSlideBanner() — Nasabah hanya boleh melihat, bukan mengedit. */
+  if (typeof renderSlideBanner === 'function') renderSlideBanner();
   var challengeEl = document.querySelector('#page-home [onclick*="openChallengeGame"]');
   if (challengeEl) challengeEl.style.display = 'none';
 
@@ -6910,9 +7086,13 @@ function _renderNasabahDashboard(kkId) {
   /* --- Transaksi terbaru + SEMUA Pending --- */
   var tl = document.getElementById('homeTransaksiList');
   if (tl) {
-    // icon & warna dari sudut pandang ANGGOTA: green=masuk ke anggota, red=keluar dari anggota
-    var _txnIcons  = {simpanan:'\ud83d\udcb5',pinjaman:'\ud83d\udce5',pembiayaan:'\ud83d\udce5',cicilan:'\ud83d\udcb3','tarik-sukarela':'\ud83d\udcb8','ujrah-perpanjang':'\u23f3','ujrah-langsung':'\u23f3','ujrah-cicilan':'\u23f3','ujrah-akumulasi':'\u23f3','angsuran-rc':'\ud83d\udcb3',perpanjang:'\u23f3'};
-    var _txnColors = {simpanan:'red',pinjaman:'green',pembiayaan:'green',cicilan:'red','tarik-sukarela':'green','ujrah-perpanjang':'red','ujrah-langsung':'red','ujrah-cicilan':'red','ujrah-akumulasi':'red','angsuran-rc':'red',perpanjang:'red'};
+    // Warna per JENIS transaksi (bar aksen kiri, sudut pandang anggota) — tanpa ikon
+    var _txnTypeColor = {
+      simpanan:'#2d6a4f', cicilan:'#0f766e', pinjaman:'#16a34a', pembiayaan:'#16a34a',
+      'tarik-sukarela':'#b07a00', 'angsuran-rc':'#6b21a8',
+      'ujrah-perpanjang':'#0f766e','ujrah-langsung':'#0f766e','ujrah-cicilan':'#0f766e','ujrah-akumulasi':'#0f766e',
+      perpanjang:'#0f766e'
+    };
 
     // Meta per type untuk pending
     // Sudut pandang ANGGOTA: isKeluar = uang keluar dari kantong anggota
@@ -6923,7 +7103,7 @@ function _renderNasabahDashboard(kkId) {
       'pinjaman':        {icon:'\ud83d\udce5',label:'Pencairan Pinjaman', color:'#16a34a', bg:'rgba(22,163,74,0.07)',  border:'rgba(22,163,74,0.35)',   isKeluar:false},  // cair = masuk ke anggota
       'pembiayaan':      {icon:'\ud83d\udce5',label:'Pencairan Pembiayaan',color:'#16a34a',bg:'rgba(22,163,74,0.07)', border:'rgba(22,163,74,0.35)',   isKeluar:false},  // cair = masuk ke anggota
       'ujrah-perpanjang':{icon:'\u23f3',       label:'Biaya Perpanjang',   color:'#0f766e', bg:'rgba(15,118,110,0.07)', border:'rgba(15,118,110,0.35)',  isKeluar:true },  // biaya = keluar dari anggota
-      'angsuran-rc':     {icon:'\ud83d\udcb3',label:'Angsuran Renco Capital',color:'#4361ee',bg:'rgba(67,97,238,0.07)',   border:'rgba(67,97,238,0.35)',  isKeluar:true },  // angsuran = keluar dari anggota
+      'angsuran-rc':     {icon:'\ud83d\udcb3',label:'Angsuran Renco Capital',color:'#7b2d8b',bg:'rgba(123,45,139,0.07)', border:'rgba(123,45,139,0.35)',  isKeluar:true },  // angsuran = keluar dari anggota
       'perpanjang':      {icon:'\u23f3',       label:'Perpanjang Angsuran',  color:'#0f766e', bg:'rgba(15,118,110,0.07)', border:'rgba(15,118,110,0.35)',  isKeluar:true },
       'ujrah-langsung':  {icon:'\u23f3',       label:'Biaya Perpanjang',     color:'#0f766e', bg:'rgba(15,118,110,0.07)', border:'rgba(15,118,110,0.35)',  isKeluar:true },
       'ujrah-cicilan':   {icon:'\u23f3',       label:'Ujrah Cicilan',        color:'#0f766e', bg:'rgba(15,118,110,0.07)', border:'rgba(15,118,110,0.35)',  isKeluar:true },
@@ -6957,7 +7137,7 @@ function _renderNasabahDashboard(kkId) {
         note: 'Pengajuan ini sedang menunggu persetujuan Admin Koperasi RENCO. Mohon segera dikonfirmasi.'
       }).replace(/"/g, '&quot;');
       return '<div class="txn-item" style="align-items:flex-start;flex-wrap:wrap;background:'+meta.bg+';border-left:3px solid '+meta.border+';border-radius:0 10px 10px 0;margin-bottom:2px">' +
-        '<div class="txn-icon" style="background:'+meta.bg+';color:'+meta.color+';border:1.5px solid '+meta.border+'">'+meta.icon+'</div>' +
+        '<div style="width:4px;align-self:stretch;border-radius:3px;background:'+meta.color+';opacity:0.5;flex-shrink:0"></div>' +
         '<div class="txn-info" style="flex:1;min-width:0">' +
           '<div class="txn-name" style="display:flex;align-items:center;gap:5px">' +
             '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:'+meta.color+';font-weight:700">' + (p.keterangan || jenisLabel) + '</span>' +
@@ -7023,7 +7203,7 @@ function _renderNasabahDashboard(kkId) {
       }).replace(/"/g, '&quot;');
 
       return '<div class="txn-item" style="align-items:center;' + leftBorder + '">' +
-        '<div class="txn-icon '+(_txnColors[t.type]||'green')+'">'+(_txnIcons[t.type]||'\ud83d\udcb0')+'</div>' +
+        '<div style="width:4px;align-self:stretch;border-radius:3px;background:'+(_txnTypeColor[t.type]||'#9ca3af')+';opacity:0.5;flex-shrink:0"></div>' +
         '<div class="txn-info" style="flex:1;min-width:0">' +
           '<div class="txn-name" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">' +
             '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(txnLabel)+'</span> '+statusBadge+
@@ -7860,7 +8040,7 @@ function renderUserProfile() {
     (adm ?
       '<div style="background:#f8faf9;border-radius:14px;padding:14px;margin-bottom:10px;border:1.5px solid rgba(45,106,79,0.15)">' +
         '<div style="font-size:11px;font-weight:800;color:#2d6a4f;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px">&#x270F;&#xFE0F; Teks Watermark Halaman Login</div>' +
-        '<input type="text" id="adminWatermarkInput" value="' + ((DB.appSettings && DB.appSettings.loginWatermark) ? DB.appSettings.loginWatermark.replace(/"/g,'&quot;') : 'Koperasi Renco v0.1 · Diperbarui 04 Agustus 2026') + '" placeholder="Teks kecil di bawah halaman login" style="width:100%;padding:10px 13px;border-radius:10px;border:1.5px solid #e5e7eb;font-size:12.5px;font-family:inherit;background:white;color:#1c3025;outline:none;margin-bottom:10px" onfocus="this.style.borderColor=' + q + '#2d6a4f' + q + '" onblur="this.style.borderColor=' + q + '#e5e7eb' + q + '">' +
+        '<input type="text" id="adminWatermarkInput" value="' + ((DB.appSettings && DB.appSettings.loginWatermark) ? DB.appSettings.loginWatermark.replace(/"/g,'&quot;') : '') + '" placeholder="Teks kecil di bawah halaman login" style="width:100%;padding:10px 13px;border-radius:10px;border:1.5px solid #e5e7eb;font-size:12.5px;font-family:inherit;background:white;color:#1c3025;outline:none;margin-bottom:10px" onfocus="this.style.borderColor=' + q + '#2d6a4f' + q + '" onblur="this.style.borderColor=' + q + '#e5e7eb' + q + '">' +
         '<button onclick="saveLoginWatermarkSetting()" style="width:100%;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:white;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit">&#x1F4BE; Simpan Watermark</button>' +
       '</div>'
     : '') +
@@ -8597,6 +8777,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- ═══ LOGIN SCREEN ═══ -->
 <div id="loginScreen" style="display:none">
+  <div class="login-fx-grid"></div>
+  <div class="login-fx-orb login-fx-orb-1"></div>
+  <div class="login-fx-orb login-fx-orb-2"></div>
+  <div class="login-fx-orb login-fx-orb-3"></div>
   <div class="login-icon-row">
     <div class="login-icon-btn" id="loginMoonBtn" onclick="toggleDarkMode()" title="Mode Malam">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="transform:scaleX(-1)">
@@ -8636,28 +8820,37 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
   <div class="login-card">
-    <div class="login-logo" style="background:none;box-shadow:none;padding:0;overflow:visible;width:auto;height:auto;animation:none;margin-bottom:22px">
+    <div class="login-logo" style="background:none;box-shadow:none;padding:0;overflow:visible;width:auto;height:auto;animation:none;margin-bottom:14px">
       <img src="assets/logo-renco-capital.png" alt="Koperasi Renco" style="width:min(72vw,300px);height:auto;">
     </div>
+    <div class="login-sub">Sistem Keanggotaan Digital</div>
     <div class="login-error" id="loginError"></div>
     <div class="login-field">
       <label>Username</label>
-      <input type="text" id="loginUsername" placeholder="Masukkan username" autocomplete="username">
+      <input type="text" id="loginUsername" placeholder="Masukkan username" autocomplete="username" onkeydown="_loginFieldKeydown(event,'user')">
     </div>
     <div class="login-field">
       <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="Masukkan password" autocomplete="current-password">
+      <div class="login-pw-wrap">
+        <input type="password" id="loginPassword" placeholder="Masukkan password" autocomplete="current-password" onkeydown="_loginFieldKeydown(event,'pass')" onkeyup="_checkCapsLock(event)">
+        <button type="button" class="login-pw-toggle" id="loginPwToggle" onclick="_toggleLoginPw()" tabindex="-1" title="Lihat/sembunyikan password">
+          <svg id="loginPwEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+        </button>
+      </div>
+      <div class="login-capslock" id="loginCapsWarning">⚠️ Caps Lock aktif</div>
     </div>
-    <button class="login-btn" id="loginBtn" onclick="handleLogin()">🔐 Masuk</button>
-    <button class="login-btn-secondary" id="daftarAkunBtn" onclick="_openDaftarAkunLogin()">📝 Daftar Akun Baru</button>
+    <button class="login-btn" id="loginBtn" onclick="handleLogin()">Masuk</button>
+    <div class="login-trust">🔒 Koneksi Terenkripsi &amp; Aman</div>
+    <div class="login-daftar-toggle" id="daftarAkunToggle" onclick="_showDaftarAkunBtn()">
+      Belum punya akun? <span>Daftar di sini</span>
+    </div>
+    <button class="login-btn-secondary" id="daftarAkunBtn" onclick="_openDaftarAkunLogin()" style="display:none">Daftar Akun Baru</button>
     <div class="login-footer">
       RENCO &copy; 2026 &middot; Bersama Membangun Kesejahteraan<br>
       <span style="opacity:0.6">Hubungi admin jika lupa password</span>
     </div>
   </div>
-  <div id="loginScreenWatermark" style="position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:10.5px;font-weight:600;letter-spacing:0.4px;color:rgba(255,255,255,0.38);pointer-events:none;user-select:none;z-index:1">
-    Koperasi Renco v0.1 &middot; Diperbarui 04 Agustus 2026
-  </div>
+  <div id="loginScreenWatermark" style="position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:10.5px;font-weight:600;letter-spacing:0.4px;color:rgba(255,255,255,0.38);pointer-events:none;user-select:none;z-index:1"></div>
 </div>
 
 <!-- ═══ MODAL INFO HALAMAN LOGIN (Tentang / Produk / Legalitas / Struktur / Bantuan) ═══ -->
@@ -9363,42 +9556,43 @@ window.deletePengurus = function(id) {
      MODAL NASEHAT KEUANGAN HARIAN
      Muncul sekali per hari setelah login berhasil
 ════════════════════════════════════════════════════════ -->
-<div id="modalNasehatKeuangan" style="position:fixed;inset:0;z-index:9500;background:rgba(10,20,15,0.32);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;padding:20px">
-  <div style="background:rgba(255,255,255,0.78);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:1px solid rgba(255,255,255,0.5);border-radius:18px;width:100%;max-width:300px;overflow:hidden;box-shadow:0 12px 36px rgba(0,0,0,0.16);animation:nasehatSlideUp 0.28s cubic-bezier(.32,1.1,.64,1)">
+<div id="modalNasehatKeuangan" style="position:fixed;inset:0;z-index:9500;background:rgba(8,16,11,0.58);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="position:relative;background:linear-gradient(160deg, rgba(255,255,255,0.16) 0%, rgba(244,249,241,0.04) 100%);backdrop-filter:blur(26px) saturate(160%);-webkit-backdrop-filter:blur(26px) saturate(160%);border:1px solid rgba(244,169,34,0.5);border-radius:22px;width:100%;max-width:300px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.25), 0 0 46px rgba(244,169,34,0.22);animation:nasehatSlideUp 0.28s cubic-bezier(.32,1.1,.64,1)">
 
     <!-- Header compact -->
-    <div style="display:flex;align-items:center;gap:8px;padding:12px 14px 6px">
-      <div style="width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,#1a472a,#40916c);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0" id="nasehatIcon">💡</div>
+    <div style="display:flex;align-items:center;gap:8px;padding:14px 14px 6px">
+      <div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#f4a922,#ffd166);box-shadow:0 4px 14px rgba(244,169,34,0.4);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0" id="nasehatIcon">💡</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:9.5px;font-weight:700;color:#40916c;letter-spacing:0.5px;text-transform:uppercase">Nasehat Hari Ini</div>
-        <div style="font-size:9.5px;color:#9ca3af;margin-top:0" id="nasehatTanggal"></div>
+        <div style="font-size:9.5px;font-weight:700;color:#ffd166;letter-spacing:0.5px;text-transform:uppercase">Nasehat Hari Ini</div>
+        <div style="font-size:9.5px;color:rgba(255,255,255,0.55);margin-top:0" id="nasehatCounter"></div>
       </div>
-      <button onclick="window._tutupNasehat(false)" style="width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,0.06);color:#6b7280;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:inherit">✕</button>
+      <button onclick="window._tutupNasehat()" style="width:22px;height:22px;border-radius:50%;border:none;background:rgba(255,255,255,0.14);color:rgba(255,255,255,0.8);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:inherit">✕</button>
     </div>
 
     <!-- Kutipan -->
     <div style="padding:8px 14px 0">
-      <div style="border-left:2.5px solid #40916c;padding:7px 9px;background:rgba(26,71,42,0.05);border-radius:0 8px 8px 0">
-        <div style="font-size:11.5px;font-weight:500;color:#1c3025;line-height:1.5" id="nasehatTeks"></div>
+      <div style="border-left:2.5px solid #f4a922;padding:7px 9px;background:rgba(244,169,34,0.12);border-radius:0 8px 8px 0">
+        <div style="font-size:11.5px;font-weight:500;color:rgba(255,255,255,0.94);line-height:1.5" id="nasehatTeks"></div>
       </div>
-      <div style="text-align:right;font-size:9px;color:#b0b8c1;font-style:italic;margin-top:4px" id="nasehatSumber"></div>
+      <div style="text-align:right;font-size:9px;color:rgba(255,255,255,0.5);font-style:italic;margin-top:4px" id="nasehatSumber"></div>
     </div>
 
     <!-- Tips -->
-    <div style="margin:8px 14px 10px;background:rgba(244,169,34,0.10);border:1px solid rgba(244,169,34,0.2);border-radius:10px;padding:7px 10px;display:flex;gap:6px;align-items:flex-start">
+    <div style="margin:8px 14px 10px;background:rgba(244,169,34,0.16);border:1px solid rgba(244,169,34,0.35);border-radius:10px;padding:7px 10px;display:flex;gap:6px;align-items:flex-start">
       <span style="font-size:12px;flex-shrink:0;margin-top:1px">💡</span>
-      <div style="font-size:10px;color:#7a5500;line-height:1.45" id="nasehatTip"></div>
+      <div style="font-size:10px;color:#ffe9b0;line-height:1.45" id="nasehatTip"></div>
     </div>
 
     <!-- Footer -->
-    <div style="display:flex;gap:6px;padding:0 14px 14px">
-      <button onclick="window._tutupNasehat(true)" style="flex:1;padding:8px;border-radius:9px;border:1.5px solid rgba(0,0,0,0.08);background:rgba(255,255,255,0.5);color:#9ca3af;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;transition:background 0.15s">
-        Jangan tampilkan lagi
+    <div style="display:flex;gap:6px;padding:0 14px 14px;align-items:center">
+      <button onclick="window._nasehatLain()" style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);border-radius:9px;padding:8px 10px;cursor:pointer;font-family:inherit;flex-shrink:0">
+        🔀
       </button>
-      <button onclick="window._tutupNasehat(false)" style="flex:1;padding:8px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#fff;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit">
-        Barakallah 🌿
+      <button onclick="window._tutupNasehat()" style="flex:1;padding:9px;border-radius:9px;border:none;background:linear-gradient(135deg,#f4a922,#ffd166);color:#3d2b00;font-size:10.5px;font-weight:800;cursor:pointer;font-family:inherit">
+        Mengerti, Mulai! ✨
       </button>
     </div>
+    <div style="text-align:center;font-size:8px;color:rgba(255,255,255,0.28);padding-bottom:8px" id="nasehatTanggal"></div>
   </div>
 </div>
 <style>
@@ -9632,175 +9826,347 @@ window.deletePengurus = function(id) {
   <div id="content">
     <!-- HOME PAGE -->
     <div class="page active" id="page-home">
-      <div class="hero-banner">
-        <h3>TOTAL ASET KOPERASI</h3>
-        <div class="amount" id="heroTotal">Rp 0</div>
-        <div class="sub"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="15" r="1.3" fill="currentColor" opacity="0.8"/><circle cx="12" cy="15" r="1.3" fill="currentColor"/><circle cx="16" cy="15" r="1.3" fill="currentColor" opacity="0.6"/></svg> <span id="heroDate"></span></div>
-      </div>
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs><linearGradient id="g1" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#40916c"/><stop offset="1" stop-color="#1a472a"/></linearGradient></defs>
-              <circle cx="16" cy="10" r="5" fill="url(#g1)" opacity="0.9"/>
-              <ellipse cx="16" cy="23" rx="9" ry="5.5" fill="url(#g1)" opacity="0.7"/>
-              <circle cx="7" cy="12" r="3.5" fill="#40916c" opacity="0.6"/>
-              <circle cx="25" cy="12" r="3.5" fill="#40916c" opacity="0.6"/>
-              <path d="M3 25c0-2.5 2-4 4-4" stroke="#40916c" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-              <path d="M29 25c0-2.5-2-4-4-4" stroke="#40916c" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-            </svg>
-          </div>
-          <div class="stat-val" id="statNasabah">0</div>
-          <div class="stat-lbl">Nasabah</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs><linearGradient id="g2" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#f4a922"/><stop offset="1" stop-color="#b07a00"/></linearGradient></defs>
-              <circle cx="16" cy="16" r="12" fill="url(#g2)" opacity="0.15"/>
-              <circle cx="16" cy="16" r="9" stroke="url(#g2)" stroke-width="2"/>
-              <text x="16" y="21" text-anchor="middle" font-family="serif" font-size="13" font-weight="bold" fill="#f4a922">Rp</text>
-            </svg>
-          </div>
-          <div class="stat-val" id="statSimpanan">Rp 0</div>
-          <div class="stat-lbl">Total Simpanan</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs><linearGradient id="g3" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#e63946"/><stop offset="1" stop-color="#c0392b"/></linearGradient></defs>
-              <rect x="5" y="8" width="22" height="16" rx="3" fill="url(#g3)" opacity="0.15"/>
-              <rect x="5" y="8" width="22" height="16" rx="3" stroke="url(#g3)" stroke-width="1.8"/>
-              <path d="M5 13h22" stroke="url(#g3)" stroke-width="1.8"/>
-              <rect x="9" y="17" width="6" height="3" rx="1" fill="url(#g3)" opacity="0.8"/>
-            </svg>
-          </div>
-          <div class="stat-val" id="statPinjaman">Rp 0</div>
-          <div class="stat-lbl">Total Pinjaman</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="g4atm" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#a855f7"/>
-                  <stop offset="1" stop-color="#6b21a8"/>
-                </linearGradient>
-                <linearGradient id="g4atm2" x1="0" y1="0" x2="32" y2="0" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#c084fc"/>
-                  <stop offset="1" stop-color="#7e22ce"/>
-                </linearGradient>
-              </defs>
-              <!-- Badan kartu ATM -->
-              <rect x="2" y="8" width="28" height="17" rx="3" fill="url(#g4atm)" opacity="0.18"/>
-              <rect x="2" y="8" width="28" height="17" rx="3" stroke="url(#g4atm)" stroke-width="1.8"/>
-              <!-- Strip magnetik atas -->
-              <rect x="2" y="12" width="28" height="4" fill="url(#g4atm)" opacity="0.45"/>
-              <!-- Chip kartu (kotak emas) -->
-              <rect x="6" y="17.5" width="6" height="4.5" rx="1" fill="url(#g4atm2)" opacity="0.9"/>
-              <line x1="9" y1="17.5" x2="9" y2="22" stroke="#e9d5ff" stroke-width="0.7" opacity="0.7"/>
-              <line x1="6" y1="19.7" x2="12" y2="19.7" stroke="#e9d5ff" stroke-width="0.7" opacity="0.7"/>
-              <!-- Nomor kartu (4 blok titik) -->
-              <circle cx="16" cy="21" r="1" fill="#a855f7" opacity="0.7"/>
-              <circle cx="19" cy="21" r="1" fill="#a855f7" opacity="0.7"/>
-              <circle cx="22" cy="21" r="1" fill="#a855f7" opacity="0.7"/>
-              <circle cx="25" cy="21" r="1" fill="#a855f7" opacity="0.7"/>
-              <!-- Logo gelombang sinyal kanan atas kartu -->
-              <path d="M24 10.5 Q26 12 24 13.5" stroke="#c084fc" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.8"/>
-              <path d="M26 9.5 Q29 12 26 14.5" stroke="#c084fc" stroke-width="1.1" stroke-linecap="round" fill="none" opacity="0.5"/>
-            </svg>
-          </div>
-          <div class="stat-val" id="statArisan" style="font-size:13px">Rp 0</div>
-          <div class="stat-lbl">Pembiayaan</div>
-        </div>
-      </div>
+      <style>
+        /* ═══ Beranda — refresh visual (lebih premium, rapi, efisien) ═══ */
+        #page-home .hero-banner{
+          padding:22px 20px 42px;
+          border-radius:22px;
+          border:1px solid rgba(212,170,40,0.22);
+          box-shadow:0 10px 32px rgba(4,14,7,0.32);
+        }
+        #page-home .hero-banner h3{
+          letter-spacing:1.3px; font-size:11px; font-weight:700;
+          color:var(--gld-light,var(--gold-light)); opacity:0.85;
+        }
+        #page-home .hero-banner .amount{
+          font-size:33px; letter-spacing:0.2px; line-height:1.15;
+          text-shadow:0 2px 16px rgba(244,169,34,0.22);
+        }
+        #page-home .hero-banner .sub{ opacity:0.7; margin-top:6px; }
+        #page-home .hero-banner::before{
+          content:''; font-size:0;
+          background-image:
+            radial-gradient(circle at 88% 8%, rgba(244,169,34,0.16) 0%, transparent 42%),
+            radial-gradient(circle at 6% 108%, rgba(255,255,255,0.05) 0%, transparent 38%);
+          width:100%; height:100%; right:0; top:0; opacity:1;
+        }
+        #page-home .hero-banner::after{
+          content:''; position:absolute; left:20px; right:20px; top:0; height:1px;
+          background:linear-gradient(90deg, transparent, rgba(244,169,34,0.35), transparent);
+        }
 
-      <!-- KAS HEALTH WIDGET -->
-      <div class="section-title">Kesehatan Kas</div>
-      <div id="kasHealthWidget" style="margin:0 16px 12px;background:white;border-radius:18px;overflow:hidden;box-shadow:0 2px 12px rgba(26,71,42,0.09)">
-        <!-- Status bar -->
-        <div id="kasHealthBar" style="padding:14px 16px 10px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span id="kasHealthIcon" style="font-size:20px">💰</span>
-              <div>
-                <div style="font-size:13px;font-weight:800;color:var(--text)" id="kasHealthLabel">Kas Sehat</div>
-                <div style="font-size:10px;color:var(--text-soft)" id="kasHealthSub">Arus kas terkendali</div>
+        /* Kartu statistik "melayang" menimpa bagian bawah hero — sekarang 1 kartu, slide bergantian */
+        #page-home .stats-row{
+          margin-top:-30px; position:relative; z-index:2;
+          display:block;
+        }
+        @keyframes statCardIn{
+          from{ opacity:0; transform:translateY(16px) scale(0.94); }
+          to{ opacity:1; transform:translateY(0) scale(1); }
+        }
+        #page-home .stat-carousel{
+          position:relative; overflow:hidden;
+          border-radius:16px; padding:0;
+          background:rgba(255,255,255,0.14);
+          -webkit-backdrop-filter:blur(14px) saturate(160%);
+          backdrop-filter:blur(14px) saturate(160%);
+          border:1px solid rgba(255,255,255,0.35);
+          box-shadow:0 8px 22px rgba(26,71,42,0.12), inset 0 1px 0 rgba(255,255,255,0.4);
+          border-top:3px solid #40916c;
+          opacity:0; animation:statCardIn .5s cubic-bezier(.22,1,.36,1) forwards;
+          -webkit-mask-image:linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+          mask-image:linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+        }
+        #page-home .stat-carousel::before{
+          content:''; position:absolute; inset:0; pointer-events:none; z-index:1;
+          background:linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 45%);
+        }
+        #page-home .stat-carousel:active{ transform:scale(0.99); }
+        #page-home .stat-viewport{ overflow:hidden; padding:16px 0; }
+        #page-home .stat-track{
+          display:flex; align-items:center; width:max-content;
+          animation:statMarquee 20s linear infinite;
+        }
+        #page-home .stat-carousel.paused .stat-track{ animation-play-state:paused; }
+        #page-home .stat-set{ display:flex; align-items:center; flex:0 0 auto; }
+        @keyframes statMarquee{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+        #page-home .stat-slide{
+          flex:0 0 auto; display:flex; align-items:center; gap:10px;
+          padding:0 24px; white-space:nowrap;
+          border-right:1px solid rgba(20,40,28,0.1);
+        }
+        #page-home .stat-slide .stat-icon{ min-height:auto; margin-bottom:0; flex-shrink:0; }
+        #page-home .stat-slide .stat-text{ display:flex; flex-direction:column; align-items:flex-start; }
+        #page-home .stat-slide .stat-val{ font-family:'Playfair Display',serif; font-size:17px; line-height:1.15; }
+        #page-home .stat-slide .stat-lbl{
+          font-size:9px; font-weight:800; letter-spacing:0.3px;
+          text-transform:uppercase; margin-top:2px; color:rgba(20,40,28,0.55);
+        }
+        /* Judul seksi — aksen garis emas kecil biar lebih rapi & mudah dipindai */
+        #page-home .section-title{ display:flex; align-items:center; gap:7px; }
+        #page-home .section-title::before{
+          content:''; width:3px; height:12px; border-radius:2px; flex-shrink:0;
+          background:linear-gradient(180deg,var(--gold),var(--gold-light));
+        }
+
+        /* Kartu iklan/slide (Informasi & Pengumuman) — ukuran normal (bawaan),
+           dibuat transparan supaya jadi elemen sekunder, tidak lebih menonjol
+           daripada banner saldo di atasnya */
+        #page-home .slide-banner-wrap{ opacity:0.95; box-shadow:0 8px 28px rgba(26,71,42,0.14); }
+        #page-home .slide-banner-wrap:active{ opacity:1; }
+        /* Kartu Informasi & Pengumuman di Beranda — efek kaca transparan (glassmorphism) */
+        #page-home .slide-item{
+          border:1.5px solid rgba(255,255,255,0.5);
+          border-radius:var(--radius);
+          box-shadow:0 8px 28px rgba(26,71,42,0.16), inset 0 1px 0 rgba(255,255,255,0.45);
+        }
+        #page-home .slide-item-bg{
+          background:rgba(255,255,255,0.16) !important;
+          -webkit-backdrop-filter:blur(16px) saturate(160%);
+          backdrop-filter:blur(16px) saturate(160%);
+        }
+        #page-home .slide-item-overlay{
+          background:linear-gradient(135deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.04) 60%) !important;
+        }
+        #page-home .slide-badge{
+          background:rgba(20,40,28,0.10); color:var(--forest-mid);
+          -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+        }
+        #page-home .slide-title{ color:var(--text); text-shadow:none; }
+        #page-home .slide-desc{ color:var(--text-soft); }
+        #page-home .slide-emoji-bg{ opacity:0.10; }
+        #page-home .slide-cta{
+          background:var(--forest-mid) !important;
+          color:#ffffff !important;
+          box-shadow:0 3px 10px rgba(20,40,28,0.28);
+        }
+        #page-home .slide-cta:active{ background:var(--forest-dark, #0d2016) !important; }
+
+        /* Aksi Cepat — ikon dalam badge bulat lembut, terasa lebih premium */
+        #page-home .quick-actions{ gap:9px; padding:10px 16px 6px; }
+        #page-home .quick-btn{
+          border-radius:18px; padding:14px 6px 11px;
+          border:1px solid rgba(20,40,28,0.05);
+        }
+        #page-home .quick-btn .q-icon{
+          width:42px; height:42px; border-radius:50%; margin-bottom:1px;
+          display:flex; align-items:center; justify-content:center;
+          background:linear-gradient(135deg,rgba(45,106,79,0.07),rgba(244,169,34,0.09));
+        }
+        #page-home .quick-btn .q-label{ font-size:9.3px; letter-spacing:0.1px; }
+
+        /* ═══ Pengumuman Penting — kartu kaca transparan (glassmorphism, aksen merah, mengambang) ═══ */
+        #page-home .iklan-glass-card{
+          position:relative; margin:12px 16px 14px; padding:18px 16px 14px;
+          border-radius:18px; overflow:hidden;
+          background:linear-gradient(135deg, rgba(220,38,38,0.20), rgba(248,113,113,0.08));
+          -webkit-backdrop-filter:blur(16px) saturate(160%);
+          backdrop-filter:blur(16px) saturate(160%);
+          border:1px solid rgba(220,38,38,0.4);
+          box-shadow:0 8px 28px rgba(220,38,38,0.18), inset 0 1px 0 rgba(255,255,255,0.4);
+          animation:statCardIn .5s cubic-bezier(.22,1,.36,1) forwards, iklanFloat 3.4s ease-in-out infinite .6s;
+        }
+        @keyframes iklanFloat{
+          0%,100%{ transform:translateY(0); box-shadow:0 8px 28px rgba(220,38,38,0.18), inset 0 1px 0 rgba(255,255,255,0.4); }
+          50%{ transform:translateY(-7px); box-shadow:0 14px 34px rgba(220,38,38,0.28), inset 0 1px 0 rgba(255,255,255,0.4); }
+        }
+        #page-home .iklan-glass-card::before{
+          content:''; position:absolute; inset:0; pointer-events:none; z-index:0;
+          background:linear-gradient(135deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0) 50%);
+        }
+        #page-home .iklan-glass-card > *{ position:relative; z-index:1; }
+        #page-home .iklan-glass-card .iklan-close{
+          position:absolute; top:7px; right:7px; width:16px; height:16px; border-radius:50%; z-index:1;
+          background:rgba(153,27,27,0.10); border:none; display:flex; align-items:center; justify-content:center;
+          cursor:pointer; color:rgba(153,27,27,0.62); font-size:8.5px; line-height:1; padding:0;
+        }
+        #page-home .iklan-glass-card .iklan-body{ display:flex; align-items:center; gap:12px; margin-top:4px; }
+        #page-home .iklan-glass-card .iklan-img{
+          width:52px; height:52px; border-radius:14px; flex-shrink:0; object-fit:cover;
+          box-shadow:0 4px 12px rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.4);
+        }
+        #page-home .iklan-glass-card .iklan-text{ flex:1; min-width:0; }
+        #page-home .iklan-glass-card .iklan-title{ font-size:13px; font-weight:800; color:var(--text); line-height:1.3; }
+        #page-home .iklan-glass-card .iklan-desc{ font-size:11px; color:var(--text-soft); margin-top:3px; line-height:1.45; }
+        #page-home .iklan-glass-card .iklan-cta{
+          margin-top:12px; display:inline-flex; align-items:center; gap:5px;
+          padding:7px 14px; border-radius:99px; font-size:11px; font-weight:800;
+          background:rgba(255,255,255,0.55); border:1px solid rgba(220,38,38,0.5);
+          color:#7f1d1d; text-decoration:none;
+          -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+        }
+        #page-home .iklan-glass-card .iklan-edit-btn{
+          position:absolute; bottom:8px; right:12px; font-size:9.5px; font-weight:700; z-index:1;
+          color:var(--forest-mid); background:rgba(255,255,255,0.55); border:none; cursor:pointer;
+          padding:3px 9px; border-radius:99px;
+        }
+      </style>
+      <div style="position:relative">
+        <div class="hero-banner">
+          <h3>TOTAL ASET KOPERASI</h3>
+          <div class="amount" id="heroTotal">Rp 0</div>
+          <div class="sub"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="15" r="1.3" fill="currentColor" opacity="0.8"/><circle cx="12" cy="15" r="1.3" fill="currentColor"/><circle cx="16" cy="15" r="1.3" fill="currentColor" opacity="0.6"/></svg> <span id="heroDate"></span></div>
+        </div>
+        <button id="saldoToggleBtn" onclick="toggleSaldoVisibility()" title="Tampilkan/sembunyikan nominal saldo" style="position:absolute;top:16px;right:16px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.1);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:rgba(255,255,255,0.85);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:3"></button>
+      </div>
+      <script>
+        (function(){
+          var EYE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.7"/></svg>';
+          var EYE_OFF = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 3l18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.6 5.2A11.6 11.6 0 0 1 12 5c7 0 11 7 11 7a15.7 15.7 0 0 1-3.4 4.1M6.3 6.9C3.4 8.8 1 12 1 12s4 7 11 7c1.4 0 2.7-.3 3.9-.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 10.2a3.2 3.2 0 0 0 4.3 4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+          window._saldoHidden = (function(){ try { return localStorage.getItem('saldoHidden') === '1'; } catch(e){ return false; } })();
+          var AST_SVG = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:0.03em;margin:0 0.5px"><path d="M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
+          function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+          function mask(text){
+            var out = '';
+            esc(text).split('').forEach(function(ch){ out += (ch >= '0' && ch <= '9') ? AST_SVG : ch; });
+            return out;
+          }
+          window._applySaldoVisibility = function(){
+            var ids = ['statSimpanan','statPinjaman','statArisan'];
+            var targets = ids.map(function(id){ return document.getElementById(id); }).filter(Boolean);
+            var heroAmt = document.querySelector('#page-home .hero-banner .amount');
+            if (heroAmt) targets.push(heroAmt);
+            targets.forEach(function(el){
+              // Kalau elemen belum berisi SVG mask, textContent saat ini pasti data
+              // asli terbaru (baru saja diisi fungsi render) — simpan sebagai acuan.
+              if (!el.querySelector('svg')) el.dataset.realText = el.textContent;
+              if (window._saldoHidden) {
+                el.innerHTML = mask(el.dataset.realText);
+              } else {
+                el.textContent = el.dataset.realText;
+                delete el.dataset.realText;
+              }
+            });
+            var btn = document.getElementById('saldoToggleBtn');
+            if (btn) btn.innerHTML = window._saldoHidden ? EYE_OFF : EYE;
+            // Sinkronkan salinan marquee (untuk animasi geser mulus) dengan set asli
+            // yang sudah berisi data & status mask terbaru
+            var origSet = document.getElementById('statSet');
+            var track = document.getElementById('statTrack');
+            if (origSet && track) {
+              Array.prototype.slice.call(track.children).forEach(function(ch){
+                if (ch !== origSet) track.removeChild(ch);
+              });
+              var clone = origSet.cloneNode(true);
+              clone.removeAttribute('id');
+              clone.setAttribute('aria-hidden', 'true');
+              clone.querySelectorAll('[id]').forEach(function(el){ el.removeAttribute('id'); });
+              track.appendChild(clone);
+            }
+          };
+          window.toggleSaldoVisibility = function(){
+            window._saldoHidden = !window._saldoHidden;
+            try { localStorage.setItem('saldoHidden', window._saldoHidden ? '1' : '0'); } catch(e){}
+            window._applySaldoVisibility();
+          };
+          window._applySaldoVisibility();
+        })();
+      </script>
+      <div class="stats-row">
+        <div class="stat-carousel" id="statCarousel" onclick="this.classList.toggle('paused')" title="Ketuk untuk jeda/lanjutkan">
+          <div class="stat-viewport">
+            <div class="stat-track" id="statTrack">
+              <div class="stat-set" id="statSet">
+              <div class="stat-slide stat-nasabah-count">
+                <div class="stat-icon">
+                  <svg width="30" height="30" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs><linearGradient id="g1" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#40916c"/><stop offset="1" stop-color="#1a472a"/></linearGradient></defs>
+                    <circle cx="16" cy="10" r="5" fill="url(#g1)" opacity="0.9"/>
+                    <ellipse cx="16" cy="23" rx="9" ry="5.5" fill="url(#g1)" opacity="0.7"/>
+                    <circle cx="7" cy="12" r="3.5" fill="#40916c" opacity="0.6"/>
+                    <circle cx="25" cy="12" r="3.5" fill="#40916c" opacity="0.6"/>
+                    <path d="M3 25c0-2.5 2-4 4-4" stroke="#40916c" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    <path d="M29 25c0-2.5-2-4-4-4" stroke="#40916c" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                  </svg>
+                </div>
+                <div class="stat-text">
+                  <div class="stat-val" id="statNasabah">0</div>
+                  <div class="stat-lbl">Nasabah</div>
+                </div>
+              </div>
+              <div class="stat-slide">
+                <div class="stat-icon">
+                  <svg width="30" height="30" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs><linearGradient id="g2" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#f4a922"/><stop offset="1" stop-color="#b07a00"/></linearGradient></defs>
+                    <circle cx="16" cy="16" r="12" fill="url(#g2)" opacity="0.15"/>
+                    <circle cx="16" cy="16" r="9" stroke="url(#g2)" stroke-width="2"/>
+                    <text x="16" y="21" text-anchor="middle" font-family="serif" font-size="13" font-weight="bold" fill="#f4a922">Rp</text>
+                  </svg>
+                </div>
+                <div class="stat-text">
+                  <div class="stat-val" id="statSimpanan">Rp 0</div>
+                  <div class="stat-lbl">Total Simpanan</div>
+                </div>
+              </div>
+              <div class="stat-slide">
+                <div class="stat-icon">
+                  <svg width="30" height="30" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs><linearGradient id="g3" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#e63946"/><stop offset="1" stop-color="#c0392b"/></linearGradient></defs>
+                    <rect x="5" y="8" width="22" height="16" rx="3" fill="url(#g3)" opacity="0.15"/>
+                    <rect x="5" y="8" width="22" height="16" rx="3" stroke="url(#g3)" stroke-width="1.8"/>
+                    <path d="M5 13h22" stroke="url(#g3)" stroke-width="1.8"/>
+                    <rect x="9" y="17" width="6" height="3" rx="1" fill="url(#g3)" opacity="0.8"/>
+                  </svg>
+                </div>
+                <div class="stat-text">
+                  <div class="stat-val" id="statPinjaman">Rp 0</div>
+                  <div class="stat-lbl">Total Pinjaman</div>
+                </div>
+              </div>
+              <div class="stat-slide">
+                <div class="stat-icon">
+                  <svg width="30" height="30" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="g4atm" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#a855f7"/>
+                        <stop offset="1" stop-color="#6b21a8"/>
+                      </linearGradient>
+                      <linearGradient id="g4atm2" x1="0" y1="0" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#c084fc"/>
+                        <stop offset="1" stop-color="#7e22ce"/>
+                      </linearGradient>
+                    </defs>
+                    <!-- Badan kartu ATM -->
+                    <rect x="2" y="8" width="28" height="17" rx="3" fill="url(#g4atm)" opacity="0.18"/>
+                    <rect x="2" y="8" width="28" height="17" rx="3" stroke="url(#g4atm)" stroke-width="1.8"/>
+                    <!-- Strip magnetik atas -->
+                    <rect x="2" y="12" width="28" height="4" fill="url(#g4atm)" opacity="0.45"/>
+                    <!-- Chip kartu (kotak emas) -->
+                    <rect x="6" y="17.5" width="6" height="4.5" rx="1" fill="url(#g4atm2)" opacity="0.9"/>
+                    <line x1="9" y1="17.5" x2="9" y2="22" stroke="#e9d5ff" stroke-width="0.7" opacity="0.7"/>
+                    <line x1="6" y1="19.7" x2="12" y2="19.7" stroke="#e9d5ff" stroke-width="0.7" opacity="0.7"/>
+                    <!-- Nomor kartu (4 blok titik) -->
+                    <circle cx="16" cy="21" r="1" fill="#a855f7" opacity="0.7"/>
+                    <circle cx="19" cy="21" r="1" fill="#a855f7" opacity="0.7"/>
+                    <circle cx="22" cy="21" r="1" fill="#a855f7" opacity="0.7"/>
+                    <circle cx="25" cy="21" r="1" fill="#a855f7" opacity="0.7"/>
+                    <!-- Logo gelombang sinyal kanan atas kartu -->
+                    <path d="M24 10.5 Q26 12 24 13.5" stroke="#c084fc" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.8"/>
+                    <path d="M26 9.5 Q29 12 26 14.5" stroke="#c084fc" stroke-width="1.1" stroke-linecap="round" fill="none" opacity="0.5"/>
+                  </svg>
+                </div>
+                <div class="stat-text">
+                  <div class="stat-val" id="statArisan" style="font-size:13px">Rp 0</div>
+                  <div class="stat-lbl">Pembiayaan</div>
+                </div>
+              </div>
               </div>
             </div>
-            <div style="text-align:right">
-              <div style="font-size:11px;color:var(--text-soft)">Kas Tersedia</div>
-              <div style="font-size:16px;font-weight:800;color:var(--forest-mid)" id="kasAvailableAmt">Rp 0</div>
-            </div>
-          </div>
-          <!-- Progress bar: berapa persen kas terpakai untuk pinjaman -->
-          <div style="height:8px;background:#f0f0f0;border-radius:99px;overflow:hidden;margin-bottom:6px">
-            <div id="kasUsedBar" style="height:100%;border-radius:99px;background:linear-gradient(90deg,#40916c,#52b788);width:0%;transition:width 0.8s ease"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-soft)">
-            <span id="kasUsedPct">0% dipinjamkan</span>
-            <span id="kasLimitPct">Batas aman: <span id="kasLimitPctVal">80</span>%</span>
-          </div>
-        </div>
-        <!-- 3 kolom stats -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid rgba(0,0,0,0.05)">
-          <div style="padding:10px 8px;text-align:center;border-right:1px solid rgba(0,0,0,0.05)">
-            <div style="font-size:12px;font-weight:800;color:var(--forest-light)" id="kasTotalSimpanan">Rp 0</div>
-            <div style="font-size:9px;color:var(--text-soft);font-weight:600;margin-top:2px">Total Simpanan</div>
-          </div>
-          <div style="padding:10px 8px;text-align:center;border-right:1px solid rgba(0,0,0,0.05)">
-            <div style="font-size:12px;font-weight:800;color:var(--danger)" id="kasTotalPinjaman">Rp 0</div>
-            <div style="font-size:9px;color:var(--text-soft);font-weight:600;margin-top:2px">Dipinjamkan</div>
-          </div>
-          <div style="padding:10px 8px;text-align:center">
-            <div style="font-size:12px;font-weight:800;color:#4361ee" id="kasMaxPinjamBaru">Rp 0</div>
-            <div style="font-size:9px;color:var(--text-soft);font-weight:600;margin-top:2px">Maks. Pinjam Baru</div>
-          </div>
-        </div>
-        <!-- Settings toggle -->
-        <div style="border-top:1px solid rgba(0,0,0,0.05);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleKasSettings()">
-          <span style="font-size:11px;font-weight:700;color:var(--text-soft)">⚙️ Atur Kebijakan Limit</span>
-          <span id="kasSettingsArrow" style="font-size:13px;color:var(--text-soft);transition:transform 0.25s">›</span>
-        </div>
-        <div id="kasSettingsPanel" style="display:none;padding:0 16px 16px">
-          <div style="background:var(--cream);border-radius:12px;padding:14px">
-            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px">Kebijakan Kas Koperasi</div>
-            <div class="field" style="margin-bottom:10px">
-              <label>Rasio Maks. Pinjaman dari Total Simpanan (%)</label>
-              <input type="number" id="kasLimitRasio" value="80" min="10" max="100" step="5" oninput="updateKasPreview()" style="background:white">
-              <div style="font-size:10px;color:var(--text-soft);margin-top:4px">Contoh: 80% → dari Rp 10 juta simpanan, maks. Rp 8 juta bisa dipinjamkan</div>
-            </div>
-            <div class="field" style="margin-bottom:10px">
-              <label>Maks. Pinjaman Per Nasabah (Rp)</label>
-              <input type="number" id="kasLimitPerNasabah" value="0" min="0" step="100000" oninput="updateKasPreview()" style="background:white" placeholder="0 = tidak dibatasi">
-              <div style="font-size:10px;color:var(--text-soft);margin-top:4px">0 = tidak ada batas per nasabah</div>
-            </div>
-            <div class="field" style="margin-bottom:10px">
-              <label>Maks. Pinjaman = X× Simpanan Sendiri</label>
-              <input type="number" id="kasLimitMultiplier" value="0" min="0" step="0.5" oninput="updateKasPreview()" style="background:white" placeholder="0 = tidak dibatasi">
-              <div style="font-size:10px;color:var(--text-soft);margin-top:4px">Contoh: 3 → nasabah simpan Rp 1 juta, maks. pinjam Rp 3 juta</div>
-            </div>
-            <div id="kasPreviewBox" style="background:white;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--text-soft);line-height:1.8;display:none"></div>
-            <button class="btn btn-primary btn-block btn-sm" onclick="saveKasSettings()">💾 Simpan Kebijakan</button>
           </div>
         </div>
       </div>
-
-      <!-- ═══ PREDIKSI KAS BULAN DEPAN ═══ -->
-      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:16px;cursor:pointer" onclick="(function(btn,body){var open=body.style.display!=='none';body.style.display=open?'none':'block';btn.querySelector('.predKasChev').style.transform=open?'rotate(0deg)':'rotate(180deg)';})(this,document.getElementById('prediksiKasBody'))">
-        <span>📊 Prediksi Kas Bulan Depan</span>
-        <span class="predKasChev" style="font-size:13px;color:var(--text-soft);transition:transform 0.2s;transform:rotate(0deg)">▾</span>
-      </div>
-      <div id="prediksiKasBody" style="display:none">
-        <div id="prediksiKasWidget" style="margin:0 16px 12px;background:white;border-radius:18px;overflow:hidden;box-shadow:0 2px 12px rgba(26,71,42,0.09)"></div>
-      </div>
+      <script>
+        // Sinkronisasi salinan marquee ditangani oleh window._applySaldoVisibility
+        // (dipanggil setiap kali data statistik diperbarui) agar nilai & status
+        // sembunyikan-saldo selalu konsisten antara kartu asli dan salinannya.
+      </script>
 
 
       <!-- ═══ PENGAJUAN PINJAMAN REVIEW PANEL ═══ -->
       <div id="reviewPinjamanSection" style="display:none">
         <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:16px">
           <span style="display:flex;align-items:center;gap:7px">
-            📋 Pengajuan Pinjaman
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><rect x="5" y="3" width="14" height="18" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M9 3h6v2.5a1 1 0 0 1-1 1H10a1 1 0 0 1-1-1V3z" stroke="currentColor" stroke-width="1.7"/><path d="M8 11h8M8 15h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg> Pengajuan Pinjaman
             <span id="reviewPinBadge" style="background:#e63946;color:white;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;min-width:20px;text-align:center">0</span>
           </span>
           <button onclick="toggleReviewPanel()" id="reviewPanelToggleBtn" style="font-size:11px;font-weight:700;color:var(--forest-mid);background:none;border:none;cursor:pointer;padding:4px 0">Sembunyikan ▴</button>
@@ -9810,7 +10176,6 @@ window.deletePengurus = function(id) {
         </div>
       </div>
 
-      <div class="section-title">Aksi Cepat</div>
       <div class="quick-actions">
         <button class="quick-btn" onclick="quickBtnSelect(this,'modalSimpan')">
           <span class="q-icon"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="qa1" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#f4a922"/><stop offset="1" stop-color="#b07a00"/></linearGradient></defs><circle cx="14" cy="14" r="10" fill="url(#qa1)" opacity="0.15"/><circle cx="14" cy="14" r="10" stroke="url(#qa1)" stroke-width="1.8"/><text x="14" y="19" text-anchor="middle" font-family="serif" font-size="12" font-weight="bold" fill="#f4a922">Rp</text><path d="M14 5v2.5M14 20.5v2.5" stroke="url(#qa1)" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/></svg></span><span class="q-label">Simpanan</span>
@@ -9833,31 +10198,26 @@ window.deletePengurus = function(id) {
         </button>
       </div>
 
-      <!-- 1 Billion Challenge Banner -->
-      <div onclick="openChallengeGame()" style="margin:4px 16px 4px;background:linear-gradient(135deg,#0d2016,#1a472a,#b07a00);border-radius:16px;padding:14px 18px;display:flex;align-items:center;gap:14px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(176,122,0,0.3)">
-        <div style="position:absolute;right:-10px;top:-10px;font-size:70px;opacity:0.08">💰</div>
-        <div style="font-size:32px">🏆</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;color:var(--gold)">Challenge 1 Milyar</div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px">Tantangan seru kelola dana koperasi!</div>
-          <div id="homeChallengeBar" style="margin-top:8px">
-            <div style="background:rgba(255,255,255,0.15);border-radius:99px;height:6px;overflow:hidden">
-              <div id="homeChallengeFill" style="height:100%;border-radius:99px;background:linear-gradient(90deg,#f4a922,#ffd166);width:0%;transition:width 0.8s ease"></div>
-            </div>
-            <div id="homeChallengePct" style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:3px">0% tercapai</div>
+      <!-- PENGUMUMAN PENTING: kartu kaca transparan (glassmorphism, aksen merah, mengambang) -->
+      <div class="iklan-glass-card" id="iklanGlassCard" style="display:none">
+        <button class="iklan-close" onclick="_iklanDismiss()" title="Tutup pengumuman">✕</button>
+        <div class="iklan-body">
+          <img class="iklan-img" id="iklanImg" src="" alt="" style="display:none">
+          <div class="iklan-text">
+            <div class="iklan-title" id="iklanTitle"></div>
+            <div class="iklan-desc" id="iklanDesc"></div>
           </div>
         </div>
-        <div style="font-size:18px;color:rgba(255,255,255,0.4)">›</div>
+        <a class="iklan-cta" id="iklanCta" href="#" target="_blank" rel="noopener" style="display:none">Lihat Selengkapnya <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <button class="iklan-edit-btn" id="iklanEditBtn" onclick="_iklanOpenEdit()" style="display:none">✏️ Edit Pengumuman</button>
       </div>
 
-      <!-- SLIDE BANNER: Iklan & Informasi Koperasi -->
-      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:16px">
-        <span>Informasi &amp; Pengumuman</span>
+      <!-- SLIDE BANNER: Informasi & Pengumuman Koperasi -->
+      <div class="section-title" style="display:flex;align-items:center;justify-content:flex-end;padding-right:16px">
         <div style="display:flex;align-items:center;gap:8px">
-          <button onclick="openEditSlideModal()" id="editSlideBtn" style="font-size:11px;font-weight:700;color:var(--forest-mid);background:rgba(45,106,79,0.1);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px">✏️ Edit Slide</button>
-          <button onclick="openBroadcastModal()" id="broadcastBtn" style="font-size:11px;font-weight:700;color:#128c7e;background:rgba(37,211,102,0.12);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px">📤 Broadcast</button>
-          <button onclick="openBroadcastModal()" id="broadcastPengumumanBtn" style="font-size:11px;font-weight:700;color:#128c7e;background:rgba(37,211,102,0.12);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px">📤 Broadcast</button>
-          <span id="slideDots" style="display:flex;gap:5px;align-items:center"></span>
+          <button onclick="openEditSlideModal()" id="editSlideBtn" style="font-size:11px;font-weight:700;color:var(--forest-mid);background:rgba(45,106,79,0.1);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg> Edit Slide</button>
+          <button onclick="openBroadcastModal()" id="broadcastBtn" style="font-size:11px;font-weight:700;color:#128c7e;background:rgba(37,211,102,0.12);border:none;cursor:pointer;padding:4px 10px;border-radius:99px;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M22 2L11 13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg> Broadcast</button>
+          <span id="slideDots" style="display:none"></span>
         </div>
       </div>
       <div class="slide-banner-wrap" id="slideBannerWrap">
@@ -9865,20 +10225,38 @@ window.deletePengurus = function(id) {
 
       </div>
 
+      <!-- 1 Billion Challenge Banner -->
+      <div onclick="openChallengeGame()" style="margin:4px 16px 4px;background:linear-gradient(135deg,#0f2419,#1a472a 55%,#8a6300);border-radius:16px;padding:14px 18px;display:flex;align-items:center;gap:14px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 4px 18px rgba(15,25,20,0.22);border:1px solid rgba(244,169,34,0.18)">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(244,169,34,0.14);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 4h10v4a5 5 0 0 1-5 5 5 5 0 0 1-5-5V4z" stroke="var(--gold)" stroke-width="1.7" stroke-linejoin="round"/><path d="M7 5H4a1 1 0 0 0-1 1c0 2.5 1.8 4.3 4 4.6M17 5h3a1 1 0 0 1 1 1c0 2.5-1.8 4.3-4 4.6" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/><path d="M12 13v3M9 20h6M10 16.5h4a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1H9v-1.5a1 1 0 0 1 1-1z" stroke="var(--gold)" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;color:var(--gold)">Challenge 1 Milyar</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-top:2px">Tantangan seru kelola dana koperasi!</div>
+          <div id="homeChallengeBar" style="margin-top:8px">
+            <div style="background:rgba(255,255,255,0.15);border-radius:99px;height:6px;overflow:hidden">
+              <div id="homeChallengeFill" style="height:100%;border-radius:99px;background:linear-gradient(90deg,#f4a922,#ffd166);width:0%;transition:width 0.8s ease"></div>
+            </div>
+            <div id="homeChallengePct" style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:3px">0% tercapai</div>
+          </div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;opacity:0.4"><path d="M9 6l6 6-6 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+
       <!-- TAGIHAN & CICILAN (default hidden) -->
       <div id="_home_tagihan_section" style="display:none">
       <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:16px">
-        <span>🔔 Tagihan &amp; Cicilan</span>
+        <span style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg> Tagihan &amp; Cicilan</span>
         <button onclick="document.getElementById('_home_tagihan_section').style.display='none'" style="font-size:11px;font-weight:700;color:var(--text-soft);background:rgba(0,0,0,0.06);border:none;cursor:pointer;padding:3px 8px;border-radius:6px">▴ Sembunyikan</button>
       </div>
       <div class="home-tagihan-wrap">
         <div id="htSummaryBar"></div>
         <div class="home-tagihan-tabs" id="htTabs">
           <button class="ht-tab aktif" onclick="htSwitchTab('semua',this)">Semua<span class="ht-tab-badge" id="htBadgeSemua">0</span></button>
-          <button class="ht-tab" onclick="htSwitchTab('overdue',this)">⚠️ Menunggak<span class="ht-tab-badge" id="htBadgeOverdue">0</span></button>
+          <button class="ht-tab" onclick="htSwitchTab('overdue',this)"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.3 3.9L2.6 18a1.5 1.5 0 0 0 1.3 2.2h16.2a1.5 1.5 0 0 0 1.3-2.2L13.7 3.9a1.5 1.5 0 0 0-2.6 0z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg> Menunggak<span class="ht-tab-badge" id="htBadgeOverdue">0</span></button>
           <button class="ht-tab" onclick="htSwitchTab('upcoming',this)"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="15" r="1.3" fill="currentColor" opacity="0.8"/><circle cx="12" cy="15" r="1.3" fill="currentColor"/><circle cx="16" cy="15" r="1.3" fill="currentColor" opacity="0.6"/></svg> Mendatang<span class="ht-tab-badge" id="htBadgeUpcoming">0</span></button>
-          <button class="ht-tab" onclick="htSwitchTab('pinjaman',this)">💳 Pinjaman<span class="ht-tab-badge" id="htBadgePinjaman">0</span></button>
-          <button class="ht-tab" onclick="htSwitchTab('cicilan',this)">🏦 Angsuran<span class="ht-tab-badge" id="htBadgeCicilan">0</span></button>
+          <button class="ht-tab" onclick="htSwitchTab('pinjaman',this)"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><rect x="2" y="6" width="20" height="13" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M2 10h20" stroke="currentColor" stroke-width="1.7"/></svg> Pinjaman<span class="ht-tab-badge" id="htBadgePinjaman">0</span></button>
+          <button class="ht-tab" onclick="htSwitchTab('cicilan',this)"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><path d="M3 21V10l9-6 9 6v11" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 21v-7h6v7" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg> Angsuran<span class="ht-tab-badge" id="htBadgeCicilan">0</span></button>
         </div>
         <div class="ht-card-list" id="htCardList"></div>
       </div>
@@ -9888,7 +10266,7 @@ window.deletePengurus = function(id) {
         <span>Transaksi Terbaru</span>
         <div style="display:flex;gap:8px;align-items:center">
           <button onclick="navTo('keuangan')" style="font-size:11px;font-weight:700;color:var(--forest-mid);background:none;border:none;cursor:pointer;padding:4px 0">Lihat Semua →</button>
-          <button id="homeTxnToggleBtn" onclick="toggleHomeTxn()" style="font-size:11px;font-weight:700;color:var(--text-soft);background:rgba(0,0,0,0.06);border:none;cursor:pointer;padding:3px 8px;border-radius:6px">▾ Sembunyikan</button>
+          <button id="homeTxnToggleBtn" onclick="toggleHomeTxn()" style="font-size:11px;font-weight:700;color:var(--text-soft);background:rgba(0,0,0,0.06);border:none;cursor:pointer;padding:3px 8px;border-radius:6px">▸ Tampilkan</button>
         </div>
       </div>
       <style>
@@ -9937,7 +10315,7 @@ window.deletePengurus = function(id) {
             <div class="htf-item htf-selected" data-val="all" onclick="window._htfSelect('all',event)">Semua Jenis</div>
             <div class="htf-group" id="htfGroupSimpanan">
               <div class="htf-item htf-group-head" data-val="simpanan" onclick="window._htfGroupClick(event,'simpanan')">
-                <span>💵 Simpanan (Semua)</span>
+                <span>Simpanan (Semua)</span>
                 <span class="htf-caret">›</span>
               </div>
               <div class="htf-subitems">
@@ -9946,11 +10324,11 @@ window.deletePengurus = function(id) {
                 <div class="htf-item htf-sub" data-val="simpanan:sukarela" onclick="window._htfSelect('simpanan:sukarela',event)">Simpanan Sukarela</div>
               </div>
             </div>
-            <div class="htf-item" data-val="pinjaman" onclick="window._htfSelect('pinjaman',event)">📤 Pencairan</div>
-            <div class="htf-item" data-val="cicilan" onclick="window._htfSelect('cicilan',event)">💳 Cicilan</div>
-            <div class="htf-item" data-val="tarik-sukarela" onclick="window._htfSelect('tarik-sukarela',event)">💸 Penarikan</div>
-            <div class="htf-item" data-val="pembiayaan" onclick="window._htfSelect('pembiayaan',event)">🏦 Pembiayaan</div>
-            <div class="htf-item" data-val="angsuran-rc" onclick="window._htfSelect('angsuran-rc',event)">💳 Angsuran RC</div>
+            <div class="htf-item" data-val="pinjaman" onclick="window._htfSelect('pinjaman',event)">Pencairan</div>
+            <div class="htf-item" data-val="cicilan" onclick="window._htfSelect('cicilan',event)">Cicilan</div>
+            <div class="htf-item" data-val="tarik-sukarela" onclick="window._htfSelect('tarik-sukarela',event)">Penarikan</div>
+            <div class="htf-item" data-val="pembiayaan" onclick="window._htfSelect('pembiayaan',event)">Pembiayaan</div>
+            <div class="htf-item" data-val="angsuran-rc" onclick="window._htfSelect('angsuran-rc',event)">Angsuran RC</div>
           </div>
         </div>
         <div class="htf-wrap" id="homeTxnDateWrap">
@@ -9977,21 +10355,21 @@ window.deletePengurus = function(id) {
             </div>
           </div>
         </div>
-        <button onclick="window.downloadHomeTxnCSV()" title="Unduh riwayat (CSV)" style="flex-shrink:0;width:30px;height:30px;border-radius:9px;border:1px solid #e7e9ec;background:#f5f6f8;color:#4b5563;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit">⬇️</button>
+        <button onclick="window.downloadHomeTxnCSV()" title="Unduh riwayat (CSV)" style="flex-shrink:0;width:30px;height:30px;border-radius:9px;border:1px solid #e7e9ec;background:#f5f6f8;color:#4b5563;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3v13m0 0l-4.5-4.5M12 16l4.5-4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
       </div>
       <script>
       (function(){
         var HTF_LABELS = {
           'all':'Semua Jenis',
-          'simpanan':'💵 Simpanan (Semua)',
+          'simpanan':'Simpanan (Semua)',
           'simpanan:pokok':'↳ Simpanan Pokok',
           'simpanan:wajib':'↳ Simpanan Wajib',
           'simpanan:sukarela':'↳ Simpanan Sukarela',
-          'pinjaman':'📤 Pencairan',
-          'cicilan':'💳 Cicilan',
-          'tarik-sukarela':'💸 Penarikan',
-          'pembiayaan':'🏦 Pembiayaan',
-          'angsuran-rc':'💳 Angsuran RC'
+          'pinjaman':'Pencairan',
+          'cicilan':'Cicilan',
+          'tarik-sukarela':'Penarikan',
+          'pembiayaan':'Pembiayaan',
+          'angsuran-rc':'Angsuran RC'
         };
         var HTF_DATE_LABELS = {
           'all':'<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="15" r="1.3" fill="currentColor" opacity="0.8"/><circle cx="12" cy="15" r="1.3" fill="currentColor"/><circle cx="16" cy="15" r="1.3" fill="currentColor" opacity="0.6"/></svg> Semua Tanggal',
@@ -10126,10 +10504,93 @@ window.deletePengurus = function(id) {
         });
       })();
       </script>
-      <div id="homeTxnBody" style="transition:max-height 0.35s cubic-bezier(.4,0,.2,1);overflow:hidden;max-height:9999px">
+      <div id="homeTxnBody" style="transition:max-height 0.35s cubic-bezier(.4,0,.2,1);overflow:hidden;max-height:0">
       <div class="card">
         <div id="homeTransaksiList"></div>
       </div>
+      </div>
+
+      <!-- KAS HEALTH WIDGET -->
+      <div class="section-title" id="kasHealthSectionTitle" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding-right:16px;cursor:pointer" onclick="(function(btn,body){var open=body.style.display!=='none';body.style.display=open?'none':'block';btn.querySelector('.kasHealthChev').style.transform=open?'rotate(0deg)':'rotate(180deg)';})(this,document.getElementById('kasHealthWidget'))">
+        <span style="text-align:left">Kesehatan Kas</span>
+        <span class="kasHealthChev" style="font-size:13px;color:var(--text-soft);transition:transform 0.2s;transform:rotate(0deg)">▾</span>
+      </div>
+      <div id="kasHealthWidget" style="display:none;margin:0 16px 12px;background:white;border-radius:18px;overflow:hidden;box-shadow:0 2px 12px rgba(26,71,42,0.09)">
+        <!-- Status bar -->
+        <div id="kasHealthBar" style="padding:14px 16px 10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span id="kasHealthIcon" style="font-size:20px">💰</span>
+              <div>
+                <div style="font-size:13px;font-weight:800;color:var(--text)" id="kasHealthLabel">Kas Sehat</div>
+                <div style="font-size:10px;color:var(--text-soft)" id="kasHealthSub">Arus kas terkendali</div>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:11px;color:var(--text-soft)">Kas Tersedia</div>
+              <div style="font-size:16px;font-weight:800;color:var(--forest-mid)" id="kasAvailableAmt">Rp 0</div>
+            </div>
+          </div>
+          <!-- Progress bar: berapa persen kas terpakai untuk pinjaman -->
+          <div style="height:8px;background:#f0f0f0;border-radius:99px;overflow:hidden;margin-bottom:6px">
+            <div id="kasUsedBar" style="height:100%;border-radius:99px;background:linear-gradient(90deg,#40916c,#52b788);width:0%;transition:width 0.8s ease"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-soft)">
+            <span id="kasUsedPct">0% dipinjamkan</span>
+            <span id="kasLimitPct">Batas aman: <span id="kasLimitPctVal">80</span>%</span>
+          </div>
+        </div>
+        <!-- 3 kolom stats (rata kiri) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid rgba(0,0,0,0.05)">
+          <div style="padding:10px 12px;text-align:left;border-right:1px solid rgba(0,0,0,0.05)">
+            <div style="font-size:12px;font-weight:800;color:var(--forest-light)" id="kasTotalSimpanan">Rp 0</div>
+            <div style="font-size:9px;color:var(--text-soft);font-weight:600;margin-top:2px">Total Simpanan</div>
+          </div>
+          <div style="padding:10px 12px;text-align:left;border-right:1px solid rgba(0,0,0,0.05)">
+            <div style="font-size:12px;font-weight:800;color:var(--danger)" id="kasTotalPinjaman">Rp 0</div>
+            <div style="font-size:9px;color:var(--text-soft);font-weight:600;margin-top:2px">Dipinjamkan</div>
+          </div>
+          <div style="padding:10px 12px;text-align:left">
+            <div style="font-size:12px;font-weight:800;color:#4361ee" id="kasMaxPinjamBaru">Rp 0</div>
+            <div style="font-size:9px;color:var(--text-soft);font-weight:600;margin-top:2px">Maks. Pinjam Baru</div>
+          </div>
+        </div>
+        <!-- Settings toggle -->
+        <div style="border-top:1px solid rgba(0,0,0,0.05);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleKasSettings()">
+          <span style="font-size:11px;font-weight:700;color:var(--text-soft);display:flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.24.62.82 1.05 1.48 1.06H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg> Atur Kebijakan Limit</span>
+          <span id="kasSettingsArrow" style="font-size:13px;color:var(--text-soft);transition:transform 0.25s">›</span>
+        </div>
+        <div id="kasSettingsPanel" style="display:none;padding:0 16px 16px">
+          <div style="background:var(--cream);border-radius:12px;padding:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px">Kebijakan Kas Koperasi</div>
+            <div class="field" style="margin-bottom:10px">
+              <label>Rasio Maks. Pinjaman dari Total Simpanan (%)</label>
+              <input type="number" id="kasLimitRasio" value="80" min="10" max="100" step="5" oninput="updateKasPreview()" style="background:white">
+              <div style="font-size:10px;color:var(--text-soft);margin-top:4px">Contoh: 80% → dari Rp 10 juta simpanan, maks. Rp 8 juta bisa dipinjamkan</div>
+            </div>
+            <div class="field" style="margin-bottom:10px">
+              <label>Maks. Pinjaman Per Nasabah (Rp)</label>
+              <input type="number" id="kasLimitPerNasabah" value="0" min="0" step="100000" oninput="updateKasPreview()" style="background:white" placeholder="0 = tidak dibatasi">
+              <div style="font-size:10px;color:var(--text-soft);margin-top:4px">0 = tidak ada batas per nasabah</div>
+            </div>
+            <div class="field" style="margin-bottom:10px">
+              <label>Maks. Pinjaman = X× Simpanan Sendiri</label>
+              <input type="number" id="kasLimitMultiplier" value="0" min="0" step="0.5" oninput="updateKasPreview()" style="background:white" placeholder="0 = tidak dibatasi">
+              <div style="font-size:10px;color:var(--text-soft);margin-top:4px">Contoh: 3 → nasabah simpan Rp 1 juta, maks. pinjam Rp 3 juta</div>
+            </div>
+            <div id="kasPreviewBox" style="background:white;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--text-soft);line-height:1.8;display:none"></div>
+            <button class="btn btn-primary btn-block btn-sm" onclick="saveKasSettings()">💾 Simpan Kebijakan</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PREDIKSI KAS BULAN DEPAN ═══ -->
+      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding-right:16px;cursor:pointer" onclick="(function(btn,body){var open=body.style.display!=='none';body.style.display=open?'none':'block';btn.querySelector('.predKasChev').style.transform=open?'rotate(0deg)':'rotate(180deg)';})(this,document.getElementById('prediksiKasBody'))">
+        <span style="display:flex;align-items:center;gap:6px;text-align:left"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><rect x="4" y="14" width="4" height="7" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="10" y="9" width="4" height="12" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="16" y="4" width="4" height="17" rx="1" stroke="currentColor" stroke-width="1.7"/></svg> Prediksi Kas Bulan Depan</span>
+        <span class="predKasChev" style="font-size:13px;color:var(--text-soft);transition:transform 0.2s;transform:rotate(0deg)">▾</span>
+      </div>
+      <div id="prediksiKasBody" style="display:none">
+        <div id="prediksiKasWidget" style="margin:0 16px 12px;background:white;border-radius:18px;overflow:hidden;box-shadow:0 2px 12px rgba(26,71,42,0.09)"></div>
       </div>
     </div>
 
@@ -10187,15 +10648,15 @@ window.deletePengurus = function(id) {
 
       <!-- Daftar Sub-content -->
       <div id="nasabahSubDaftar">
-        <div class="search-bar" style="margin-top:4px">
+        <div class="search-bar admin-only-feature" style="margin-top:4px">
           <input type="text" placeholder="Cari nasabah..." oninput="filterNasabah(this.value)">
           <button id="nasabahCloudRefreshBtn" onclick="(async()=>{if(window._rencoSupabase){if(typeof showToast==='function')showToast('☁ Memuat data terbaru...');var r=await window._rencoSupabase.load();if(r&&r.payload){if(typeof window._applyCloudDataPublic==='function')window._applyCloudDataPublic(r.payload);if(typeof renderNasabah==='function')renderNasabah();if(typeof renderHome==='function')renderHome();if(typeof showToast==='function')showToast('✅ Data nasabah diperbarui');}}})();" style="display:none;background:none;border:none;cursor:pointer;font-size:18px;padding:4px 8px;color:var(--forest-mid);flex-shrink:0" title="Refresh data dari cloud">☁</button>
         </div>
         <div id="nasabahStatusModeBar" style="display:flex;gap:6px;padding:2px 14px 10px;overflow-x:auto">
           <button type="button" class="ns-mode-btn" data-mode="semua" onclick="setNasabahStatusMode('semua')">Semua</button>
-          <button type="button" class="ns-mode-btn" data-mode="aktif" onclick="setNasabahStatusMode('aktif')">✅ Aktif</button>
-          <button type="button" class="ns-mode-btn" data-mode="nonaktif" onclick="setNasabahStatusMode('nonaktif')">⛔ Tidak Aktif</button>
-          <button type="button" class="ns-mode-btn" data-mode="blacklist" onclick="setNasabahStatusMode('blacklist')">🚫 Blacklist</button>
+          <button type="button" class="ns-mode-btn" data-mode="aktif" onclick="setNasabahStatusMode('aktif')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Aktif</button>
+          <button type="button" class="ns-mode-btn" data-mode="nonaktif" onclick="setNasabahStatusMode('nonaktif')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 6.5l11 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Tidak Aktif</button>
+          <button type="button" class="ns-mode-btn" data-mode="blacklist" onclick="setNasabahStatusMode('blacklist')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M6 6l12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Blacklist</button>
         </div>
         <style>
           .ns-mode-btn {
@@ -10222,7 +10683,7 @@ window.deletePengurus = function(id) {
         <!-- Divider -->
         <div id="pembiayaanDivider" style="margin:4px 14px 0;display:flex;align-items:center;gap:10px">
           <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(107,33,168,0.0),rgba(107,33,168,0.25),rgba(107,33,168,0.0))"></div>
-          <div style="font-size:10px;font-weight:800;color:#7b2d8b;text-transform:uppercase;letter-spacing:1px;white-space:nowrap">🕌 Pembiayaan</div>
+          <div style="font-size:10px;font-weight:800;color:#6b21a8;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M4 21V11l8-6 8 6v10" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 5V2M10 3h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M9 21v-6a3 3 0 0 1 6 0v6" stroke="currentColor" stroke-width="1.6"/></svg> Pembiayaan</div>
           <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(107,33,168,0.0),rgba(107,33,168,0.25),rgba(107,33,168,0.0))"></div>
         </div>
 
@@ -10350,7 +10811,7 @@ window.deletePengurus = function(id) {
       <!-- ══ SLIDE BANNER DI KEUANGAN ══ -->
       <div id="keuSlideSection" style="padding:14px 0 4px">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px 10px">
-          <span style="font-size:13px;font-weight:800;color:var(--forest-mid);letter-spacing:0.2px">📢 Informasi &amp; Pengumuman</span>
+          <span style="font-size:13px;font-weight:800;color:var(--forest-mid);letter-spacing:0.2px">Informasi &amp; Pengumuman</span>
           <span id="keuSlideDots" style="display:flex;gap:5px;align-items:center"></span>
         </div>
         <div class="slide-banner-wrap" id="keuSlideBannerWrap">
@@ -10591,6 +11052,16 @@ window.deletePengurus = function(id) {
             <span class="fgb-label">Kalender</span>
           </button>
 
+          <button id="forumTabNasehat" onclick="forumTab('nasehat')" class="forum-grid-btn">
+            <div class="fgb-icon" style="background:linear-gradient(135deg,rgba(244,169,34,0.18),rgba(255,209,102,0.1));border-color:rgba(244,169,34,0.4)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M9 18h6M10 21h4" stroke="#b07a00" stroke-width="1.7" stroke-linecap="round"/>
+                <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.45.9 1.15.9 1.9V16h5.4v-.3c0-.75.3-1.45.9-1.9A6 6 0 0 0 12 3z" stroke="#f4a922" stroke-width="1.7" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <span class="fgb-label">100 Nasehat</span>
+          </button>
+
         </div>
       </div>
 
@@ -10651,6 +11122,47 @@ window.deletePengurus = function(id) {
         <div id="kalenderKoperasi" style="padding:12px 16px"></div>
       </div>
 
+      <!-- 100 NASEHAT KEUANGAN SECTION -->
+      <div id="forumSeksiNasehat" style="display:none;padding:12px 16px 80px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-soft)">💡 Kumpulan 100 nasehat keuangan modern</div>
+          <button onclick="_nasehatListAcak()" style="font-size:11px;font-weight:700;color:#b07a00;background:rgba(244,169,34,0.12);border:1px solid rgba(244,169,34,0.3);border-radius:99px;padding:5px 11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;flex-shrink:0">🔀 Acak</button>
+        </div>
+        <div id="nasehatListWrap"></div>
+      </div>
+      <style>
+        .nasehat-item{
+          margin-bottom:10px;background:linear-gradient(160deg,rgba(244,169,34,0.10),rgba(255,255,255,0.6));
+          border:1px solid rgba(244,169,34,0.28);border-radius:14px;padding:12px 13px;
+          box-shadow:0 2px 10px rgba(0,0,0,0.05);cursor:pointer;
+          transition:filter 0.25s ease,opacity 0.25s ease,transform 0.25s ease,box-shadow 0.25s ease,border-color 0.25s ease;
+        }
+        .nasehat-item-head{ display:flex;align-items:center;gap:8px }
+        .nasehat-item-ico{
+          width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#f4a922,#ffd166);
+          display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0
+        }
+        .nasehat-item-judul{
+          flex:1;min-width:0;font-size:11px;font-weight:700;color:#8a5a00;letter-spacing:0.2px;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+        }
+        .nasehat-item-chev{ font-size:13px;color:#c9924a;flex-shrink:0;transition:transform 0.2s }
+        .nasehat-item-body{ margin-top:9px;animation:nasehatBodyIn 0.2s ease }
+        .nasehat-item-teks{ font-size:12px;color:#2b2b2b;line-height:1.5;margin-bottom:6px }
+        .nasehat-item-tipbox{
+          display:flex;gap:6px;align-items:flex-start;background:rgba(244,169,34,0.12);
+          border-radius:9px;padding:7px 9px
+        }
+        .nasehat-item-tipbox span{ font-size:11px;flex-shrink:0 }
+        .nasehat-item-tipbox div{ font-size:10.5px;color:#7a5500;line-height:1.45 }
+        .nasehat-item-aktif{
+          border-color:rgba(244,169,34,0.6);box-shadow:0 6px 20px rgba(244,169,34,0.22);
+          background:linear-gradient(160deg,rgba(244,169,34,0.16),rgba(255,255,255,0.75));
+        }
+        .nasehat-item-blur{ filter:blur(2.5px);opacity:0.45;transform:scale(0.98) }
+        @keyframes nasehatBodyIn{ from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+      </style>
+
       <!-- DISKUSI SECTION -->
       <div id="forumSeksiDiskusi">
         <div class="card" style="margin-bottom:0">
@@ -10675,16 +11187,16 @@ window.deletePengurus = function(id) {
       <div id="forumSeksiGames" style="display:none;padding:12px 16px 80px">
         <!-- Header -->
         <div style="background:linear-gradient(135deg,#0d2016,#1a472a,#2d6a4f);border-radius:18px;padding:18px;margin-bottom:14px;position:relative;overflow:hidden">
-          <div style="position:absolute;right:-10px;top:-10px;font-size:80px;opacity:0.07">🎮</div>
-          <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:var(--gold);margin-bottom:4px">🎮 Mini Games</div>
+          <div style="position:absolute;right:-14px;top:-14px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(244,169,34,0.14) 0%,transparent 70%)"></div>
+          <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:var(--gold);margin-bottom:4px;display:flex;align-items:center;gap:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><rect x="2" y="7" width="20" height="11" rx="5.5" stroke="currentColor" stroke-width="1.7"/><path d="M7 10v4M5 12h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="11" r="1.2" fill="currentColor"/><circle cx="18.5" cy="13.5" r="1.2" fill="currentColor"/></svg> Mini Games</div>
           <div style="font-size:11px;color:rgba(255,255,255,0.5)">Pilih game dan mulai bermain!</div>
         </div>
 
         <!-- Tab Game Pills -->
         <div style="display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none">
-          <button id="inlineGameTab1" class="tab-pill active" onclick="switchInlineGameTab('challenge')" style="flex-shrink:0">🏆 Challenge</button>
+          <button id="inlineGameTab1" class="tab-pill active" onclick="switchInlineGameTab('challenge')" style="flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M7 4h10v4a5 5 0 0 1-5 5 5 5 0 0 1-5-5V4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 5H4a1 1 0 0 0-1 1c0 2.5 1.8 4.3 4 4.6M17 5h3a1 1 0 0 1 1 1c0 2.5-1.8 4.3-4 4.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 13v3M9 20h6M10 16.5h4a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1H9v-1.5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Challenge</button>
           <button id="inlineGameTab2" class="tab-pill" onclick="switchInlineGameTab('memory')" style="flex-shrink:0">🃏 Memory</button>
-          <button id="inlineGameTab3" class="tab-pill" onclick="switchInlineGameTab('kuis')" style="flex-shrink:0">🎓 Kuis</button>
+          <button id="inlineGameTab3" class="tab-pill" onclick="switchInlineGameTab('kuis')" style="flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M2 9l10-5 10 5-10 5-10-5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6 11v5c0 1.5 2.5 3 6 3s6-1.5 6-3v-5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M22 9v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Kuis</button>
         </div>
 
         <!-- Challenge Panel -->
@@ -10697,12 +11209,12 @@ window.deletePengurus = function(id) {
           <div class="game-wrap">
             <div style="display:flex;justify-content:space-between;margin-bottom:14px;font-size:13px;font-weight:700;color:var(--text-soft)">
               <span>Langkah: <span id="gameSteps">0</span></span>
-              <span>✅ <span id="gameMatched">0</span>/8</span>
+              <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.1em"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span id="gameMatched">0</span>/8</span>
               <span id="gameTimer">⏱ 0s</span>
             </div>
             <div id="memoryBestScore" style="display:none;background:rgba(244,169,34,0.12);border-radius:10px;padding:8px 14px;margin-bottom:10px;text-align:center;font-size:12px;font-weight:700;color:#a06800"></div>
             <div class="game-board" id="gameBoard"></div>
-            <button class="btn btn-primary btn-block" onclick="startGame()" style="margin-top:12px">🔄 Main Lagi</button>
+            <button class="btn btn-primary btn-block" onclick="startGame()" style="margin-top:12px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:4px"><path d="M21 12a9 9 0 1 1-2.6-6.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M21 3v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Main Lagi</button>
           </div>
         </div>
 
@@ -10738,7 +11250,7 @@ window.deletePengurus = function(id) {
             <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(212,170,40,0.55),transparent);margin-bottom:14px"></div>
 
             <!-- Total pot -->
-            <div class="arisan-pot-label">🪙 TOTAL POT ARISAN</div>
+            <div class="arisan-pot-label" style="display:flex;align-items:center;justify-content:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M9.5 15c0 1 1 1.8 2.5 1.8s2.5-.7 2.5-1.6c0-2.4-5-1.2-5-3.6 0-.9 1-1.6 2.5-1.6s2.5.6 2.5 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 7.5v1M12 15.5v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> TOTAL POT ARISAN</div>
             <div class="arisan-pot-val" id="arisanPot">Rp 0</div>
           </div>
         </div>
@@ -10825,37 +11337,37 @@ window.deletePengurus = function(id) {
       </div>
       <div class="stats-row">
         <div class="stat-card">
-          <div class="stat-icon">🕌</div>
+          <div class="stat-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 21V11l8-6 8 6v10" stroke="#6b21a8" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 5V2M10 3h4" stroke="#6b21a8" stroke-width="1.4" stroke-linecap="round"/><path d="M9 21v-6a3 3 0 0 1 6 0v6" stroke="#6b21a8" stroke-width="1.6"/></svg></div>
           <div class="stat-val" id="pmSyariahCount">0</div>
           <div class="stat-lbl">Syariah</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">🤲</div>
+          <div class="stat-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 20c1-6 3-9 7-9s6 3 7 9" stroke="#6b21a8" stroke-width="1.6" stroke-linecap="round"/><path d="M12 11V4M9 6l3-2 3 2" stroke="#6b21a8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="stat-val" id="pmKonvCount">0</div>
           <div class="stat-lbl">Qardh</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">🌱</div>
+          <div class="stat-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 21c-4.5-3-6-6-6-9a6 6 0 0 1 12 0c0 3-1.5 6-6 9z" stroke="#6b21a8" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 17V9" stroke="#6b21a8" stroke-width="1.4" stroke-linecap="round"/></svg></div>
           <div class="stat-val" id="pmModalCount">0</div>
           <div class="stat-lbl">Modal Usaha</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">✅</div>
+          <div class="stat-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#6b21a8" stroke-width="1.6"/><path d="M8 12.5l2.5 2.5L16 9" stroke="#6b21a8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="stat-val" id="pmLunasCount">0</div>
           <div class="stat-lbl">Lunas</div>
         </div>
       </div>
       <div class="tab-bar" style="background:linear-gradient(180deg,#0a0f08 0%,#0d1a0e 100%);border-bottom:1px solid rgba(212,160,23,0.3);padding:10px 12px;gap:6px;box-shadow:0 4px 20px rgba(0,0,0,0.4)">
-        <button class="tab-pill pmb-tab active" onclick="pembiayaanTab('daftar',this)" data-pmb="daftar">📋 Daftar</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('ajukan',this)" data-pmb="ajukan" style="background:linear-gradient(135deg,rgba(212,160,23,0.15),rgba(212,160,23,0.05));border-color:rgba(212,160,23,0.4);color:#d4a017;font-weight:800">➕ Ajukan</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('mudharabah',this)" data-pmb="mudharabah">🤝 Mudharabah</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('modal',this)" data-pmb="modal">💰 Modal</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('pembayaran-rc',this)" data-pmb="pembayaran-rc">💳 Pembayaran</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('hasil-usaha',this)" data-pmb="hasil-usaha">📊 Hasil Usaha</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('lapkeu',this)" data-pmb="lapkeu">📈 Lap.Keu</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('nasabah',this)">👥 Nasabah</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('program',this)">🎯 Program</button>
-        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('simulasi',this)">🧮 Simulasi</button>
+        <button class="tab-pill pmb-tab active" onclick="pembiayaanTab('daftar',this)" data-pmb="daftar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><rect x="5" y="3" width="14" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M9 3h6v2.5a1 1 0 0 1-1 1H10a1 1 0 0 1-1-1V3z" stroke="currentColor" stroke-width="1.6"/><path d="M8 11h8M8 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Daftar</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('ajukan',this)" data-pmb="ajukan" style="background:linear-gradient(135deg,rgba(212,160,23,0.15),rgba(212,160,23,0.05));border-color:rgba(212,160,23,0.4);color:#d4a017;font-weight:800"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Ajukan</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('mudharabah',this)" data-pmb="mudharabah"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M2 12l4-4 3 3 4-5 4 4 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11l-3 6h5l-2 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 9l3 6h-5l2 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Mudharabah</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('modal',this)" data-pmb="modal"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="15" r="5.5" stroke="currentColor" stroke-width="1.5"/></svg>Modal</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('pembayaran-rc',this)" data-pmb="pembayaran-rc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><rect x="2" y="6" width="20" height="13" rx="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h20" stroke="currentColor" stroke-width="1.5"/></svg>Pembayaran</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('hasil-usaha',this)" data-pmb="hasil-usaha"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><rect x="4" y="14" width="4" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="9" width="4" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="16" y="4" width="4" height="17" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>Hasil Usaha</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('lapkeu',this)" data-pmb="lapkeu"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M3 17l6-6 4 4 8-8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h6v6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Lap.Keu</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('nasabah',this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><circle cx="9" cy="7" r="3.2" stroke="currentColor" stroke-width="1.5"/><path d="M2 20c0-3.5 3.1-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="17.5" cy="8" r="2.3" stroke="currentColor" stroke-width="1.3" opacity=".65"/><path d="M21 19.5c0-2.5-1.6-4.4-4-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".65"/></svg>Nasabah</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('program',this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/></svg>Program</button>
+        <button class="tab-pill pmb-tab" onclick="pembiayaanTab('simulasi',this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><rect x="5" y="2" width="14" height="20" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="7.5" y="4.5" width="9" height="4" rx="0.5" stroke="currentColor" stroke-width="1.3"/><circle cx="8.7" cy="12" r="0.9" fill="currentColor"/><circle cx="12" cy="12" r="0.9" fill="currentColor"/><circle cx="15.3" cy="12" r="0.9" fill="currentColor"/><circle cx="8.7" cy="16" r="0.9" fill="currentColor"/><circle cx="12" cy="16" r="0.9" fill="currentColor"/><circle cx="15.3" cy="16" r="0.9" fill="currentColor"/></svg>Simulasi</button>
       </div>
       <div id="pembiayaanContent"></div>
     </div>
@@ -10892,13 +11404,13 @@ window.deletePengurus = function(id) {
     <!-- LAPORAN PAGE -->
     <div class="page" id="page-laporan">
       <div class="tab-bar" style="overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap;padding:0 12px;gap:6px">
-        <button class="tab-pill active" data-tab="nasabah-pribadi" onclick="laporanTab('nasabah-pribadi',this)" style="white-space:nowrap">👤 Nasabah</button>
-        <button class="tab-pill" data-tab="koperasi" onclick="laporanTab('koperasi',this)" style="white-space:nowrap">🏛️ Koperasi</button>
-        <button class="tab-pill" data-tab="renco-capital" onclick="laporanTab('renco-capital',this)" style="white-space:nowrap">🏦 Renco Capital</button>
-        <button class="tab-pill" data-tab="keseluruhan" onclick="laporanTab('keseluruhan',this)" style="white-space:nowrap">📊 Keseluruhan</button>
-        <button class="tab-pill" data-tab="arsip" onclick="laporanTab('arsip',this)" style="white-space:nowrap">🗄️ Arsip</button>
-        <button class="tab-pill" data-tab="tunggakan" onclick="laporanTab('tunggakan',this)" style="white-space:nowrap" id="tabTunggakan">🔴 Tunggakan</button>
-        <button class="tab-pill" data-tab="history" onclick="laporanTab('history',this)" style="white-space:nowrap;display:none" id="tabHistory">📋 History</button>
+        <button class="tab-pill active" data-tab="nasabah-pribadi" onclick="laporanTab('nasabah-pribadi',this)" style="white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Nasabah</button>
+        <button class="tab-pill" data-tab="koperasi" onclick="laporanTab('koperasi',this)" style="white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M4 21V11l8-6 8 6v10" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 21v-6a3 3 0 0 1 6 0v6" stroke="currentColor" stroke-width="1.6"/></svg>Koperasi</button>
+        <button class="tab-pill" data-tab="renco-capital" onclick="laporanTab('renco-capital',this)" style="white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><rect x="2" y="6" width="20" height="13" rx="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h20" stroke="currentColor" stroke-width="1.5"/></svg>Renco Capital</button>
+        <button class="tab-pill" data-tab="keseluruhan" onclick="laporanTab('keseluruhan',this)" style="white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><rect x="4" y="14" width="4" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="9" width="4" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="16" y="4" width="4" height="17" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>Keseluruhan</button>
+        <button class="tab-pill" data-tab="arsip" onclick="laporanTab('arsip',this)" style="white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><rect x="3" y="4" width="18" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9" stroke="currentColor" stroke-width="1.5"/><path d="M10 13h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Arsip</button>
+        <button class="tab-pill" data-tab="tunggakan" onclick="laporanTab('tunggakan',this)" style="white-space:nowrap" id="tabTunggakan"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.3 3.9L2.6 18a1.5 1.5 0 0 0 1.3 2.2h16.2a1.5 1.5 0 0 0 1.3-2.2L13.7 3.9a1.5 1.5 0 0 0-2.6 0z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Tunggakan</button>
+        <button class="tab-pill" data-tab="history" onclick="laporanTab('history',this)" style="white-space:nowrap;display:none" id="tabHistory"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>History</button>
       </div>
       <div id="laporanContent"></div>
     </div>
@@ -13782,7 +14294,7 @@ let DB = {
   nextPengurusId: 1,
   subKategoriOptions: {},
   appSettings: {
-    loginWatermark: 'Koperasi Renco v0.1 · Diperbarui 04 Agustus 2026'
+    loginWatermark: ''
   },
   auditLog: [] // Audit Log permanen — tidak boleh direset/dihapus di mana pun dalam kode ini
 };
@@ -13831,8 +14343,8 @@ function _dbMigrate() {
   if (!DB.dompetNasabah || typeof DB.dompetNasabah !== 'object') DB.dompetNasabah = {};
   if (!DB.subKategoriOptions || typeof DB.subKategoriOptions !== 'object') DB.subKategoriOptions = {};
   if (!DB.appSettings || typeof DB.appSettings !== 'object') DB.appSettings = {};
-  if (typeof DB.appSettings.loginWatermark !== 'string' || !DB.appSettings.loginWatermark) {
-    DB.appSettings.loginWatermark = 'Koperasi Renco v0.1 · Diperbarui 04 Agustus 2026';
+  if (typeof DB.appSettings.loginWatermark !== 'string') {
+    DB.appSettings.loginWatermark = ''; // kosong default — teks watermark lama sudah dihapus, jangan dipaksa balik
   }
   // Pastikan counter angka
   if (typeof DB.nextKKId  !== 'number' || DB.nextKKId  < 1) DB.nextKKId  = _maxId(DB.nasabah,  'kk')  + 1;
@@ -16033,8 +16545,24 @@ function _kaLoadPhotoImg(memberId) {
     var src = typeof getMemberPhoto === 'function' ? getMemberPhoto(memberId) : null;
     if (!src) { resolve(null); return; }
     var img = new Image();
+    // Foto nasabah kini disimpan sebagai URL Supabase Storage (lintas-domain),
+    // bukan base64 — tanpa crossOrigin, canvas jadi "tainted" dan toDataURL()/
+    // save PDF akan diblokir browser (gagal diunduh tanpa error yang jelas).
+    if (src.indexOf('data:') !== 0) img.crossOrigin = 'anonymous';
     img.onload = function() { resolve(img); };
-    img.onerror = function() { resolve(null); };
+    img.onerror = function() {
+      // Kalau gagal dimuat dengan crossOrigin (mis. server foto lama belum izinkan CORS),
+      // coba sekali lagi tanpa crossOrigin — kartu tetap tampil walau unduh gambar/PDF
+      // mungkin gagal khusus utk foto tsb, drpd kartu tidak muncul sama sekali.
+      if (img.crossOrigin) {
+        var img2 = new Image();
+        img2.onload = function(){ resolve(img2); };
+        img2.onerror = function(){ resolve(null); };
+        img2.src = src;
+      } else {
+        resolve(null);
+      }
+    };
     img.src = src;
   });
 }
@@ -24107,6 +24635,7 @@ function renderHome() {
   const total = totalSimpanan + totalAset + totalPHU - totalPinjaman;
 
   document.getElementById('heroTotal').textContent = fmt(total);
+  if (typeof window._applySaldoVisibility === 'function') window._applySaldoVisibility();
   document.getElementById('statNasabah').textContent = DB.nasabah.length;
   document.getElementById('statSimpanan').textContent = fmt(totalSimpanan);
   document.getElementById('statPinjaman').textContent = fmt(totalPinjaman);
@@ -24149,6 +24678,9 @@ function renderHome() {
   // Slide Banner
   renderSlideBanner();
 
+  // Pengumuman Penting — kartu kaca transparan (glassmorphism)
+  if (typeof window._iklanRender === 'function') window._iklanRender();
+
   // Transaksi terbaru — urutkan berdasarkan tanggal transaksi (bukan urutan array mentah)
   const tl = document.getElementById('homeTransaksiList');
   const _HOME_TXN_PREVIEW = 5;
@@ -24174,7 +24706,6 @@ function renderHome() {
 // ── Item transaksi (dipakai renderHome + filter Beranda) ──
 window._renderHomeTxnItem = function(t) {
   const kk = getNasabah(t.kkId);
-  const icons = {simpanan:'💵',pinjaman:'📤',cicilan:'💳',pembiayaan:'🏦'};
   // Dari perspektif KOPERASI:
   // Kas MASUK  : simpanan (nasabah setor), cicilan/angsuran (pembayaran pinjaman masuk ke kas)
   // Kas KELUAR : pinjaman (koperasi cairkan dana), tarik-sukarela, pembiayaan (koperasi keluarkan dana)
@@ -24182,7 +24713,14 @@ window._renderHomeTxnItem = function(t) {
   const _KAS_KELUAR_ADMIN = ['pinjaman','tarik-sukarela','pembiayaan','tarik'];
   const isMasukAdmin  = _KAS_MASUK_ADMIN.includes(t.type);
   const isKeluarAdmin = _KAS_KELUAR_ADMIN.includes(t.type);
-  const colors = {simpanan:'green',pinjaman:'red',cicilan:'green',pembiayaan:'red'};
+  // Warna per JENIS transaksi (bar aksen kiri) — tanpa ikon, cukup warna yang membedakan
+  const _TXN_TYPE_COLOR = {
+    simpanan:'#2d6a4f', cicilan:'#0f766e', pinjaman:'#e63946', pembiayaan:'#6b21a8',
+    'tarik-sukarela':'#b07a00', 'angsuran-rc':'#6b21a8', angsuran:'#0f766e',
+    'ujrah-perpanjang':'#0f766e', 'ujrah-langsung':'#0f766e', 'ujrah-cicilan':'#0f766e', 'ujrah-akumulasi':'#0f766e',
+    perpanjang:'#0f766e', 'topup-dompet':'#d97706'
+  };
+  const typeColor = _TXN_TYPE_COLOR[t.type] || '#9ca3af';
   const stTxn = t.statusTxn; // 'pending' | 'aktif' | 'gagal' | undefined
   const statusBadge = stTxn === 'pending'
     ? `<span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(244,169,34,0.15);color:#b07a00;border:1px solid rgba(244,169,34,0.4);white-space:nowrap">⏳ PENDING</span>`
@@ -24190,7 +24728,7 @@ window._renderHomeTxnItem = function(t) {
     ? `<span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(230,57,70,0.12);color:#e63946;border:1px solid rgba(230,57,70,0.35);white-space:nowrap">❌ GAGAL</span>`
     : '';
   return `<div class="txn-item">
-    <div class="txn-icon ${colors[t.type]||'green'}">${icons[t.type]||'💰'}</div>
+    <div style="width:4px;align-self:stretch;border-radius:3px;background:${typeColor};opacity:0.5;flex-shrink:0"></div>
     <div class="txn-info">
       <div class="txn-name" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${kk?kk.nama:'?'} — ${t.keterangan||t.jenis||t.type} ${statusBadge}</div>
       <div class="txn-date">${fmtDate(t.tanggal)}</div>
@@ -26924,7 +27462,7 @@ function downloadRiwayatSimpananPDF() {
   showToast('✅ PDF riwayat simpanan berhasil diunduh');
 }
 
-let _homeTxnVisible = true;
+let _homeTxnVisible = false;
 function toggleHomeTxn() {
   _homeTxnVisible = !_homeTxnVisible;
   const body = document.getElementById('homeTxnBody');
@@ -33985,12 +34523,14 @@ function forumTab(tab) {
   document.getElementById('forumTabArisan')?.classList.toggle('active', tab==='arisan');
   document.getElementById('forumTabBerita')?.classList.toggle('active', tab==='berita');
   document.getElementById('forumTabKalender')?.classList.toggle('active', tab==='kalender');
+  document.getElementById('forumTabNasehat')?.classList.toggle('active', tab==='nasehat');
   var _sd = document.getElementById('forumSeksiDiskusi'); if(_sd) _sd.style.display = tab==='diskusi' ? '' : 'none';
   var _sp = document.getElementById('forumSeksiPolling'); if(_sp) _sp.style.display = tab==='polling' ? '' : 'none';
   var _sg = document.getElementById('forumSeksiGames');   if(_sg) _sg.style.display = tab==='games'   ? '' : 'none';
   var _sa = document.getElementById('forumSeksiArisan');  if(_sa) _sa.style.display = tab==='arisan'  ? '' : 'none';
   var _sb = document.getElementById('forumSeksiBerita');  if(_sb) _sb.style.display = tab==='berita'  ? '' : 'none';
   var _sk = document.getElementById('forumSeksiKalender');if(_sk) _sk.style.display = tab==='kalender'? '' : 'none';
+  var _sn = document.getElementById('forumSeksiNasehat'); if(_sn) _sn.style.display = tab==='nasehat' ? '' : 'none';
   // Tombol Buat Polling hanya tampil untuk admin
   if (tab === 'polling') {
     var _btnPoll = document.getElementById('btnBuatPolling');
@@ -34002,7 +34542,64 @@ function forumTab(tab) {
   if (tab==='games') { renderChallenge(); }
   if (tab==='berita') renderBerita();
   if (tab==='kalender') renderKalenderKoperasi();
+  if (tab==='nasehat') renderNasehatList();
 }
+
+// ═══════════════════════════════════════════
+//  TAB 100 NASEHAT KEUANGAN (Hiburan)
+// ═══════════════════════════════════════════
+var _nasehatListOrder = null;
+var _nasehatAktifN = null; // posisi kartu yang sedang dibuka rinciannya (null = belum ada)
+
+function renderNasehatList(acak) {
+  var wrap = document.getElementById('nasehatListWrap');
+  if (!wrap) return;
+  var data = window._NASEHAT_KEUANGAN_LIST || [];
+  if (!data.length) { wrap.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px;padding:30px 0">Nasehat belum tersedia.</div>'; return; }
+  if (!_nasehatListOrder || acak) {
+    _nasehatListOrder = data.map(function(_, i){ return i; });
+    if (acak) {
+      for (var i = _nasehatListOrder.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = _nasehatListOrder[i]; _nasehatListOrder[i] = _nasehatListOrder[j]; _nasehatListOrder[j] = t;
+      }
+    }
+    _nasehatAktifN = null;
+  }
+  var adaAktif = (_nasehatAktifN !== null);
+  var html = '';
+  _nasehatListOrder.forEach(function(idx, n) {
+    var d = data[idx];
+    var aktif = (_nasehatAktifN === n);
+    var kelas = 'nasehat-item' + (aktif ? ' nasehat-item-aktif' : '') + (adaAktif && !aktif ? ' nasehat-item-blur' : '');
+    html += '<div class="' + kelas + '" onclick="_nasehatToggle(' + n + ')" id="nasehatItem' + n + '">'
+      + '<div class="nasehat-item-head">'
+        + '<div class="nasehat-item-ico">' + d.icon + '</div>'
+        + '<div class="nasehat-item-judul">#' + (n + 1) + ' — ' + d.sumber + '</div>'
+        + '<div class="nasehat-item-chev">' + (aktif ? '▾' : '›') + '</div>'
+      + '</div>'
+      + (aktif ?
+        '<div class="nasehat-item-body">'
+          + '<div class="nasehat-item-teks">' + d.teks + '</div>'
+          + '<div class="nasehat-item-tipbox"><span>💡</span><div>' + d.tip + '</div></div>'
+        + '</div>'
+      : '')
+    + '</div>';
+  });
+  wrap.innerHTML = html;
+  if (adaAktif) {
+    var activeEl = document.getElementById('nasehatItem' + _nasehatAktifN);
+    if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+// Buka/tutup rincian satu kartu nasehat; kartu lain otomatis blur saat ada yang aktif
+function _nasehatToggle(n) {
+  _nasehatAktifN = (_nasehatAktifN === n) ? null : n;
+  renderNasehatList(false);
+}
+
+function _nasehatListAcak() { renderNasehatList(true); }
 
 
 // ═══════════════════════════════════════════
@@ -37113,31 +37710,30 @@ async function downloadKartuImg() {
   const a = getCardMemberData();
   if (!a) { showToast('⚠️ Pilih nasabah dulu'); return; }
   showToast('📷 Membuat gambar...');
+  const doExportImg = (img) => {
+    try {
+      const canvas = drawKartuCanvas(a, 3, img||null);
+      const link = document.createElement('a');
+      link.download = 'kartu-nasabah-'+(a.nama||'renco').replace(/\s+/g,'-').toLowerCase()+'.png';
+      link.href = canvas.toDataURL('image/png'); link.click();
+      showToast(img ? '✅ Kartu berhasil diunduh!' : '✅ Kartu berhasil diunduh! (foto gagal dimuat)');
+    } catch(e) { showToast('❌ Gagal: '+e.message); }
+  };
   try {
     const photoSrc = typeof getMemberPhoto === 'function' ? getMemberPhoto(a.id) : localStorage.getItem('renco_photo_'+a.id);
     if (photoSrc) {
       const img = new Image();
-      img.onload = () => {
-        const canvas = drawKartuCanvas(a, 3, img);
-        const link = document.createElement('a');
-        link.download = 'kartu-nasabah-'+(a.nama||'renco').replace(/\s+/g,'-').toLowerCase()+'.png';
-        link.href = canvas.toDataURL('image/png'); link.click();
-        showToast('✅ Kartu berhasil diunduh!');
-      };
+      // Foto nasabah bisa berupa URL Supabase Storage (lintas-domain) —
+      // tanpa crossOrigin, canvas jadi "tainted" & toDataURL() diblokir browser.
+      if (photoSrc.indexOf('data:') !== 0) img.crossOrigin = 'anonymous';
+      img.onload = () => doExportImg(img);
       img.onerror = () => {
-        const canvas = drawKartuCanvas(a, 3, null);
-        const link = document.createElement('a');
-        link.download = 'kartu-nasabah-'+(a.nama||'renco').replace(/\s+/g,'-').toLowerCase()+'.png';
-        link.href = canvas.toDataURL('image/png'); link.click();
-        showToast('✅ Kartu berhasil diunduh! (foto gagal dimuat)');
+        if (img.crossOrigin) { const img2=new Image(); img2.onload=()=>doExportImg(img2); img2.onerror=()=>doExportImg(null); img2.src=photoSrc; }
+        else doExportImg(null);
       };
       img.src = photoSrc;
     } else {
-      const canvas = drawKartuCanvas(a, 3, null);
-      const link = document.createElement('a');
-      link.download = 'kartu-nasabah-'+(a.nama||'renco').replace(/\s+/g,'-').toLowerCase()+'.png';
-      link.href = canvas.toDataURL('image/png'); link.click();
-      showToast('✅ Kartu berhasil diunduh!');
+      doExportImg(null);
     }
   } catch(e) { showToast('❌ Gagal: '+e.message); }
 }
@@ -37148,9 +37744,8 @@ async function downloadKartuPDF() {
   const jsPDFCls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF || null;
   if (!jsPDFCls) { showToast('⏳ Library PDF belum siap, tunggu sebentar lalu coba lagi'); return; }
   showToast('📄 Membuat PDF...');
-  try {
-    const photoSrc = typeof getMemberPhoto === 'function' ? getMemberPhoto(a.id) : localStorage.getItem('renco_photo_'+a.id);
-    const doExport = (img) => {
+  const doExport = (img) => {
+    try {
       const canvas = drawKartuCanvas(a, 4, img||null);
       const jsPDFCls2 = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
       const pdf = new jsPDFCls2('l','mm',[85.6,54]);
@@ -37158,11 +37753,20 @@ async function downloadKartuPDF() {
       pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,85.6,54);
       pdf.save('kartu-nasabah-'+(a.nama||'renco').replace(/\s+/g,'-').toLowerCase()+'.pdf');
       showToast('✅ PDF berhasil diunduh!');
-    };
+    } catch(e) { showToast('❌ Gagal: '+e.message); }
+  };
+  try {
+    const photoSrc = typeof getMemberPhoto === 'function' ? getMemberPhoto(a.id) : localStorage.getItem('renco_photo_'+a.id);
     if (photoSrc) {
       const img = new Image();
+      // Foto nasabah bisa berupa URL Supabase Storage (lintas-domain) —
+      // tanpa crossOrigin, canvas jadi "tainted" & toDataURL() diblokir browser.
+      if (photoSrc.indexOf('data:') !== 0) img.crossOrigin = 'anonymous';
       img.onload=()=>doExport(img);
-      img.onerror=()=>doExport(null);
+      img.onerror=()=>{
+        if (img.crossOrigin) { const img2=new Image(); img2.onload=()=>doExport(img2); img2.onerror=()=>doExport(null); img2.src=photoSrc; }
+        else doExport(null);
+      };
       img.src=photoSrc;
     } else { doExport(null); }
   } catch(e) { showToast('❌ Gagal: '+e.message); }
@@ -55429,45 +56033,137 @@ window.nsBayarCicilan = function(pinId) {
 
   var NASEHAT = [
     { icon:'🌱', teks:'Sisihkan minimal 10% dari setiap penghasilan sebelum membelanjakan sisanya. Menabung bukan sisa pengeluaran, tapi kewajiban pertama.', sumber:'Prinsip Pay Yourself First', tip:'Atur transfer otomatis ke tabungan di hari gajian agar tidak terpakai.' },
-    { icon:'⚖️', teks:'"Sesungguhnya Allah menyukai hamba-Nya yang bekerja dan jika bekerja, ia melakukannya dengan baik." Produktif dan cermat dalam keuangan adalah ibadah.', sumber:'HR. Thabrani', tip:'Catat setiap pemasukan dan pengeluaran harian, sekecil apapun nominalnya.' },
-    { icon:'🏦', teks:'Utang yang baik adalah utang produktif — digunakan untuk aset yang nilainya bertumbuh, bukan konsumsi yang habis.', sumber:'Prinsip Keuangan Syariah', tip:'Sebelum berhutang, tanya: apakah ini kebutuhan atau keinginan?' },
-    { icon:'📊', teks:'"Dan janganlah kamu menghambur-hamburkan hartamu secara boros. Sesungguhnya orang-orang yang boros adalah saudara-saudara setan."', sumber:'QS. Al-Isra: 26-27', tip:'Terapkan aturan 50-30-20: 50% kebutuhan, 30% keinginan, 20% tabungan.' },
-    { icon:'💰', teks:'Dana darurat adalah tameng keuangan. Simpan 3–6 bulan pengeluaran di rekening terpisah yang mudah diakses kapan saja.', sumber:'Perencanaan Keuangan', tip:'Mulai dari Rp100.000/bulan. Konsistensi lebih penting dari jumlah.' },
-    { icon:'🤝', teks:'Zakat dan sedekah bukan mengurangi harta, melainkan membersihkan dan menumbuhkannya. "Tidaklah berkurang harta karena sedekah."', sumber:'HR. Muslim', tip:'Niatkan sedekah rutin setiap bulan meski hanya Rp10.000, dan rasakan keberkahannya.' },
-    { icon:'📝', teks:'Anggaran bukan penjara keuangan, melainkan rencana kebebasan. Siapa yang tidak merencanakan keuangannya, sesungguhnya merencanakan kegagalan.', sumber:'Prinsip Manajemen Keuangan', tip:'Buat anggaran bulanan setiap awal bulan, evaluasi setiap akhir bulan.' },
-    { icon:'🌿', teks:'"Ambillah dari hartamu sedekah yang dengannya kamu membersihkan dan menyucikan mereka." Harta yang bersih mendatangkan ketenangan jiwa.', sumber:'QS. At-Taubah: 103', tip:'Pisahkan rekening zakat/sedekah dari rekening operasional harian.' },
-    { icon:'🎯', teks:'Investasi terbaik adalah investasi pada diri sendiri — ilmu, kesehatan, dan keahlian yang meningkatkan nilai penghasilan Anda.', sumber:'Prinsip Investasi Jangka Panjang', tip:'Alokasikan minimal 5% penghasilan untuk pendidikan dan pengembangan diri.' },
-    { icon:'🏠', teks:'Kepemilikan rumah adalah impian mulia. Cicilan rumah sebaiknya tidak melebihi 30% penghasilan bulanan agar tidak membebani keuangan keluarga.', sumber:'Standar Kredit Properti', tip:'Tabung untuk uang muka minimal 20-30% agar cicilan lebih ringan.' },
-    { icon:'🌙', teks:'"Tangan di atas lebih baik dari tangan di bawah." Berusahalah mandiri secara finansial agar bisa menjadi penolong, bukan yang memerlukan bantuan.', sumber:'HR. Bukhari & Muslim', tip:'Kembangkan sumber penghasilan tambahan meski kecil, agar tidak bergantung satu sumber.' },
-    { icon:'📈', teks:'Bunga majemuk bekerja 24 jam sehari. Mulai investasi sedini mungkin — selisih 10 tahun bisa berarti perbedaan yang sangat besar di masa depan.', sumber:'Prinsip Compound Interest', tip:'Investasi Rp500.000/bulan selama 30 tahun lebih baik dari Rp5 juta/bulan selama 10 tahun.' },
-    { icon:'🛡️', teks:'Asuransi bukan pemborosan, melainkan perlindungan agar satu kejadian tidak menghancurkan seluruh rencana keuangan keluarga.', sumber:'Manajemen Risiko Keuangan', tip:'Prioritaskan asuransi kesehatan dan jiwa sebelum investasi instrumen lainnya.' },
-    { icon:'💡', teks:'"Barangsiapa yang hartanya bertambah namun bersyukurnya berkurang, maka Allah akan membalikkan keadaannya." Syukur adalah kunci keberkahan harta.', sumber:'Hadits Qudsi', tip:'Catat 3 hal yang Anda syukuri hari ini, termasuk nikmat finansial sekecil apapun.' },
-    { icon:'🔄', teks:'Hindari utang konsumtif berbunga tinggi. Kartu kredit yang tidak dilunasi penuh setiap bulan adalah racun keuangan paling berbahaya.', sumber:'Prinsip Bebas Utang', tip:'Jika punya utang kartu kredit, lunasi yang bunganya paling tinggi lebih dulu.' },
-    { icon:'🌾', teks:'Dalam ekonomi syariah, riba dilarang karena menzalimi. Pilih produk keuangan syariah yang saling menguntungkan dan bebas dari unsur riba.', sumber:'QS. Al-Baqarah: 275', tip:'Bandingkan produk koperasi syariah dengan bank konvensional — sering lebih menguntungkan.' },
-    { icon:'👨‍👩‍👧', teks:'Keuangan keluarga yang sehat dimulai dari komunikasi yang terbuka antara pasangan. Rahasiakan pengeluaran dari pasangan adalah awal masalah keuangan.', sumber:'Prinsip Keuangan Keluarga', tip:'Adakan rapat keuangan keluarga sebulan sekali untuk evaluasi bersama.' },
-    { icon:'⏰', teks:'Waktu adalah aset paling berharga yang tidak bisa dibeli. Setiap jam yang digunakan produktif hari ini adalah investasi untuk kesejahteraan esok.', sumber:'Manajemen Waktu & Keuangan', tip:'Hitung nilai waktu Anda per jam, dan gunakan sebagai acuan keputusan finansial.' },
-    { icon:'🎓', teks:'Literasi keuangan adalah keterampilan dasar abad ini. Orang yang paham keuangan akan membuat keputusan lebih bijak dan terhindar dari penipuan.', sumber:'OJK — Literasi Keuangan', tip:'Luangkan 15 menit sehari membaca artikel keuangan terpercaya.' },
-    { icon:'🌊', teks:'"Sesungguhnya sesudah kesulitan itu ada kemudahan." Setiap tekanan finansial adalah sementara — tetap disiplin dan solusi pasti datang.', sumber:'QS. Al-Insyirah: 6', tip:'Di masa sulit, prioritaskan kebutuhan pokok dan tunda pengeluaran yang bisa ditunda.' },
-    { icon:'💎', teks:'Kekayaan sejati bukan dinilai dari berapa yang Anda miliki, tapi dari berapa lama Anda bisa hidup tanpa bekerja. Bangun aset pasif.', sumber:'Robert Kiyosaki', tip:'Targetkan punya minimal 1 sumber penghasilan pasif sebelum usia 40 tahun.' },
-    { icon:'🤲', teks:'Rezeki yang berkah bukan sekadar banyak, tapi cukup untuk kebutuhan, aman dari haram, dan memberi manfaat untuk orang lain.', sumber:'Konsep Rezeki Berkah', tip:'Selalu pastikan sumber penghasilan halal — ketenangan hati tidak ternilai harganya.' },
-    { icon:'📱', teks:'Kemudahan belanja online adalah ujian keuangan modern. Buat daftar belanja sebelum membuka e-commerce, dan tunggu 24 jam sebelum membeli barang mahal.', sumber:'Psikologi Keuangan', tip:'Hapus aplikasi belanja dari halaman utama HP agar tidak tergoda impulse buying.' },
-    { icon:'🏋️', teks:'Kesehatan adalah investasi keuangan terbesar. Biaya sakit jauh lebih mahal dari biaya hidup sehat. Jaga tubuh sebaik menjaga rekening.', sumber:'Prinsip Health Economics', tip:'Investasi di olahraga rutin dan pola makan sehat bisa menghemat jutaan biaya kesehatan.' },
-    { icon:'🗺️', teks:'Tujuan keuangan tanpa rencana hanya angan-angan. Tetapkan target finansial 1 tahun, 5 tahun, dan 10 tahun dengan angka yang spesifik.', sumber:'SMART Financial Goals', tip:'Tuliskan tujuan keuangan Anda dan tempel di tempat yang sering dilihat setiap hari.' },
-    { icon:'🌍', teks:'Warisan terbaik untuk anak bukan harta, tapi kemampuan mengelola harta. Ajarkan anak tentang menabung, bekerja, dan berbagi sejak dini.', sumber:'Pendidikan Keuangan Keluarga', tip:'Beri anak celengan dan ajak mereka menabung sendiri untuk beli mainan impiannya.' },
-    { icon:'⚡', teks:'Inflasi adalah musuh diam-diam tabungan. Uang yang hanya disimpan di bawah kasur atau rekening tanpa bunga kehilangan nilainya setiap tahun.', sumber:'Prinsip Ekonomi Dasar', tip:'Pastikan return investasi Anda minimal setara inflasi (5-7% per tahun di Indonesia).' },
-    { icon:'🔑', teks:'"Barangsiapa bertakwa kepada Allah, maka Ia akan memberikan jalan keluar dan rezeki dari arah yang tidak disangka-sangka."', sumber:'QS. At-Talaq: 2-3', tip:'Perbanyak istighfar dan sedekah — keduanya dipercaya membuka pintu rezeki yang tersumbat.' },
-    { icon:'📦', teks:'Minimalis bukan berarti miskin, tapi bijak. Harta yang sedikit tapi cukup lebih baik dari harta banyak tapi penuh hutang dan kecemasan.', sumber:'Filosofi Keuangan Minimalis', tip:'Sebelum membeli, tanya: "Apakah saya benar-benar membutuhkan ini, atau hanya menginginkannya?"' },
-    { icon:'🌟', teks:'Koperasi adalah semangat tolong-menolong dalam ekonomi. Bersama kita lebih kuat — keuntungan dibagi rata, risiko ditanggung bersama.', sumber:'Prinsip Koperasi Syariah', tip:'Aktif berpartisipasi di koperasi bukan hanya simpanan, tapi juga ikut rapat dan pengambilan keputusan.' }
+    { icon:'🎯', teks:'Dana darurat adalah tameng keuangan. Simpan 3–6 bulan pengeluaran di rekening terpisah yang mudah dicairkan kapan saja.', sumber:'Perencanaan Keuangan Modern', tip:'Mulai dari Rp100.000/bulan — konsistensi lebih penting dari besarnya nominal.' },
+    { icon:'🏦', teks:'Pisahkan rekening tabungan dari rekening harian agar saldo darurat tidak tergoda terpakai untuk hal konsumtif.', sumber:'Manajemen Rekening Pribadi', tip:'Buka rekening kedua khusus tabungan tanpa kartu debit yang mudah diakses.' },
+    { icon:'⏱️', teks:'Menabung Rp10.000 per hari terasa jauh lebih ringan dibanding menyisihkan Rp300.000 sekaligus di akhir bulan.', sumber:'Psikologi Menabung', tip:'Coba tantangan menabung harian selama 30 hari berturut-turut untuk membentuk kebiasaan.' },
+    { icon:'📅', teks:'Evaluasi target tabungan setiap tiga bulan dan sesuaikan dengan perubahan penghasilan atau kebutuhan terbaru.', sumber:'Financial Check-up Rutin', tip:'Jadwalkan pengingat di kalender untuk review keuangan tiap awal kuartal.' },
+    { icon:'🎁', teks:'Simpan minimal 50% dari bonus atau THR sebelum sisanya dipakai untuk kebutuhan konsumtif musiman.', sumber:'Strategi Windfall Income', tip:'Pindahkan separuh bonus ke tabungan begitu diterima, sebelum sempat direncanakan belanja.' },
+    { icon:'🪙', teks:'Manfaatkan fitur celengan digital atau round-up otomatis agar menabung terasa ringan tanpa disadari.', sumber:'Digital Saving Habits', tip:'Aktifkan fitur pembulatan otomatis di aplikasi keuangan yang kamu pakai sehari-hari.' },
+    { icon:'🎓', teks:'Tabungan pendidikan anak sebaiknya dimulai sejak dini, bukan menjelang tahun ajaran baru dimulai.', sumber:'Perencanaan Pendidikan', tip:'Buka simpanan berjangka khusus pendidikan dengan setoran rutin setiap bulan.' },
+    { icon:'🚩', teks:'Jangan tergiur imbal hasil tinggi tanpa memahami risikonya lebih dulu — pahami produknya sebelum menaruh dana.', sumber:'Kewaspadaan Finansial', tip:'Cek legalitas dan izin resmi setiap produk simpanan atau investasi sebelum ikut serta.' },
+    { icon:'🤝', teks:'Simpanan di koperasi bisa jadi pilihan aman karena berbasis gotong royong dan bagi hasil yang transparan.', sumber:'Ekonomi Kerakyatan', tip:'Rutin menabung di koperasi sekaligus memperkuat kas bersama untuk anggota lain.' },
+    { icon:'🧊', teks:'Dana darurat sebaiknya disimpan di instrumen yang mudah dicairkan, bukan di investasi berisiko atau terkunci lama.', sumber:'Prinsip Likuiditas', tip:'Pastikan dana darurat bisa dicairkan dalam waktu kurang dari 1x24 jam.' },
+    { icon:'📈', teks:'Bunga majemuk bekerja setiap hari — memulai menabung dan investasi sedini mungkin membuat selisih besar di masa depan.', sumber:'Compound Interest', tip:'Investasi kecil rutin sejak usia 20-an bisa mengungguli investasi besar yang telat dimulai.' },
+    { icon:'🌾', teks:'Menabung bukan tentang jumlah yang tersisa di akhir bulan, tapi tentang prioritas yang ditetapkan sejak awal.', sumber:'Mindset Menabung', tip:'Tuliskan target tabungan bulanan di catatan yang mudah dilihat setiap hari.' },
+
+    { icon:'📊', teks:'Terapkan prinsip 50/30/20 — 50% kebutuhan, 30% keinginan, dan 20% tabungan atau investasi setiap bulan.', sumber:'Elizabeth Warren — 50/30/20 Rule', tip:'Hitung ulang proporsi ini setiap kali penghasilan atau pengeluaran tetap berubah.' },
+    { icon:'📝', teks:'Buat anggaran bulanan sebelum gajian cair, bukan setelah uang mulai menipis di pertengahan bulan.', sumber:'Zero-Based Budgeting', tip:'Alokasikan setiap rupiah penghasilan ke pos tertentu sebelum mulai membelanjakannya.' },
+    { icon:'🛍️', teks:'Bedakan kebutuhan dan keinginan sebelum memutuskan membeli sesuatu — tanyakan apakah ini benar-benar perlu sekarang.', sumber:'Prinsip Belanja Sadar', tip:'Beri jeda 24 jam sebelum membeli barang di atas nominal tertentu.' },
+    { icon:'📱', teks:'Review langganan digital seperti streaming dan aplikasi berbayar setiap bulan — hentikan yang jarang dipakai.', sumber:'Subscription Audit', tip:'Catat semua langganan aktif dan totalnya, lalu evaluasi mana yang benar-benar bermanfaat.' },
+    { icon:'🧾', teks:'Belanja dengan daftar yang sudah disiapkan membantu menghindari pembelian impulsif di luar rencana.', sumber:'Disiplin Belanja', tip:'Tulis daftar belanja sebelum ke toko atau membuka aplikasi e-commerce.' },
+    { icon:'🍳', teks:'Memasak di rumah lebih sering bisa memangkas pengeluaran harian tanpa harus mengurangi kualitas hidup.', sumber:'Efisiensi Pengeluaran Harian', tip:'Rencanakan menu mingguan agar belanja bahan makanan lebih terarah dan hemat.' },
+    { icon:'🏷️', teks:'Manfaatkan promo dan diskon secara bijak — jangan jadikan alasan untuk berbelanja lebih dari kebutuhan.', sumber:'Perilaku Konsumen Cerdas', tip:'Bandingkan harga normal sebelum tergoda label diskon besar di aplikasi belanja.' },
+    { icon:'☕', teks:'Pengeluaran kecil harian seperti kopi, jajan, dan ongkos bisa terasa kecil tapi jumlahnya signifikan dalam sebulan.', sumber:'Latte Factor', tip:'Catat setiap pengeluaran kecil selama sepekan untuk melihat pola nyata pengeluaranmu.' },
+    { icon:'📲', teks:'Gunakan aplikasi pencatat keuangan agar arus kas pribadi lebih mudah dipantau kapan saja dibutuhkan.', sumber:'Financial Tracking Digital', tip:'Luangkan 5 menit setiap malam untuk mencatat transaksi hari itu.' },
+    { icon:'🎬', teks:'Tetapkan batas pengeluaran hiburan bulanan agar gaya hidup tetap terkendali tanpa mengorbankan kebutuhan pokok.', sumber:'Budgeting Gaya Hidup', tip:'Tentukan nominal pasti untuk hiburan di awal bulan dan patuhi batasnya.' },
+    { icon:'📦', teks:'Belanja kebutuhan pokok dalam jumlah lebih besar bisa lebih hemat, asal memang benar-benar terpakai rutin.', sumber:'Strategi Belanja Grosir', tip:'Hitung harga per satuan sebelum memutuskan membeli dalam kemasan besar.' },
+    { icon:'😌', teks:'Hindari belanja saat emosi tidak stabil — keputusan finansial terbaik diambil dalam kondisi pikiran yang tenang.', sumber:'Psikologi Keuangan', tip:'Tunda keputusan belanja besar sampai suasana hati kembali stabil.' },
+    { icon:'🗓️', teks:'Rencanakan pengeluaran tahunan seperti lebaran, sekolah, dan pajak agar tidak mengejutkan arus kas bulanan.', sumber:'Perencanaan Kas Tahunan', tip:'Buat pos tabungan khusus untuk pengeluaran musiman yang berulang setiap tahun.' },
+    { icon:'⚖️', teks:'Anggaran yang realistis dan bisa dijalani jauh lebih efektif daripada anggaran ketat yang sering dilanggar.', sumber:'Sustainable Budgeting', tip:'Sisakan sedikit ruang untuk pengeluaran fleksibel agar anggaran tidak terasa menekan.' },
+
+    { icon:'🚫', teks:'Gunakan utang hanya untuk hal produktif, bukan untuk konsumsi yang nilainya langsung menyusut setelah dibeli.', sumber:'Utang Produktif vs Konsumtif', tip:'Sebelum berutang, tanyakan apakah barang atau kegiatan ini akan menghasilkan nilai balik.' },
+    { icon:'📉', teks:'Pastikan total cicilan bulanan tidak melebihi 30% dari penghasilan agar arus kas tetap sehat.', sumber:'Debt-to-Income Ratio', tip:'Hitung ulang rasio cicilanmu setiap kali mengambil pinjaman atau cicilan baru.' },
+    { icon:'🔥', teks:'Lunasi utang dengan bunga tertinggi lebih dulu untuk menghemat biaya bunga dalam jangka panjang.', sumber:'Debt Avalanche Method', tip:'Urutkan semua utang berdasarkan bunga tertinggi, lalu fokus melunasi dari urutan teratas.' },
+    { icon:'🧮', teks:'Sebelum mengambil pinjaman, hitung dulu kemampuan bayar bulanan, bukan hanya keinginan memiliki sesuatu.', sumber:'Kelayakan Pinjaman Pribadi', tip:'Simulasikan cicilan di kalkulator sebelum benar-benar mengajukan pinjaman.' },
+    { icon:'⚠️', teks:'Cicilan barang konsumtif sebaiknya dihindari selama dana darurat belum terkumpul sepenuhnya.', sumber:'Prioritas Keuangan', tip:'Selesaikan dana darurat terlebih dahulu sebelum mengambil cicilan barang non-esensial.' },
+    { icon:'📄', teks:'Baca detail bunga dan biaya administrasi dengan teliti sebelum menandatangani perjanjian pinjaman apa pun.', sumber:'Literasi Kontrak Keuangan', tip:'Minta simulasi total biaya pinjaman secara tertulis sebelum menyetujui perjanjian.' },
+    { icon:'🕳️', teks:'Jangan gali lubang tutup lubang — berutang baru untuk membayar utang lama hanya memperbesar beban.', sumber:'Jebakan Utang Berantai', tip:'Jika kesulitan bayar utang, cari solusi restrukturisasi resmi, bukan utang baru.' },
+    { icon:'🏗️', teks:'Pinjaman produktif untuk usaha sebaiknya disertai proyeksi arus kas yang realistis, bukan sekadar optimisme.', sumber:'Manajemen Modal Usaha', tip:'Buat proyeksi pemasukan minimal 6 bulan sebelum mengajukan pinjaman usaha.' },
+    { icon:'🕌', teks:'Cicilan syariah tanpa bunga majemuk bisa jadi alternatif yang lebih transparan dan adil bagi kedua pihak.', sumber:'Pembiayaan Syariah', tip:'Bandingkan skema bagi hasil syariah dengan bunga konvensional sebelum memutuskan.' },
+    { icon:'🗂️', teks:'Selalu simpan bukti pembayaran cicilan sebagai catatan riwayat keuangan pribadi yang rapi dan mudah dicek.', sumber:'Dokumentasi Keuangan', tip:'Simpan foto atau file bukti pembayaran di folder khusus per bulan.' },
+    { icon:'⭐', teks:'Skor kredit yang baik mempermudah akses pinjaman dengan bunga lebih rendah di masa depan.', sumber:'Credit Scoring', tip:'Bayar semua cicilan tepat waktu untuk menjaga rekam jejak kredit tetap bersih.' },
+    { icon:'🏠', teks:'Jangan menjaminkan aset penting seperti rumah hanya untuk kebutuhan konsumtif jangka pendek.', sumber:'Manajemen Jaminan Aset', tip:'Pertimbangkan opsi lain sebelum menjaminkan aset bernilai besar untuk kebutuhan kecil.' },
+    { icon:'🏛️', teks:'Ajukan pinjaman hanya ke lembaga resmi dan berizin — hindari pinjaman online ilegal yang merugikan.', sumber:'Kewaspadaan Pinjol Ilegal', tip:'Cek legalitas pemberi pinjaman di situs resmi otoritas jasa keuangan sebelum mengajukan.' },
+    { icon:'💬', teks:'Diskusikan rencana utang besar dengan pasangan atau keluarga agar keputusan lebih transparan dan terencana.', sumber:'Komunikasi Keuangan Keluarga', tip:'Libatkan pasangan dalam setiap keputusan pinjaman bernilai besar sejak awal.' },
+
+    { icon:'🌟', teks:'Mulai investasi sedini mungkin — waktu adalah aset terbesar dalam pertumbuhan bunga majemuk.', sumber:'Time in the Market', tip:'Jangan menunggu punya uang banyak, mulai investasi dari nominal terjangkau hari ini.' },
+    { icon:'🧩', teks:'Diversifikasi investasi ke beberapa instrumen agar risiko tidak bertumpu pada satu jenis aset saja.', sumber:'Prinsip Diversifikasi', tip:'Sebar dana ke beberapa jenis instrumen sesuai profil risiko yang kamu pahami.' },
+    { icon:'🧭', teks:'Pahami profil risiko diri sendiri sebelum memilih produk investasi agar tidak salah pilih instrumen.', sumber:'Risk Profiling', tip:'Ikuti tes profil risiko sederhana sebelum menentukan alokasi investasi.' },
+    { icon:'💧', teks:'Reksadana pasar uang cocok untuk pemula yang baru mulai belajar mengelola risiko investasi.', sumber:'Investasi Pemula', tip:'Coba mulai dari reksadana pasar uang sebelum beralih ke instrumen yang lebih fluktuatif.' },
+    { icon:'⛔', teks:'Jangan investasikan uang yang masih dibutuhkan dalam waktu dekat — investasi butuh waktu untuk bertumbuh.', sumber:'Horizon Investasi', tip:'Pisahkan dana kebutuhan jangka pendek dari dana yang benar-benar siap diinvestasikan.' },
+    { icon:'📚', teks:'Pelajari instrumen investasi sebelum menaruh uang di dalamnya, jangan hanya mengikuti tren sesaat.', sumber:'Edukasi Investasi', tip:'Baca prospektus atau informasi resmi produk sebelum memutuskan berinvestasi.' },
+    { icon:'🏦', teks:'Simpanan berjangka di koperasi bisa jadi pilihan investasi rendah risiko yang mudah dipahami pemula.', sumber:'Investasi Berbasis Koperasi', tip:'Bandingkan bagi hasil simpanan berjangka koperasi dengan deposito bank sebelum memilih.' },
+    { icon:'🚨', teks:'Hindari skema investasi yang menjanjikan keuntungan tetap dan tidak masuk akal dalam waktu singkat.', sumber:'Waspada Investasi Bodong', tip:'Jika imbal hasil terdengar terlalu bagus untuk jadi kenyataan, biasanya memang begitu.' },
+    { icon:'🪙', teks:'Investasi emas cocok untuk melindungi nilai aset dari inflasi dalam jangka waktu yang panjang.', sumber:'Aset Lindung Nilai', tip:'Alokasikan sebagian kecil portofolio ke emas sebagai penyeimbang aset berisiko lain.' },
+    { icon:'🔁', teks:'Rebalancing portofolio secara berkala membantu menjaga proporsi risiko tetap sesuai rencana awal.', sumber:'Portfolio Rebalancing', tip:'Tinjau ulang komposisi portofolio investasi minimal setiap enam bulan.' },
+    { icon:'📆', teks:'Investasi kecil tapi rutin setiap bulan cenderung lebih stabil dibanding investasi besar sekali waktu.', sumber:'Dollar Cost Averaging', tip:'Jadwalkan investasi rutin otomatis setiap tanggal gajian tiba.' },
+    { icon:'✅', teks:'Pastikan produk investasi yang dipilih terdaftar dan diawasi resmi oleh otoritas yang berwenang.', sumber:'Legalitas Produk Investasi', tip:'Cek nomor izin dan pengawasan resmi produk sebelum menanamkan dana.' },
+    { icon:'🌤️', teks:'Investasi pada diri sendiri lewat pendidikan dan keterampilan baru sering memberi hasil terbaik jangka panjang.', sumber:'Investasi Diri', tip:'Alokasikan sebagian penghasilan untuk kursus atau pelatihan yang menambah nilai kompetensi.' },
+
+    { icon:'🩺', teks:'Miliki asuransi kesehatan dasar terlebih dahulu sebelum memikirkan jenis proteksi lainnya.', sumber:'Prioritas Proteksi Diri', tip:'Cek apakah kamu sudah tercakup program asuransi kesehatan dasar dari negara atau kantor.' },
+    { icon:'🛡️', teks:'Asuransi jiwa penting bagi pencari nafkah utama keluarga untuk melindungi orang-orang terdekat.', sumber:'Proteksi Keluarga', tip:'Hitung kebutuhan uang pertanggungan berdasarkan tanggungan dan gaya hidup keluarga.' },
+    { icon:'🔍', teks:'Pahami perbedaan asuransi tradisional dan unit link sebelum memutuskan memilih salah satu produk.', sumber:'Literasi Produk Asuransi', tip:'Pisahkan kebutuhan proteksi murni dari kebutuhan investasi agar lebih jelas manfaatnya.' },
+    { icon:'🌤️', teks:'Jangan menunda proteksi kesehatan hanya karena merasa masih sehat dan berusia muda saat ini.', sumber:'Perlindungan Dini', tip:'Semakin muda usia saat mendaftar, umumnya semakin ringan premi yang dibayarkan.' },
+    { icon:'🔎', teks:'Bandingkan premi dan manfaat dari beberapa produk asuransi sebelum memutuskan salah satunya.', sumber:'Perbandingan Produk Proteksi', tip:'Minta ilustrasi manfaat tertulis dari minimal dua penyedia sebelum memutuskan.' },
+    { icon:'🧱', teks:'Miliki dana darurat sebagai lapisan proteksi pertama sebelum sepenuhnya bergantung pada asuransi.', sumber:'Lapisan Proteksi Finansial', tip:'Bangun dana darurat terlebih dahulu, baru lengkapi dengan proteksi asuransi.' },
+    { icon:'📋', teks:'Baca polis asuransi dengan teliti, terutama bagian pengecualian klaim yang sering terlewatkan.', sumber:'Membaca Polis dengan Cermat', tip:'Tandai bagian pengecualian klaim dan tanyakan langsung ke agen jika kurang jelas.' },
+    { icon:'🚗', teks:'Proteksi aset berharga seperti kendaraan dapat mengurangi beban finansial saat risiko benar-benar terjadi.', sumber:'Asuransi Aset', tip:'Pertimbangkan asuransi kendaraan jika nilainya cukup besar dibanding total kekayaan.' },
+    { icon:'📜', teks:'Rencanakan dokumen penting dan warisan sejak dini untuk melindungi keluarga di masa mendatang.', sumber:'Perencanaan Warisan', tip:'Susun daftar aset dan dokumen penting, lalu informasikan ke keluarga terdekat.' },
+    { icon:'🔄', teks:'Evaluasi kebutuhan proteksi setiap ada perubahan besar dalam hidup, seperti menikah atau memiliki anak.', sumber:'Review Proteksi Berkala', tip:'Jadikan momen perubahan hidup sebagai pengingat untuk meninjau ulang polis asuransi.' },
+
+    { icon:'🔔', teks:'Aktifkan notifikasi transaksi digital agar arus kas dapat dipantau secara real-time setiap saat.', sumber:'Digital Banking Awareness', tip:'Nyalakan notifikasi setiap transaksi masuk maupun keluar di aplikasi perbankan.' },
+    { icon:'👛', teks:'Gunakan dompet digital dengan bijak — kemudahan transaksi jangan sampai memicu perilaku boros.', sumber:'E-Wallet Bijak', tip:'Tetapkan batas top-up bulanan untuk dompet digital agar pengeluaran tetap terkontrol.' },
+    { icon:'🔐', teks:'Selalu verifikasi keaslian aplikasi keuangan sebelum memasukkan data pribadi atau informasi rekening.', sumber:'Keamanan Digital', tip:'Unduh aplikasi keuangan hanya dari toko aplikasi resmi dan cek ulasan penggunanya.' },
+    { icon:'📊', teks:'Manfaatkan fitur laporan otomatis di aplikasi keuangan untuk evaluasi kondisi finansial setiap bulan.', sumber:'Automated Financial Report', tip:'Luangkan waktu di akhir bulan untuk membaca ringkasan laporan keuanganmu.' },
+    { icon:'🙅', teks:'Jangan pernah membagikan OTP atau PIN kepada siapa pun, termasuk yang mengaku dari pihak bank.', sumber:'Anti Penipuan Digital', tip:'Ingat, tidak ada institusi resmi yang pernah meminta OTP lewat telepon atau pesan.' },
+    { icon:'💳', teks:'Pembayaran digital mempermudah pencatatan transaksi — manfaatkan untuk mendisiplinkan anggaran bulanan.', sumber:'Cashless Budgeting', tip:'Gunakan satu metode pembayaran utama agar riwayat transaksi lebih mudah dipantau.' },
+    { icon:'🗃️', teks:'Simpan bukti transaksi digital sebagai arsip yang mungkin dibutuhkan sewaktu-waktu di kemudian hari.', sumber:'Arsip Transaksi Digital', tip:'Buat folder khusus di HP untuk menyimpan tangkapan layar bukti transaksi penting.' },
+    { icon:'📷', teks:'Gunakan QRIS untuk transaksi lebih cepat dan otomatis tercatat rapi dalam riwayat aplikasi.', sumber:'Pembayaran QRIS', tip:'Biasakan memakai QRIS agar semua transaksi tercatat otomatis tanpa perlu dicatat manual.' },
+    { icon:'🐊', teks:'Waspadai penawaran pinjaman online dengan bunga tidak wajar dan syarat pencairan yang mencurigakan.', sumber:'Waspada Pinjol Ilegal', tip:'Cek daftar resmi penyelenggara pinjaman legal sebelum mengajukan pinjaman online apa pun.' },
+    { icon:'🔧', teks:'Perbarui aplikasi keuangan secara berkala agar sistem keamanan dan fiturnya tetap terjaga optimal.', sumber:'Keamanan Aplikasi', tip:'Aktifkan pembaruan otomatis untuk aplikasi perbankan dan dompet digital di HP-mu.' },
+
+    { icon:'🌾', teks:'Koperasi memberi kesempatan anggota untuk saling membantu lewat sistem simpan pinjam bersama.', sumber:'Prinsip Koperasi', tip:'Manfaatkan fasilitas simpan pinjam koperasi untuk kebutuhan yang benar-benar produktif.' },
+    { icon:'🤲', teks:'Bagi hasil koperasi umumnya lebih transparan karena dikelola bersama oleh seluruh anggotanya.', sumber:'Transparansi Koperasi', tip:'Ikuti laporan keuangan koperasi secara berkala untuk memahami arah pengelolaan dana.' },
+    { icon:'💪', teks:'Aktif menabung di koperasi membantu memperkuat kas bersama untuk kebutuhan anggota yang lain.', sumber:'Gotong Royong Finansial', tip:'Jadikan simpanan koperasi sebagai bagian rutin dari rencana menabung bulananmu.' },
+    { icon:'🗳️', teks:'Ikut serta dalam rapat anggota koperasi membantu memahami arah dan kebijakan keuangan bersama.', sumber:'Partisipasi Anggota', tip:'Luangkan waktu hadir di rapat anggota tahunan untuk ikut menentukan kebijakan koperasi.' },
+    { icon:'📅', teks:'Simpanan wajib di koperasi melatih kedisiplinan menabung secara berkelanjutan setiap periode.', sumber:'Disiplin Simpanan Wajib', tip:'Anggap simpanan wajib sebagai pos tetap, bukan beban tambahan dalam anggaran.' },
+    { icon:'❤️', teks:'Pinjaman koperasi umumnya lebih ramah dibanding pinjaman online karena berbasis kekeluargaan.', sumber:'Pinjaman Berbasis Kekeluargaan', tip:'Pertimbangkan pinjaman koperasi terlebih dahulu sebelum mencari pinjaman dari pihak lain.' },
+    { icon:'🌳', teks:'Semakin banyak anggota aktif menabung, semakin kuat kapasitas koperasi menyalurkan pinjaman ke anggotanya.', sumber:'Kekuatan Kas Bersama', tip:'Ajak anggota keluarga atau kolega untuk turut aktif menabung di koperasi.' },
+    { icon:'🏗️', teks:'Gunakan fasilitas pinjaman koperasi untuk kebutuhan produktif, bukan sekadar konsumsi semata.', sumber:'Pinjaman Produktif Koperasi', tip:'Rencanakan penggunaan dana pinjaman koperasi untuk hal yang memberi nilai tambah.' },
+    { icon:'🎁', teks:'SHU atau Sisa Hasil Usaha koperasi adalah bentuk nyata manfaat dari partisipasi aktif anggota.', sumber:'Manfaat Partisipasi Koperasi', tip:'Semakin aktif bertransaksi di koperasi, umumnya semakin besar SHU yang diterima.' },
+    { icon:'📈', teks:'Koperasi yang sehat biasanya memiliki rasio kas dan pinjaman yang terjaga dengan baik.', sumber:'Kesehatan Kas Koperasi', tip:'Perhatikan info kesehatan kas koperasi sebelum mengajukan pinjaman dalam jumlah besar.' },
+
+    { icon:'🌤️', teks:'Keuangan sehat dimulai dari kebiasaan kecil yang dilakukan konsisten setiap hari, bukan sekali besar.', sumber:'Kebiasaan Finansial', tip:'Pilih satu kebiasaan keuangan kecil untuk mulai diterapkan minggu ini.' },
+    { icon:'🧭', teks:'Tujuan keuangan yang jelas membuat setiap keputusan belanja menjadi lebih mudah diambil.', sumber:'Goal-Based Finance', tip:'Tuliskan satu tujuan keuangan utama tahun ini beserta target nominalnya.' },
+    { icon:'🪞', teks:'Bandingkan progres keuanganmu dengan tujuan sendiri, bukan dengan gaya hidup orang lain.', sumber:'Financial Self-Comparison', tip:'Fokus pada perkembangan keuanganmu sendiri dari bulan ke bulan, bukan orang lain.' },
+    { icon:'📖', teks:'Literasi keuangan adalah investasi yang tidak pernah rugi sepanjang hidup seseorang.', sumber:'OJK — Literasi Keuangan', tip:'Luangkan 15 menit sehari membaca artikel atau konten keuangan yang terpercaya.' },
+    { icon:'🌇', teks:'Rencanakan dana pensiun sejak usia produktif, jangan menunggu mendekati masa pensiun tiba.', sumber:'Perencanaan Pensiun Dini', tip:'Mulai sisihkan dana pensiun sekecil apa pun sejak penghasilan pertama diterima.' },
+    { icon:'👨‍👩‍👧', teks:'Diskusikan keuangan keluarga secara terbuka agar tujuan bersama lebih mudah untuk dicapai.', sumber:'Transparansi Keuangan Keluarga', tip:'Adakan obrolan keuangan keluarga rutin setidaknya sebulan sekali.' },
+    { icon:'🏅', teks:'Catat setiap pencapaian keuangan kecil untuk menjaga motivasi dalam perjalanan jangka panjang.', sumber:'Motivasi Finansial', tip:'Buat daftar pencapaian keuangan dan tandai setiap kali berhasil mencapainya.' },
+    { icon:'📵', teks:'Hindari gaya hidup konsumtif yang didorong oleh tekanan sosial atau tampilan di media sosial.', sumber:'Financial Peer Pressure', tip:'Batasi waktu melihat konten belanja di media sosial jika mulai memicu keinginan berlebihan.' },
+    { icon:'🕊️', teks:'Keuangan yang sehat memberi ketenangan pikiran, bukan sekadar angka besar di rekening.', sumber:'Financial Wellbeing', tip:'Ukur kesehatan keuanganmu dari rasa tenang, bukan hanya dari jumlah saldo.' },
+    { icon:'🚀', teks:'Mulai hari ini — langkah kecil yang konsisten jauh lebih berarti dibanding rencana besar yang tak pernah dijalankan.', sumber:'Prinsip Memulai Sekarang', tip:'Pilih satu langkah keuangan sederhana dan lakukan hari ini juga, sekecil apa pun itu.' },
+
+    { icon:'🧾', teks:'Periksa satu per satu langganan digital (streaming, aplikasi, cloud) yang mungkin sudah jarang dipakai.', sumber:'Subscription Creep', tip:'Audit langganan bulananmu setiap 3 bulan — hentikan yang sudah tidak dipakai aktif.' },
+    { icon:'📊', teks:'Skor kredit yang baik memudahkan akses pembiayaan dengan bunga lebih ringan di masa depan.', sumber:'Kesehatan Skor Kredit', tip:'Bayar cicilan dan tagihan tepat waktu untuk menjaga rekam jejak kredit tetap baik.' },
+    { icon:'🪙', teks:'Reksadana dan instrumen investasi digital kini bisa dimulai dengan modal yang sangat terjangkau.', sumber:'Investasi Digital Modern', tip:'Pelajari profil risiko diri sendiri sebelum memilih jenis reksadana yang sesuai.' },
+    { icon:'💼', teks:'Penghasilan tambahan dari usaha sampingan membantu mempercepat pencapaian tujuan keuangan.', sumber:'Diversifikasi Penghasilan', tip:'Jajaki satu peluang penghasilan tambahan yang sesuai dengan keahlian yang sudah dimiliki.' },
+    { icon:'🔔', teks:'Aktifkan notifikasi mutasi rekening agar setiap transaksi dapat langsung dipantau secara real-time.', sumber:'Kontrol Transaksi Digital', tip:'Nyalakan notifikasi SMS/aplikasi untuk setiap transaksi masuk maupun keluar.' },
+    { icon:'🗂️', teks:'Pisahkan rekening untuk kebutuhan operasional, tabungan, dan dana darurat agar lebih mudah dikontrol.', sumber:'Pemisahan Pos Rekening', tip:'Gunakan rekening atau dompet digital berbeda untuk setiap tujuan keuangan utama.' }
   ];
 
-  // Pilih nasehat berdasarkan hari dalam setahun agar berurutan
-  function _getNasehatHari() {
+  // Ekspos daftar 100 nasehat secara global agar bisa dipakai di submenu
+  // "100 Nasehat Keuangan" pada menu Hiburan, tanpa duplikasi data.
+  window._NASEHAT_KEUANGAN_LIST = NASEHAT;
+
+  var _nasehatIdxAktif = 0;
+
+  // Pilih nasehat berdasarkan hari dalam setahun, agar berganti setiap hari
+  // dan baru berulang lagi setelah ±100 hari (bukan acak, supaya konsisten
+  // sepanjang hari yang sama bila popup dibuka ulang).
+  function _pilihNasehatHariIni() {
     var now = new Date();
     var start = new Date(now.getFullYear(), 0, 0);
     var diff = now - start;
     var oneDay = 1000 * 60 * 60 * 24;
     var dayOfYear = Math.floor(diff / oneDay);
-    return NASEHAT[dayOfYear % NASEHAT.length];
+    _nasehatIdxAktif = dayOfYear % NASEHAT.length;
+    return NASEHAT[_nasehatIdxAktif];
+  }
+
+  function _pilihNasehatAcak() {
+    _nasehatIdxAktif = Math.floor(Math.random() * NASEHAT.length);
+    return NASEHAT[_nasehatIdxAktif];
   }
 
   function _getTanggalIndo() {
@@ -55477,13 +56173,11 @@ window.nsBayarCicilan = function(pinId) {
     return hari[now.getDay()] + ', ' + now.getDate() + ' ' + bulan[now.getMonth()] + ' ' + now.getFullYear();
   }
 
-  // Cek apakah sudah ditampilkan hari ini
+  // Cek apakah popup sudah tampil HARI INI di perangkat ini
   function _sudahTampilHariIni() {
     try {
       var val = localStorage.getItem(NASEHAT_KEY);
-      if (!val) return false;
-      var today = new Date().toDateString();
-      return val === today;
+      return val === new Date().toDateString();
     } catch(e) { return false; }
   }
 
@@ -55491,26 +56185,35 @@ window.nsBayarCicilan = function(pinId) {
     try { localStorage.setItem(NASEHAT_KEY, new Date().toDateString()); } catch(e) {}
   }
 
-  // Tampilkan popup
-  window._tampilkanNasehat = function() {
-    if (_sudahTampilHariIni()) return;
-    var modal = document.getElementById('modalNasehatKeuangan');
-    if (!modal) return;
-
-    var data = _getNasehatHari();
+  function _renderNasehatAktif() {
+    var data = NASEHAT[_nasehatIdxAktif];
     var el = function(id) { return document.getElementById(id); };
-
     if (el('nasehatIcon'))    el('nasehatIcon').textContent    = data.icon;
     if (el('nasehatTeks'))    el('nasehatTeks').textContent    = data.teks;
     if (el('nasehatSumber'))  el('nasehatSumber').textContent  = '— ' + data.sumber;
     if (el('nasehatTip'))     el('nasehatTip').textContent     = data.tip;
+    if (el('nasehatCounter')) el('nasehatCounter').textContent = 'Tip ' + (_nasehatIdxAktif + 1) + ' dari ' + NASEHAT.length;
     if (el('nasehatTanggal')) el('nasehatTanggal').textContent = _getTanggalIndo();
+  }
 
+  // Tampilkan popup — sekali per hari, setiap kali berhasil masuk ke aplikasi
+  window._tampilkanNasehat = function() {
+    if (_sudahTampilHariIni()) return;
+    var modal = document.getElementById('modalNasehatKeuangan');
+    if (!modal) return;
+    _pilihNasehatHariIni();
+    _renderNasehatAktif();
     modal.style.display = 'flex';
   };
 
-  // Tutup popup
-  window._tutupNasehat = function(jangantampilLagi) {
+  // Ganti ke nasehat lain secara acak tanpa menutup popup (jelajahi 100 nasehat)
+  window._nasehatLain = function() {
+    _pilihNasehatAcak();
+    _renderNasehatAktif();
+  };
+
+  // Tutup popup — menandai sudah tampil untuk hari ini
+  window._tutupNasehat = function() {
     var modal = document.getElementById('modalNasehatKeuangan');
     if (modal) {
       modal.style.opacity = '0';
@@ -55521,7 +56224,7 @@ window.nsBayarCicilan = function(pinId) {
         modal.style.transition = '';
       }, 250);
     }
-    if (jangantampilLagi) _tandaiSudahTampil();
+    _tandaiSudahTampil();
   };
 
   // Klik backdrop untuk tutup
@@ -55529,7 +56232,7 @@ window.nsBayarCicilan = function(pinId) {
     var modal = document.getElementById('modalNasehatKeuangan');
     if (modal) {
       modal.addEventListener('click', function(e) {
-        if (e.target === modal) window._tutupNasehat(false);
+        if (e.target === modal) window._tutupNasehat();
       });
     }
   });
@@ -58599,6 +59302,110 @@ function _confirmUpdateSuccess() {
     _fn();
   }
 }
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PENGUMUMAN PENTING BERANDA — kartu kaca transparan (glassmorphism)
+     Kartu pengumuman statis (bukan slide) yang terpisah dari sistem
+     "Informasi & Pengumuman" (DB.slideBanner). Konten pengumuman
+     disimpan lokal per-perangkat (localStorage) — Admin bisa
+     mengubah judul/deskripsi/gambar/link lewat tombol "Edit
+     Pengumuman" yang hanya tampil untuk Admin. Nasabah bisa menutup
+     pengumuman (disembunyikan sampai sesi berikutnya).
+════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  var LS_KEY = 'rencoIklanGlassData';
+
+  function _iklanDefault(){
+    return {
+      title: 'Selamat Datang di Koperasi Renco',
+      desc: 'Kelola simpanan, pinjaman, dan pembiayaan syariah keluarga Anda dengan mudah, di mana saja.',
+      img: '',
+      link: '',
+      enabled: true
+    };
+  }
+
+  function _iklanGet(){
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        return Object.assign(_iklanDefault(), parsed);
+      }
+    } catch(e){}
+    return _iklanDefault();
+  }
+
+  function _iklanSave(data){
+    try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e){}
+  }
+
+  function _iklanDismissedThisSession(){
+    try { return sessionStorage.getItem('rencoIklanDismissed') === '1'; } catch(e){ return false; }
+  }
+
+  window._iklanDismiss = function(){
+    try { sessionStorage.setItem('rencoIklanDismissed', '1'); } catch(e){}
+    var card = document.getElementById('iklanGlassCard');
+    if (card) card.style.display = 'none';
+  };
+
+  // Editor sederhana (prompt berurutan) — hanya untuk Admin
+  window._iklanOpenEdit = function(){
+    var data = _iklanGet();
+    var t = prompt('Judul pengumuman:', data.title);
+    if (t === null) return;
+    var d = prompt('Deskripsi singkat:', data.desc);
+    if (d === null) return;
+    var img = prompt('URL Gambar/logo pengumuman (kosongkan jika tidak perlu):', data.img || '');
+    if (img === null) return;
+    var link = prompt('Link tujuan tombol "Lihat Selengkapnya" (kosongkan jika tidak perlu):', data.link || '');
+    if (link === null) return;
+    data.title = t.trim() || data.title;
+    data.desc = d.trim();
+    data.img = img.trim();
+    data.link = link.trim();
+    data.enabled = true;
+    _iklanSave(data);
+    try { sessionStorage.removeItem('rencoIklanDismissed'); } catch(e){}
+    window._iklanRender();
+    if (typeof showToast === 'function') showToast('✅ Pengumuman berhasil diperbarui');
+  };
+
+  window._iklanRender = function(){
+    var card = document.getElementById('iklanGlassCard');
+    if (!card) return;
+    var data = _iklanGet();
+    var _isAdm = (typeof isAdmin === 'function' && isAdmin()) || (typeof AUTH !== 'undefined' && AUTH && AUTH.user && AUTH.user.role === 'admin');
+    if (!data.enabled || (_iklanDismissedThisSession() && !_isAdm)) {
+      card.style.display = 'none';
+      return;
+    }
+    var titleEl = document.getElementById('iklanTitle');
+    var descEl = document.getElementById('iklanDesc');
+    if (titleEl) titleEl.textContent = data.title;
+    if (descEl) descEl.textContent = data.desc;
+    var imgEl = document.getElementById('iklanImg');
+    if (imgEl) {
+      if (data.img) { imgEl.src = data.img; imgEl.style.display = ''; }
+      else { imgEl.style.display = 'none'; }
+    }
+    var cta = document.getElementById('iklanCta');
+    if (cta) {
+      if (data.link) { cta.href = data.link; cta.style.display = 'inline-flex'; }
+      else { cta.style.display = 'none'; }
+    }
+    var editBtn = document.getElementById('iklanEditBtn');
+    if (editBtn) editBtn.style.display = _isAdm ? '' : 'none';
+    card.style.display = '';
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ if (typeof window._iklanRender === 'function') window._iklanRender(); }, 60);
+  });
+})();
 </script>
 
 </body></html>
