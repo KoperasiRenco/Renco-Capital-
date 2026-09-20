@@ -2152,6 +2152,9 @@ body {
   list-style:none; cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none;
   display:flex; flex-direction:column; align-items:flex-start; gap:3px;
   min-height:44px; padding:8px 12px; box-sizing:border-box; border-radius:14px;
+  border:1px solid rgba(45,106,79,0.18);
+  background:linear-gradient(135deg, rgba(236,246,239,0.95) 0%, rgba(222,238,229,0.9) 100%);
+  box-shadow:0 2px 8px rgba(26,71,42,0.08);
 }
 .keu-ayat-sum::-webkit-details-marker{ display:none; }
 .keu-ayat-sum::marker{ content:''; }
@@ -2196,6 +2199,38 @@ body {
 }
 .keu-ayat-ar .nb{ white-space:nowrap; }
 .keu-ayat-ar .ay-no{ color:var(--forest-mid); font-size:0.94em; margin-inline:0.12em; }
+/* Terjemahan ayat — tersembunyi secara default, muncul dengan animasi fade saat diketuk */
+.keu-ayat-id-details{
+  margin-top:10px; padding-top:10px;
+  border-top:1px dashed rgba(45,106,79,0.18);
+}
+.keu-ayat-id-sum{
+  list-style:none; cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none;
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--forest-mid);
+}
+.keu-ayat-id-sum::-webkit-details-marker{ display:none; }
+.keu-ayat-id-sum::marker{ content:''; }
+.keu-ayat-id-chev{
+  width:5px; height:5px; margin-top:-2px; flex:none;
+  border-right:1.6px solid currentColor; border-bottom:1.6px solid currentColor;
+  transform:rotate(45deg); transition:transform .25s ease, margin .25s ease;
+}
+.keu-ayat-id-details[open] .keu-ayat-id-chev{ transform:rotate(-135deg); margin-top:2px; }
+.keu-ayat-id-text{
+  margin:8px 0 0; font-size:12.5px; line-height:1.65; color:var(--text-soft);
+  text-align:left;
+  animation:keuAyatIdFade .4s ease-out;
+}
+@keyframes keuAyatIdFade{
+  from{ opacity:0; transform:translateY(4px); }
+  to  { opacity:1; transform:none; }
+}
+@media (prefers-reduced-motion: reduce){
+  .keu-ayat-id-text{ animation:none; }
+  .keu-ayat-id-chev{ transition:none; }
+}
 /* ── Mode fokus: saat ayat dibuka, halaman lain (header, menu, navigasi bawah) diburamkan.
       Overlay ada di dalam #app (z 150: di atas nav = 100, di bawah panel/modal lain = 199+),
       dan ayat diangkat ke z 160 sehingga tetap tajam di atas overlay. ── */
@@ -2243,14 +2278,38 @@ body {
 .lap-sec-header .lap-sec-chev{ display:inline-block; }
 .lap-sec-header.lap-sec-open .lap-sec-chev{ transform:rotate(180deg); }
 
+/* ── Frame/background TUNGGAL yang menyatukan Pedoman Muamalah dengan dalil ayat
+   (QS. Al-Baqarah 275 & 278–279) di area bawah sub menu Keuangan. Sebelumnya masing-masing
+   tampil sebagai kotak terpisah dengan jarak (gap) di antaranya; sekarang keduanya dibungkus
+   dalam satu kartu dengan satu border+background, dipisahkan garis tipis (divider) di dalamnya
+   sebagai pengganti gap. Tampilan "fokus" saat ayat/pedoman DIBUKA (pop-out ke tengah layar,
+   lihat .keu-ayat[open]) tidak diubah — hanya tampilan tertutup/istirahat yang disatukan. */
+.keu-pedoman-frame{
+  display:flex; flex-direction:column;
+  border-radius:14px; border:1px solid rgba(45,106,79,0.18);
+  background:linear-gradient(135deg, rgba(236,246,239,0.95) 0%, rgba(222,238,229,0.9) 100%);
+  box-shadow:0 2px 8px rgba(26,71,42,0.08);
+  overflow:hidden;
+}
+.keu-pedoman-frame .keu-pedoman-btn,
+.keu-pedoman-frame .keu-ayat:not([open]) .keu-ayat-sum{
+  border:none; border-radius:0; background:transparent; box-shadow:none;
+  border-bottom:1px solid rgba(45,106,79,0.14);
+}
+.keu-pedoman-frame > *:last-child:not([open]) .keu-ayat-sum,
+.keu-pedoman-frame > .keu-pedoman-btn:last-child{
+  border-bottom:none;
+}
+.keu-pedoman-frame .keu-pedoman-btn:active{ background:rgba(45,106,79,0.06); }
+
 /* ── Tombol Pedoman Muamalah (di area bawah sub menu Keuangan) ── */
 .keu-pedoman-btn{
   display:flex; align-items:center; gap:9px; width:100%;
   font-family:inherit; text-align:left; cursor:pointer;
   -webkit-tap-highlight-color:transparent;
-  padding:11px 14px; border-radius:14px; border:1px solid rgba(45,106,79,0.14);
-  background:linear-gradient(135deg, rgba(255,255,255,0.75) 0%, rgba(240,248,243,0.55) 100%);
-  box-shadow:0 2px 8px rgba(26,71,42,0.06);
+  padding:11px 14px; border-radius:14px; border:1px solid rgba(45,106,79,0.18);
+  background:linear-gradient(135deg, rgba(236,246,239,0.95) 0%, rgba(222,238,229,0.9) 100%);
+  box-shadow:0 2px 8px rgba(26,71,42,0.08);
   transition:transform .12s ease, box-shadow .12s ease;
 }
 .keu-pedoman-btn:active{ transform:scale(0.98); box-shadow:0 1px 4px rgba(26,71,42,0.08); }
@@ -2650,18 +2709,18 @@ body {
 .tab-pill.tab-cicilan.active  { background: #2563eb; border-color: #2563eb; color: white; }
 .tab-pill.tab-angsuran.active { background: #7b2d8b; border-color: #7b2d8b; color: white; }
 .tab-pill.tab-pembayaran.active { background: linear-gradient(135deg,#2563eb,#7b2d8b); border-color: #2563eb; color: white; }
-.pembayaran-subtab-bar { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; padding:14px 16px 6px; position:relative; z-index:5; }
+.pembayaran-subtab-bar { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 16px 6px; position:relative; z-index:5; }
 .pembayaran-subtab {
-  padding:13px 10px; border-radius:14px; border:2px solid rgba(0,0,0,0.10);
+  padding:14px 10px 12px; border-radius:16px; border:2px solid rgba(0,0,0,0.10);
   background:white; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
   transition:all 0.22s cubic-bezier(.4,0,.2,1); text-align:center;
-  display:flex; flex-direction:column; align-items:center; gap:4px;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:3px;
   box-shadow:0 2px 8px rgba(0,0,0,0.06); color:var(--text-soft); line-height:1.2;
+  width:100%; aspect-ratio:2.1/1; min-height:84px;
 }
 .pembayaran-subtab:active { transform:scale(0.97); }
-.pembayaran-subtab .psub-icon { font-size:22px; display:block; }
-.pembayaran-subtab .psub-label { font-size:12px; font-weight:800; }
-.pembayaran-subtab .psub-sub { font-size:9px; font-weight:600; opacity:0.7; }
+.pembayaran-subtab .psub-label { font-size:14px; font-weight:800; }
+.pembayaran-subtab .psub-sub { font-size:9.5px; font-weight:600; opacity:0.7; }
 .pembayaran-subtab.aktif-cicilan {
   background:linear-gradient(135deg,#1a472a,#2d6a4f); border-color:#1a472a;
   color:#e8c97e; box-shadow:0 4px 18px rgba(26,71,42,0.28);
@@ -9166,7 +9225,8 @@ document.addEventListener('DOMContentLoaded', function() {
     <button class="login-btn-secondary" id="daftarAkunBtn" onclick="_openDaftarAkunLogin()" style="display:none">Daftar Akun Baru</button>
     <div class="login-footer">
       RENCO &copy; 2026 &middot; Bersama Membangun Kesejahteraan<br>
-      <span style="opacity:0.6">Hubungi admin jika lupa password</span>
+      <span style="opacity:0.6">Hubungi admin jika lupa password</span><br>
+      <span style="opacity:0.45;font-size:10px">Koperasi Renco V0.2 &middot; Diperbarui 20 September 2026</span>
     </div>
   </div>
   <div id="loginScreenWatermark" style="position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:10.5px;font-weight:600;letter-spacing:0.4px;color:rgba(255,255,255,0.38);pointer-events:none;user-select:none;z-index:1"></div>
@@ -9284,6 +9344,7 @@ var _LOGIN_INFO_CONTENT = {
         '<div style="margin-top:14px;padding-top:12px;border-top:1.5px solid rgba(45,106,79,0.15);text-align:center">' +
           '<div style="font-size:13px;font-weight:800;color:#1c3025">Koperasi RENCO</div>' +
           '<div style="font-size:12px;color:#2d6a4f;font-weight:600;margin-top:2px">Bersama Membangun Kesejahteraan</div>' +
+          '<div style="font-size:10.5px;color:#9ca3af;font-weight:600;margin-top:8px">Koperasi Renco V0.2 &middot; Diperbarui 20 September 2026</div>' +
         '</div>' +
       '</div>'
   },
@@ -10329,8 +10390,10 @@ window.deletePengurus = function(id) {
         }
         #page-home .quick-btn .q-label{ font-size:9.3px; letter-spacing:0.1px; }
 
-        /* ═══ Pengumuman Penting — kartu kaca transparan (glassmorphism, aksen merah, mengambang) ═══ */
-        #page-home .iklan-glass-card{
+        /* ═══ Pengumuman Penting — kartu kaca transparan (glassmorphism, aksen merah, mengambang) ═══
+           Dipakai di lebih dari satu halaman (Beranda & Keuangan) — karenanya selector mencakup
+           #page-home dan #page-keuangan sekaligus, memakai data pengumuman yang sama. */
+        #page-home .iklan-glass-card, #page-keuangan .iklan-glass-card{
           position:relative; margin:12px 16px 14px; padding:18px 16px 14px;
           border-radius:18px; overflow:hidden;
           background:linear-gradient(135deg, rgba(220,38,38,0.20), rgba(248,113,113,0.08));
@@ -10344,36 +10407,39 @@ window.deletePengurus = function(id) {
           0%,100%{ transform:translateY(0); box-shadow:0 8px 28px rgba(220,38,38,0.18), inset 0 1px 0 rgba(255,255,255,0.4); }
           50%{ transform:translateY(-7px); box-shadow:0 14px 34px rgba(220,38,38,0.28), inset 0 1px 0 rgba(255,255,255,0.4); }
         }
-        #page-home .iklan-glass-card::before{
+        #page-home .iklan-glass-card::before, #page-keuangan .iklan-glass-card::before{
           content:''; position:absolute; inset:0; pointer-events:none; z-index:0;
           background:linear-gradient(135deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0) 50%);
         }
-        #page-home .iklan-glass-card > *{ position:relative; z-index:1; }
-        #page-home .iklan-glass-card .iklan-close{
+        #page-home .iklan-glass-card > *, #page-keuangan .iklan-glass-card > *{ position:relative; z-index:1; }
+        #page-home .iklan-glass-card .iklan-close, #page-keuangan .iklan-glass-card .iklan-close{
           position:absolute; top:7px; right:7px; width:16px; height:16px; border-radius:50%; z-index:1;
           background:rgba(153,27,27,0.10); border:none; display:flex; align-items:center; justify-content:center;
           cursor:pointer; color:rgba(153,27,27,0.62); font-size:8.5px; line-height:1; padding:0;
         }
-        #page-home .iklan-glass-card .iklan-body{ display:flex; align-items:center; gap:12px; margin-top:4px; }
-        #page-home .iklan-glass-card .iklan-img{
+        #page-home .iklan-glass-card .iklan-body, #page-keuangan .iklan-glass-card .iklan-body{ display:flex; align-items:center; gap:12px; margin-top:4px; }
+        #page-home .iklan-glass-card .iklan-img, #page-keuangan .iklan-glass-card .iklan-img{
           width:52px; height:52px; border-radius:14px; flex-shrink:0; object-fit:cover;
           box-shadow:0 4px 12px rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.4);
         }
-        #page-home .iklan-glass-card .iklan-text{ flex:1; min-width:0; }
-        #page-home .iklan-glass-card .iklan-title{ font-size:13px; font-weight:800; color:var(--text); line-height:1.3; }
-        #page-home .iklan-glass-card .iklan-desc{ font-size:11px; color:var(--text-soft); margin-top:3px; line-height:1.45; }
-        #page-home .iklan-glass-card .iklan-cta{
+        #page-home .iklan-glass-card .iklan-text, #page-keuangan .iklan-glass-card .iklan-text{ flex:1; min-width:0; }
+        #page-home .iklan-glass-card .iklan-title, #page-keuangan .iklan-glass-card .iklan-title{ font-size:13px; font-weight:800; color:var(--text); line-height:1.3; }
+        #page-home .iklan-glass-card .iklan-desc, #page-keuangan .iklan-glass-card .iklan-desc{ font-size:11px; color:var(--text-soft); margin-top:3px; line-height:1.45; }
+        #page-home .iklan-glass-card .iklan-cta, #page-keuangan .iklan-glass-card .iklan-cta{
           margin-top:12px; display:inline-flex; align-items:center; gap:5px;
           padding:7px 14px; border-radius:99px; font-size:11px; font-weight:800;
           background:rgba(255,255,255,0.55); border:1px solid rgba(220,38,38,0.5);
           color:#7f1d1d; text-decoration:none;
           -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
         }
-        #page-home .iklan-glass-card .iklan-edit-btn{
+        #page-home .iklan-glass-card .iklan-edit-btn, #page-keuangan .iklan-glass-card .iklan-edit-btn{
           position:absolute; bottom:8px; right:12px; font-size:9.5px; font-weight:700; z-index:1;
           color:var(--forest-mid); background:rgba(255,255,255,0.55); border:none; cursor:pointer;
           padding:3px 9px; border-radius:99px;
         }
+        /* Di menu Keuangan kartu iklan ditempel langsung di atas tombol Pedoman Muamalah,
+           jadi margin atas/bawahnya dipangkas supaya menyatu dengan blok di bawahnya. */
+        #page-keuangan .iklan-glass-card{ margin:0 0 4px; }
       </style>
       <div style="position:relative;max-width:460px;margin:0 auto">
         <div class="hero-banner">
@@ -11182,35 +11248,115 @@ window.deletePengurus = function(id) {
 
       <!-- ══ SUB MENU GRID KEUANGAN ══ -->
       <div id="keuanganGridMenu" style="background:linear-gradient(160deg,#eef5ef 0%,#f0f4f8 60%,#e8f0ee 100%);padding:0 0 20px;border-bottom:1.5px solid rgba(45,106,79,0.10);position:relative">
+
+        <!-- ══ HERO BANNER KEUANGAN (dekoratif & interaktif) ══ -->
+        <div class="keu-menu-hero" id="keuMenuHero" aria-label="Keuangan">
+          <span class="kmh-orb kmh-orb-2"></span>
+          <div class="kmh-row">
+            <div class="kmh-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v5c0 5.2-3.4 8.9-8 10.5C7.4 19.9 4 16.2 4 11V6z" stroke="#F4D67A" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12.2l2.1 2.1L15.5 10" stroke="#F4D67A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div style="min-width:0">
+              <div class="kmh-title">Keuangan</div>
+              <div class="kmh-sub" id="kmhSubText">Simpanan, pinjaman &amp; pembiayaan — dikelola penuh amanah</div>
+            </div>
+          </div>
+          <div class="kmh-tags">
+            <span class="kmh-tag">🕌 Syariah</span>
+            <span class="kmh-tag">🔒 Transparan</span>
+            <span class="kmh-tag">🤝 Amanah</span>
+          </div>
+        </div>
+        <script>
+        (function(){
+          var _kmhTexts = [
+            'Simpanan, pinjaman & pembiayaan — dikelola penuh amanah',
+            'Bebas riba, bebas gharar, bebas maysir',
+            'Setiap transaksi tercatat & transparan',
+            'Berkah dunia, selamat akhirat'
+          ];
+          var _kmhIdx = 0;
+          var _kmhTimer = null;
+          function _kmhRotate(){
+            var el = document.getElementById('kmhSubText');
+            if (!el) return;
+            _kmhIdx = (_kmhIdx + 1) % _kmhTexts.length;
+            el.style.opacity = '0';
+            setTimeout(function(){
+              el.textContent = _kmhTexts[_kmhIdx];
+              el.style.opacity = '1';
+            }, 220);
+          }
+          function _kmhStart(){ if (!_kmhTimer) _kmhTimer = setInterval(_kmhRotate, 3600); }
+          function _kmhStop(){ if (_kmhTimer) { clearInterval(_kmhTimer); _kmhTimer = null; } }
+          _kmhStart();
+          // Jeda otomatis saat kartu Keuangan tidak terlihat (pindah menu), lanjut lagi saat terlihat
+          var hero = document.getElementById('keuMenuHero');
+          if (hero && 'IntersectionObserver' in window) {
+            var io = new IntersectionObserver(function(ents){
+              if (ents[0].isIntersecting) _kmhStart(); else _kmhStop();
+            });
+            io.observe(hero);
+          }
+        })();
+        </script>
+
         <div id="keuanganGridInner" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px 0"><!-- diisi oleh renderKeuanganGrid() --></div>
 
         <!-- ══ AREA BAWAH SUB MENU: Pedoman Muamalah + Ayat pengingat ══ -->
         <div style="width:100%;padding:14px 14px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:8px">
-          <button type="button" class="keu-pedoman-btn" onclick="document.getElementById('pedomanMuamalahDetail').open = true">
-            <span class="keu-pedoman-icon">📖</span>
-            <span class="keu-pedoman-label">Pedoman Muamalah</span>
-            <span class="keu-pedoman-arrow">›</span>
-          </button>
 
-          <details class="keu-ayat" aria-label="QS. Al-Baqarah ayat 25">
-            <summary class="keu-ayat-sum">
-              <span class="keu-ayat-ref">QS. Al-Baqarah: 25<span class="keu-ayat-chev" aria-hidden="true"></span></span>
-              <span class="keu-ayat-hint"><span class="hs">Ketuk untuk menampilkan ayatnya</span><span class="ho">Ketuk untuk menyembunyikan</span></span>
-            </summary>
-            <div class="keu-ayat-glass">
-              <p class="keu-ayat-ar" lang="ar" dir="rtl">وَبَشِّرِ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ أَنَّ لَهُمْ جَنَّاتٍ تَجْرِي مِنْ تَحْتِهَا الْأَنْهَارُ ۖ كُلَّمَا رُزِقُوا مِنْهَا مِنْ ثَمَرَةٍ <span class="nb">رِّزْقًا ۙ</span> قَالُوا هَٰذَا الَّذِي رُزِقْنَا مِنْ قَبْلُ ۖ وَأُتُوا بِهِ <span class="nb">مُتَشَابِهًا ۖ</span> وَلَهُمْ فِيهَا أَزْوَاجٌ <span class="nb">مُّطَهَّرَةٌ ۖ</span> وَهُمْ فِيهَا خَالِدُونَ</p>
+          <!-- Area Iklan/Pengumuman — tampil sebelum Pedoman Muamalah, berbagi data yang sama
+               dengan kartu pengumuman di Beranda (lihat #iklanGlassCard & modul _iklan* di akhir file). -->
+          <div class="iklan-glass-card" style="display:none">
+            <button class="iklan-close" onclick="_iklanDismiss()" title="Tutup pengumuman">✕</button>
+            <div class="iklan-body">
+              <img class="iklan-img" src="" alt="" style="display:none">
+              <div class="iklan-text">
+                <div class="iklan-title"></div>
+                <div class="iklan-desc"></div>
+              </div>
             </div>
-          </details>
+            <a class="iklan-cta" href="#" target="_blank" rel="noopener" style="display:none">Lihat Selengkapnya <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            <button class="iklan-edit-btn" onclick="_iklanOpenEdit()" style="display:none">✏️ Edit Pengumuman</button>
+          </div>
 
-          <details class="keu-ayat" aria-label="QS. Al-Baqarah ayat 278 sampai 279">
-            <summary class="keu-ayat-sum">
-              <span class="keu-ayat-ref">QS. Al-Baqarah: 278–279<span class="keu-ayat-chev" aria-hidden="true"></span></span>
-              <span class="keu-ayat-hint"><span class="hs">Ketuk untuk menampilkan ayatnya</span><span class="ho">Ketuk untuk menyembunyikan</span></span>
-            </summary>
-            <div class="keu-ayat-glass">
-              <p class="keu-ayat-ar" lang="ar" dir="rtl">يَا أَيُّهَا الَّذِينَ آمَنُوا اتَّقُوا اللَّهَ وَذَرُوا مَا بَقِيَ مِنَ الرِّبَا إِنْ كُنْتُمْ <span class="nb">مُؤْمِنِينَ <span class="ay-no">﴿٢٧٨﴾</span></span> فَإِنْ لَمْ تَفْعَلُوا فَأْذَنُوا بِحَرْبٍ مِنَ اللَّهِ <span class="nb">وَرَسُولِهِ ۖ</span> وَإِنْ تُبْتُمْ فَلَكُمْ رُءُوسُ <span class="nb">أَمْوَالِكُمْ ۖ</span> لَا تَظْلِمُونَ <span class="nb">وَلَا تُظْلَمُونَ <span class="ay-no">﴿٢٧٩﴾</span></span></p>
-            </div>
-          </details>
+          <!-- ══ Pedoman Muamalah + Dalil Ayat — SATU frame/background yang menyatu ══ -->
+          <div class="keu-pedoman-frame">
+            <button type="button" class="keu-pedoman-btn" onclick="document.getElementById('pedomanMuamalahDetail').open = true">
+              <span class="keu-pedoman-icon">📖</span>
+              <span class="keu-pedoman-label">Pedoman Muamalah</span>
+              <span class="keu-pedoman-arrow">›</span>
+            </button>
+
+            <details class="keu-ayat" aria-label="QS. Al-Baqarah ayat 275">
+              <summary class="keu-ayat-sum">
+                <span class="keu-ayat-ref">QS. Al-Baqarah: 275<span class="keu-ayat-chev" aria-hidden="true"></span></span>
+                <span class="keu-ayat-hint"><span class="hs">Ketuk untuk menampilkan ayatnya</span><span class="ho">Ketuk untuk menyembunyikan</span></span>
+              </summary>
+              <div class="keu-ayat-glass">
+                <p class="keu-ayat-ar" lang="ar" dir="rtl">الَّذِينَ يَأْكُلُونَ الرِّبَا لَا يَقُومُونَ إِلَّا كَمَا يَقُومُ الَّذِي يَتَخَبَّطُهُ الشَّيْطَانُ مِنَ <span class="nb">الْمَسِّ ۚ</span> ذَٰلِكَ بِأَنَّهُمْ قَالُوا إِنَّمَا الْبَيْعُ مِثْلُ <span class="nb">الرِّبَا ۗ</span> وَأَحَلَّ اللَّهُ الْبَيْعَ وَحَرَّمَ <span class="nb">الرِّبَا ۚ</span> فَمَنْ جَاءَهُ مَوْعِظَةٌ مِنْ رَبِّهِ فَانْتَهَىٰ فَلَهُ مَا سَلَفَ وَأَمْرُهُ إِلَى <span class="nb">اللَّهِ ۖ</span> وَمَنْ عَادَ فَأُولَٰئِكَ أَصْحَابُ <span class="nb">النَّارِ ۖ</span> هُمْ فِيهَا خَالِدُونَ</p>
+                <details class="keu-ayat-id-details">
+                  <summary class="keu-ayat-id-sum">Tampilkan Terjemahan<span class="keu-ayat-id-chev" aria-hidden="true"></span></summary>
+                  <p class="keu-ayat-id-text">Orang-orang yang memakan (mengambil) riba tidak dapat berdiri melainkan seperti berdirinya orang yang kerasukan setan karena tekanan penyakit gila. Demikian itu karena mereka menganggap jual beli sama saja dengan riba, padahal Allah telah menghalalkan jual beli dan mengharamkan riba. Siapa yang telah sampai kepadanya peringatan dari Tuhannya lalu dia berhenti, maka baginya apa yang telah lalu, dan urusannya terserah kepada Allah. Adapun siapa yang mengulangi (riba), mereka itulah penghuni neraka; mereka kekal di dalamnya.</p>
+                </details>
+              </div>
+            </details>
+
+            <details class="keu-ayat" aria-label="QS. Al-Baqarah ayat 278 sampai 279">
+              <summary class="keu-ayat-sum">
+                <span class="keu-ayat-ref">QS. Al-Baqarah: 278–279<span class="keu-ayat-chev" aria-hidden="true"></span></span>
+                <span class="keu-ayat-hint"><span class="hs">Ketuk untuk menampilkan ayatnya</span><span class="ho">Ketuk untuk menyembunyikan</span></span>
+              </summary>
+              <div class="keu-ayat-glass">
+                <p class="keu-ayat-ar" lang="ar" dir="rtl">يَا أَيُّهَا الَّذِينَ آمَنُوا اتَّقُوا اللَّهَ وَذَرُوا مَا بَقِيَ مِنَ الرِّبَا إِنْ كُنْتُمْ <span class="nb">مُؤْمِنِينَ <span class="ay-no">﴿٢٧٨﴾</span></span> فَإِنْ لَمْ تَفْعَلُوا فَأْذَنُوا بِحَرْبٍ مِنَ اللَّهِ <span class="nb">وَرَسُولِهِ ۖ</span> وَإِنْ تُبْتُمْ فَلَكُمْ رُءُوسُ <span class="nb">أَمْوَالِكُمْ ۖ</span> لَا تَظْلِمُونَ <span class="nb">وَلَا تُظْلَمُونَ <span class="ay-no">﴿٢٧٩﴾</span></span></p>
+                <details class="keu-ayat-id-details">
+                  <summary class="keu-ayat-id-sum">Tampilkan Terjemahan<span class="keu-ayat-id-chev" aria-hidden="true"></span></summary>
+                  <p class="keu-ayat-id-text">Wahai orang-orang yang beriman, bertakwalah kepada Allah dan tinggalkan sisa riba (yang belum dipungut) jika kamu orang beriman. Jika kamu tidak melaksanakannya, maka ketahuilah akan adanya perang dari Allah dan Rasul-Nya. Tetapi jika kamu bertobat, maka kamu berhak atas pokok hartamu; kamu tidak menzalimi dan tidak (pula) dizalimi.</p>
+                </details>
+              </div>
+            </details>
+          </div>
 
           <!-- Pedoman Muamalah: panel penjelasan, dibuka lewat tombol di atas -->
           <details class="keu-ayat" id="pedomanMuamalahDetail" aria-label="Pedoman Muamalah" style="display:none">
@@ -11317,6 +11463,36 @@ window.deletePengurus = function(id) {
       </div>
 
       <style>
+      /* ══ Hero banner Keuangan — disamakan dengan warna header aplikasi (tanpa animasi cahaya emas) ══ */
+      .keu-menu-hero {
+        position:relative; overflow:hidden; margin:12px 14px 14px;
+        border-radius:18px; padding:16px 16px 13px;
+        background:linear-gradient(135deg, var(--forest) 0%, var(--forest-mid) 100%);
+        box-shadow:0 8px 24px rgba(4,14,7,0.28);
+      }
+      .kmh-orb { position:absolute; border-radius:50%; filter:blur(18px); opacity:0.35; pointer-events:none; }
+      .kmh-orb-2 { width:70px; height:70px; background:#2d6a4f; bottom:-25px; left:10%; animation:kmhFloat 8s ease-in-out infinite reverse; }
+      @keyframes kmhFloat { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-10px); } }
+      .kmh-row { display:flex; align-items:center; gap:12px; position:relative; z-index:1; }
+      .kmh-icon {
+        width:46px; height:46px; border-radius:13px; flex-shrink:0;
+        background:rgba(244,214,122,0.14); border:1px solid rgba(212,170,40,0.4);
+        display:flex; align-items:center; justify-content:center;
+        box-shadow:0 0 18px rgba(212,170,40,0.15) inset;
+      }
+      .kmh-title {
+        font-family:'Playfair Display', serif; font-style:italic;
+        font-size:20px; font-weight:800; color:#fff; letter-spacing:0.3px;
+        text-shadow:0 1px 12px rgba(244,214,122,0.35);
+      }
+      .kmh-sub { font-size:11px; color:rgba(255,255,255,0.65); margin-top:2px; transition:opacity 0.2s; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .kmh-tags { display:flex; gap:6px; margin-top:12px; position:relative; z-index:1; flex-wrap:wrap; }
+      .kmh-tag {
+        font-size:9.5px; font-weight:700; color:#F4D67A;
+        background:rgba(244,214,122,0.1); border:1px solid rgba(212,170,40,0.3);
+        padding:3px 9px; border-radius:99px; white-space:nowrap;
+      }
+
       /* ── Card grid keuangan — model sama persis dgn grid hiburan (forum-grid-btn) ── */
       .keu-grid-card {
         display:flex; flex-direction:column; align-items:center; gap:6px;
@@ -11337,6 +11513,28 @@ window.deletePengurus = function(id) {
         background:rgba(255,255,255,0.55);
       }
       .keu-grid-card.active .kgb-label { font-weight:800; color:#1c3025; }
+
+      /* ── Tap ke-1: highlight gradient muncul. Tap ke-2 (kartu sudah terpilih): buka panel ── */
+      .keu-grid-card.kgc-selected {
+        background:var(--kgc-grad, linear-gradient(135deg,#1a472a,#2d6a4f)) !important;
+        border-color:rgba(255,255,255,0.35);
+        box-shadow:0 6px 20px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.15) inset;
+        animation:kgcSelectPop 0.42s cubic-bezier(.34,1.56,.64,1);
+      }
+      .keu-grid-card.kgc-selected .kgb-icon { background:rgba(255,255,255,0.22); border-color:rgba(255,255,255,0.4); transform:scale(1.08); }
+      .keu-grid-card.kgc-selected .kgb-icon svg { filter:brightness(0) invert(1); }
+      .keu-grid-card.kgc-selected .kgb-label { color:#fff; font-weight:800; }
+      .keu-grid-card.kgc-selected::after {
+        content:'Ketuk lagi ›'; font-size:7.5px; font-weight:800; letter-spacing:0.2px;
+        color:rgba(255,255,255,0.92); margin-top:1px;
+        animation:kgcHintFade 1.3s ease-in-out infinite;
+      }
+      @keyframes kgcSelectPop {
+        0% { transform:scale(1); }
+        45% { transform:scale(1.07); }
+        100% { transform:scale(1); }
+      }
+      @keyframes kgcHintFade { 0%,100% { opacity:0.5; } 50% { opacity:1; } }
 
       .kgb-icon {
         width:44px; height:44px; border-radius:13px;
@@ -11822,15 +12020,7 @@ window.deletePengurus = function(id) {
 <div class="page" id="page-rencoPay">
 
   <!-- Status Koneksi — sederhana -->
-  <div style="margin:0 14px 10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div style="background:#f4faf7;border-radius:13px;padding:11px 12px;border:1.5px solid rgba(45,106,79,0.15)">
-      <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
-        <div style="width:6px;height:6px;border-radius:50%;background:#2d6a4f;animation:rpBlink 1.5s infinite"></div>
-        <span style="font-size:9px;font-weight:800;color:#2d6a4f;text-transform:uppercase;letter-spacing:0.3px">Aktif</span>
-      </div>
-      <div style="font-size:12.5px;font-weight:800;color:#1a3a2a">QRIS Koperasi</div>
-      <div style="font-size:10px;color:#6b7280;margin-top:1px">Siap menerima</div>
-    </div>
+  <div style="margin:0 14px 10px">
     <div id="rpTransferBankCard" onclick="rpShowTransferBankDrawer()"
       style="background:#f0fdf4;border-radius:13px;padding:11px 12px;border:1.5px solid rgba(45,106,79,0.2);cursor:pointer;transition:all 0.18s;-webkit-tap-highlight-color:transparent;active:background:#dcfce7"
       ontouchstart="this.style.background='#dcfce7'" ontouchend="this.style.background='#f0fdf4'">
@@ -12358,27 +12548,10 @@ window.deletePengurus = function(id) {
     <!-- Scroll body -->
     <div style="overflow-y:auto;max-height:calc(94vh - 60px);padding-bottom:env(safe-area-inset-bottom)">
 
-      <!-- QRIS -->
-      <div style="padding:16px 16px 0">
-        <div style="font-size:9px;font-weight:800;color:rgba(45,106,79,0.5);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;text-align:center">QRIS KOPERASI RENCO</div>
-        <div style="display:flex;align-items:center;gap:14px">
-          <div id="rpmQrisFrame" style="width:110px;height:110px;flex-shrink:0;border-radius:12px;background:#f4faf7;border:2px solid rgba(45,106,79,0.15);display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:10px;color:var(--text-soft);margin-bottom:3px">No. QRIS</div>
-            <div id="rpmNoQrisText" style="font-size:13px;font-weight:800;color:var(--forest-mid);word-break:break-all">—</div>
-            <button onclick="rpmShareQris()" style="margin-top:10px;width:100%;padding:10px;border-radius:10px;border:1.5px solid rgba(45,106,79,0.3);background:rgba(45,106,79,0.07);color:#2d6a4f;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="18" cy="5" r="3" stroke="#2d6a4f" stroke-width="1.8"/><circle cx="6" cy="12" r="3" stroke="#2d6a4f" stroke-width="1.8"/><circle cx="18" cy="19" r="3" stroke="#2d6a4f" stroke-width="1.8"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" stroke="#2d6a4f" stroke-width="1.8" stroke-linecap="round"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" stroke="#2d6a4f" stroke-width="1.8" stroke-linecap="round"/></svg>
-              Bagikan QRIS
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Divider -->
-      <div style="height:1px;background:rgba(0,0,0,0.07);margin:14px 16px"></div>
+      <!-- QRIS Koperasi dihapus (tidak ditampilkan lagi utk admin & nasabah) -->
 
       <!-- Info Transfer Bank -->
-      <div style="padding:0 16px">
+      <div style="padding:16px 16px 0">
         <div style="font-size:10px;font-weight:800;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">🏦 Transfer Bank</div>
         <div id="rpmBankList"></div>
       </div>
@@ -14747,8 +14920,16 @@ function _dbMigrate() {
   if (!DB.rencoPay.tagihan  || !Array.isArray(DB.rencoPay.tagihan))  DB.rencoPay.tagihan  = [];
   if (!DB.rencoPay.settings.transferBanks || !DB.rencoPay.settings.transferBanks.length) {
     DB.rencoPay.settings.transferBanks = [
-      { id:'bank_bsi_renco', bankNama:'BSI', noRek:'7297943213', atasNama:'Syamsul Hadi', catatan:'Bank Syariah Indonesia. Konfirmasi pembayaran via admin setelah transfer.', logoImg:null }
+      { id:'bank_bsi_renco', bankNama:'BSI', noRek:'7297943213', atasNama:'Syamsul Hadi', catatan:'Bank Syariah Indonesia. Konfirmasi pembayaran via admin setelah transfer.', logoImg:null },
+      { id:'bank_bca_digital_renco', bankNama:'BCA Digital', noRek:'005621531004', atasNama:'Syamsul Hadi', catatan:'Konfirmasi pembayaran via admin setelah transfer.', logoImg:null }
     ];
+  }
+  // Migrasi: pastikan rekening BCA Digital ada meski transferBanks sudah pernah terisi sebelumnya
+  if (DB.rencoPay.settings.transferBanks && Array.isArray(DB.rencoPay.settings.transferBanks)
+      && !DB.rencoPay.settings.transferBanks.some(function(b){ return b && b.noRek === '005621531004'; })) {
+    DB.rencoPay.settings.transferBanks.push(
+      { id:'bank_bca_digital_renco', bankNama:'BCA Digital', noRek:'005621531004', atasNama:'Syamsul Hadi', catatan:'Konfirmasi pembayaran via admin setelah transfer.', logoImg:null }
+    );
   }
 
   // Migrasi pembiayaan: pastikan tglAktif & sisaPokokRC
@@ -18729,6 +18910,8 @@ function renderPage(p) {
     renderKeuanganGrid(lastTab);
     // Jika panel sedang terbuka, refresh kontennya
     if (_keuPanelActiveTab) keuanganTab(_keuPanelActiveTab, null);
+    // Pengumuman Penting — kartu kaca transparan (glassmorphism), sama datanya dengan Beranda
+    if (typeof window._iklanRender === 'function') window._iklanRender();
   }
   else if (p==='arisan') { renderForum(); forumTab('arisan'); }
   else if (p==='forum') { renderForum(); forumTab('diskusi'); setTimeout(_updateBersihkanChatBtn, 100); }
@@ -18812,6 +18995,14 @@ function getRPDB() {
           noRek: '7297943213',
           atasNama: 'Syamsul Hadi',
           catatan: 'Bank Syariah Indonesia. Konfirmasi pembayaran via admin setelah transfer.',
+          logoImg: null
+        },
+        {
+          id: 'bank_bca_digital_renco',
+          bankNama: 'BCA Digital',
+          noRek: '005621531004',
+          atasNama: 'Syamsul Hadi',
+          catatan: 'Konfirmasi pembayaran via admin setelah transfer.',
           logoImg: null
         }
       ], // array { id, bankNama, noRek, atasNama, catatan, logoImg }
@@ -20390,94 +20581,7 @@ function rpQRISHTML() {
       <img src="assets/info-rekening.jpg" alt="Info Rekening Koperasi Renco" style="width:100%;display:block">
     </div>
 
-    <!-- Info alert -->
-    <div class="rp-info-alert">
-      💡 <b>Payment Orchestrator:</b> Platform hanya sebagai penghubung. Uang sesungguhnya tetap lewat bank, QRIS, atau e-wallet rekening penampung koperasi.
-    </div>
-
-    <!-- QRIS Display -->
-    <div class="rp-qris-wrap">
-      <div style="font-size:10px;color:rgba(232,201,126,0.55);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;font-weight:700">QRIS KOPERASI RENCO</div>
-
-      <!-- Frame QRIS -->
-      <div class="rp-qris-frame" id="rpQrisFrame" onclick="${_adm ? 'rpTriggerUpload()' : ''}" style="cursor:${_adm ? 'pointer' : 'default'}">
-        ${s.qrisImage
-          ? `<img src="${s.qrisImage}" style="width:100%;height:100%;object-fit:contain;border-radius:11px" id="rpQrisImg" alt="QRIS"/>
-             ${_adm ? `<div id="rpQrisOverlay" style="position:absolute;inset:0;border-radius:11px;background:rgba(0,0,0,0);display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;transition:background 0.2s;pointer-events:none">
-               <div style="background:rgba(26,58,42,0.82);border:1px solid rgba(201,168,76,0.5);border-radius:8px;padding:4px 12px;font-size:10px;font-weight:700;color:#e8c97e;opacity:0;transition:opacity 0.2s" id="rpQrisHint">Ganti Gambar</div>
-             </div>` : ''}`
-          : emptyQR
-        }
-      </div>
-
-      <!-- Input file tersembunyi -->
-      <input type="file" id="rpQrisFileInput" accept="image/*" style="display:none" onchange="rpHandleQrisUpload(this)">
-
-      <!-- No. QRIS — inline edit dengan icon kecil -->
-      <div class="rp-noqris-label">No. QRIS</div>
-      <div class="rp-noqris-row" id="rpNoQrisRow">
-        <!-- Mode VIEW -->
-        <span class="rp-noqris-val" id="rpNoQrisDisplay">${s.noQRIS}</span>
-
-        <!-- Tombol hide/show (semua user) -->
-        <button class="rp-icon-btn" id="rpHideBtn" onclick="rpToggleHideQRIS()" title="Sembunyikan">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" id="rpHideIcon">
-            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
-          </svg>
-        </button>
-
-        <!-- Tombol edit — hanya admin -->
-        ${_adm ? `<button class="rp-icon-btn" id="rpEditBtn" onclick="rpStartEditQRIS()" title="Edit">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>` : ''}
-      </div>
-
-      <!-- Mode EDIT (tersembunyi awal, admin only) -->
-      ${_adm ? `<div id="rpEditRow" style="display:none;flex-direction:column;align-items:center;gap:8px;margin-bottom:14px;animation:rpInputSlideIn 0.22s cubic-bezier(.34,1.56,.64,1) both">
-        <input class="rp-noqris-input" type="text" id="rpNoQrisInput" value="${s.noQRIS}" placeholder="Masukkan No. QRIS" maxlength="30">
-        <div style="display:flex;gap:8px">
-          <button class="rp-icon-btn save-btn" onclick="rpSaveQRISInline()" title="Simpan" style="width:72px;height:30px;border-radius:9px;font-size:11px;font-weight:700;gap:5px">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Simpan
-          </button>
-          <button class="rp-icon-btn" onclick="rpCancelEditQRIS()" title="Batal" style="width:60px;height:30px;border-radius:9px;font-size:11px;font-weight:700;gap:4px;background:rgba(230,57,70,0.18);color:#ff8a8a">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            Batal
-          </button>
-        </div>
-      </div>` : '<div id="rpEditRow" style="display:none"></div>'}
-
-      <!-- Tombol aksi -->
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <button onclick="rpShareQRIS()" style="padding:9px 18px;border-radius:12px;border:1.5px solid rgba(201,168,76,0.4);background:rgba(45,106,79,0.2);color:#e8c97e;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <circle cx="18" cy="5" r="2.5" stroke="currentColor" stroke-width="1.6"/>
-            <circle cx="6" cy="12" r="2.5" stroke="currentColor" stroke-width="1.6"/>
-            <circle cx="18" cy="19" r="2.5" stroke="currentColor" stroke-width="1.6"/>
-            <path d="M8.5 10.5l7-3.5M8.5 13.5l7 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>Bagikan QRIS
-        </button>
-        <button onclick="rpDownloadQRIS()" style="padding:9px 18px;border-radius:12px;border:1.5px solid rgba(201,168,76,0.4);background:rgba(45,106,79,0.2);color:#e8c97e;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M12 3v13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-            <path d="M7.5 12l4.5 5 4.5-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M4 19h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-          </svg>Download
-        </button>
-        ${_adm && s.qrisImage ? `<button onclick="rpHapusQrisImage()" style="padding:9px 18px;border-radius:12px;border:1.5px solid rgba(230,57,70,0.4);background:rgba(230,57,70,0.12);color:#ff6b6b;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>Hapus</button>` : ''}
-      </div>
-    </div>
+    <!-- QRIS Koperasi dihapus (tidak ditampilkan lagi utk admin & nasabah) -->
 
     <div id="rpTransferSection"></div>
 
@@ -21018,16 +21122,7 @@ function rpPembayaranMemberHTML() {
         : '')
     + '</div>'
 
-    /* Redirect card */
-    + '<div style="background:white;border-radius:16px;border:2px solid rgba(45,106,79,0.2);padding:20px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,0.06)">'
-      + '<div style="font-size:40px;margin-bottom:12px">🔀</div>'
-      + '<div style="font-size:14px;font-weight:800;color:#1c3025;margin-bottom:6px">Pembayaran dikelola di satu tempat</div>'
-      + '<div style="font-size:11px;color:#6b7280;line-height:1.6;margin-bottom:16px">Untuk menghindari pembayaran ganda, semua cicilan & angsuran dibayar melalui menu <b style="color:#1a472a">Pembayaran</b> di navigasi utama.</div>'
-      + '<button onclick="(function(){ var btn = document.querySelector(\'[data-tab=\\\"pembayaran\\\"]\') || document.querySelector(\'[onclick*=\\\"pembayaran\\\"]\'); if(btn){ btn.click(); } else { var tabs = document.querySelectorAll(\'.tab-btn,.nav-btn,.bottom-nav-btn\'); tabs.forEach(function(t){ if(t.textContent.includes(\'Pembayaran\')) t.click(); }); } })()" style="width:100%;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#e8c97e;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 3px 14px rgba(26,71,42,0.25)">'
-        + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-        + 'Buka Menu Pembayaran'
-      + '</button>'
-    + '</div>'
+    /* Kartu redirect + tombol "Buka Menu Pembayaran" dihapus (tidak ditampilkan lagi utk nasabah) */
 
   + '</div>';
 }
@@ -26381,10 +26476,10 @@ function renderKeuanganGrid(activeTab) {
     : _keuanganGridItems.nasabah;
   var arrowSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   grid.innerHTML = items.map(function(item){
-    var clickFn = item.directNav
-      ? 'navTo(\''+item.directNav+'\')'
-      : 'keuPanelOpen(\''+item.tab+'\',this)';
+    var directNavArg = item.directNav ? "'"+item.directNav+"'" : 'null';
+    var clickFn = 'keuCardTap(this,\''+item.tab+'\','+directNavArg+')';
     return '<button class="keu-grid-card keu-glass" id="keu-card-'+item.tab+'"'
+      +' style="--kgc-grad:'+item.grad+'"'
       +' onclick="'+clickFn+'">'
       +'<div class="kgb-icon">'+(item.emoji||item.svg||'')+'</div>'
       +'<span class="kgb-label">'+item.label+'</span>'
@@ -26398,6 +26493,28 @@ function renderKeuanganGrid(activeTab) {
     card.offsetHeight; // reflow
     card.style.animation = '';
   });
+}
+
+// ── Ketuk ke-1: kartu ter-highlight gradient (dipilih). Ketuk ke-2 (kartu yg sama, sudah terpilih): buka. ──
+var _kgcSelTimer = null;
+function keuCardTap(el, tab, directNav) {
+  if (!el) return;
+  if (el.classList.contains('kgc-selected')) {
+    // Sudah terpilih → ketukan kedua: buka
+    el.classList.remove('kgc-selected');
+    if (_kgcSelTimer) { clearTimeout(_kgcSelTimer); _kgcSelTimer = null; }
+    if (directNav) navTo(directNav);
+    else keuPanelOpen(tab, el);
+    return;
+  }
+  // Ketukan pertama: batalkan pilihan kartu lain, tampilkan animasi gradient pada kartu ini
+  var grid = document.getElementById('keuanganGridInner');
+  if (grid) grid.querySelectorAll('.keu-grid-card.kgc-selected').forEach(function(c){ c.classList.remove('kgc-selected'); });
+  if (_kgcSelTimer) { clearTimeout(_kgcSelTimer); _kgcSelTimer = null; }
+  void el.offsetWidth; // reflow agar animasi pop selalu terpicu ulang
+  el.classList.add('kgc-selected');
+  // Auto-batal pilihan bila tidak diketuk lagi dalam beberapa detik
+  _kgcSelTimer = setTimeout(function(){ el.classList.remove('kgc-selected'); _kgcSelTimer = null; }, 3200);
 }
 
 // ── Panel state ──
@@ -26483,12 +26600,10 @@ function keuanganTab(tab, el) {
     c.innerHTML =
       '<div class="pembayaran-subtab-bar">' +
         '<button id="psub-cicilan" class="pembayaran-subtab aktif-cicilan" data-psub="cicilan" onclick="switchPembayaranSubTab(\'cicilan\')">' +
-          '<span class="psub-icon">🌿</span>' +
           '<span class="psub-label">Koperasi Renco</span>' +
           '<span class="psub-sub">Tagihan Pinjaman</span>' +
         '</button>' +
         '<button id="psub-capital" class="pembayaran-subtab" data-psub="capital" onclick="switchPembayaranSubTab(\'capital\')">' +
-          '<span class="psub-icon">🏦</span>' +
           '<span class="psub-label">Renco Capital</span>' +
           '<span class="psub-sub">Tagihan Pinjaman</span>' +
         '</button>' +
@@ -27340,6 +27455,8 @@ function renderSimpananHTML() {
 }
 
 function buildSimpananMemberTabRow(nasabahSimpanan, activeMember) {
+  // Nasabah tidak perlu filter anggota/semua/nama nasabah — cukup admin yang melihatnya
+  if (typeof isNasabah === 'function' && isNasabah()) return '';
   window._simpananPillIds = ['semua'];
   nasabahSimpanan.forEach(function(x) { window._simpananPillIds.push(x.a.id); });
 
@@ -35978,6 +36095,7 @@ function laporanTab(tab, el) {
       var _nasView = typeof renderLaporanNasabahUser === 'function' ? renderLaporanNasabahUser() : '';
       c.innerHTML = _nasView || '<div style="padding:40px 20px;text-align:center;color:#9ca3af"><div style="font-size:36px;margin-bottom:12px">📋</div><div style="font-size:14px;font-weight:700;color:#374151">Laporan Saya</div><div style="font-size:12px;margin-top:6px">Belum ada data transaksi</div></div>';
     }
+    if (typeof window._initLapSecHeaders === 'function') window._initLapSecHeaders(c);
     return;
   }
 
@@ -37129,7 +37247,7 @@ function _renderLaporanKoperasiNasabahView() {
   }
 
   // Komposisi simpanan
-  html += '<div style="padding:0 14px 6px;display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#2d6a4f"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Komposisi Simpanan Anggota</div></div>'
+  html += '<div class="lap-sec-header" onclick="window._toggleLapSec(this)" style="padding:0 14px 6px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none"><div style="width:4px;height:18px;border-radius:99px;background:#2d6a4f"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;flex:1">Komposisi Simpanan Anggota</div><span class="lap-sec-chev" style="font-size:11px;color:var(--text-soft);transition:transform .2s ease">▾</span></div>'
     + '<div style="background:white;border-radius:14px;margin:0 14px 12px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:14px">'
     + [
         {label:'Pokok', val:simPokok, color:'#1a472a'},
@@ -37148,7 +37266,7 @@ function _renderLaporanKoperasiNasabahView() {
     + '</div>';
 
   // Neraca ringkas
-  html += '<div style="padding:0 14px 6px;display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#1a472a"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Neraca Keuangan</div></div>'
+  html += '<div class="lap-sec-header" onclick="window._toggleLapSec(this)" style="padding:0 14px 6px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none"><div style="width:4px;height:18px;border-radius:99px;background:#1a472a"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;flex:1">Neraca Keuangan</div><span class="lap-sec-chev" style="font-size:11px;color:var(--text-soft);transition:transform .2s ease">▾</span></div>'
     + '<div style="background:white;border-radius:14px;margin:0 14px 12px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:4px 0">'
     + _kRow('Dana Simpanan Bersih', fmt2(totalSimpanan), '#2d6a4f')
     + _kRow('Piutang Pinjaman', fmt2(totalPiutang), '#e63946')
@@ -46726,8 +46844,8 @@ window.switchPembayaranSubTab = function switchPembayaranSubTab(sub) {
       window._angsuranMemberFilter = _capitalNasabahId;
       _rcFilter = 'semua';
       _rcSearch = '';
-      /* Render widget sumber modal + daftar angsuran pembiayaan */
-      sc.innerHTML = _renderCapitalPoolWidget() + renderRencoCapitalHTML();
+      /* Hero banner "Pool Dana Renco Capital" dihapus (tidak ditampilkan lagi utk admin & nasabah) */
+      sc.innerHTML = renderRencoCapitalHTML();
       setTimeout(function(){
         initRencoCapitalAnimations&&initRencoCapitalAnimations();
         rerenderAngsuranMemberTab&&rerenderAngsuranMemberTab();
@@ -52603,22 +52721,22 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
           <div style="background:linear-gradient(135deg,#0d2b1a,#1a472a);padding:12px 14px;display:flex;align-items:center;gap:12px">
             <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#f4a922,#ffd166);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#1a472a;flex-shrink:0">${inisial}</div>
             <div style="flex:1">
-              <div style="font-size:14px;font-weight:800;color:white">${data.nama}</div>
+              <div style="font-size:16px;font-weight:800;color:white">${data.nama}</div>
               <div style="font-size:10px;color:rgba(255,255,255,0.5)">${data.rows.length} transaksi · ${filterTahun==='semua'?'Semua Tahun':filterTahun}</div>
             </div>
             <div style="text-align:right">
               <div style="font-size:8px;color:rgba(255,255,255,0.4);margin-bottom:2px">SALDO PERIODE</div>
-              <div style="font-size:13px;font-weight:900;color:${selisi>=0?'#a8e6cf':'#fca5a5'}">${selisi>=0?'+':'-'}${_fmtRp(Math.abs(selisi))}</div>
+              <div style="font-size:15px;font-weight:900;color:${selisi>=0?'#a8e6cf':'#fca5a5'}">${selisi>=0?'+':'-'}${_fmtRp(Math.abs(selisi))}</div>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid rgba(0,0,0,0.06)">
             <div style="padding:8px 14px;border-right:1px solid rgba(0,0,0,0.06)">
               <div style="font-size:8px;color:#2d6a4f;font-weight:700">⬇️ Total Masuk</div>
-              <div style="font-size:12px;font-weight:800;color:#155d38">${_fmtRp(data.masuk)}</div>
+              <div style="font-size:13px;font-weight:800;color:#155d38">${_fmtRp(data.masuk)}</div>
             </div>
             <div style="padding:8px 14px">
               <div style="font-size:8px;color:#e63946;font-weight:700">⬆️ Total Keluar</div>
-              <div style="font-size:12px;font-weight:800;color:#b91c1c">${_fmtRp(data.keluar)}</div>
+              <div style="font-size:13px;font-weight:800;color:#b91c1c">${_fmtRp(data.keluar)}</div>
             </div>
           </div>
           <div style="padding:10px 10px 4px">
@@ -53413,36 +53531,36 @@ window.renderLaporanNasabahUser = function() {
   +'</div>';
   var simRows=[{label:'Pokok',val:simPokok,color:'#1a472a'},{label:'Wajib',val:simWajib,color:'#2d6a4f'},{label:'Sukarela',val:simSukarela,color:'#f4a922'},{label:'Lainnya',val:simLainnya,color:'#9ca3af'}].filter(function(r){return r.val>0;});
   if(simRows.length){
-    html+='<div style="padding:0 14px 6px;display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#2d6a4f"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Komposisi Simpanan</div></div>'
+    html+='<div class="lap-sec-header" onclick="window._toggleLapSec(this)" style="padding:0 14px 6px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none"><div style="width:4px;height:18px;border-radius:99px;background:#2d6a4f"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;flex:1">Komposisi Simpanan</div><span class="lap-sec-chev" style="font-size:11px;color:var(--text-soft);transition:transform .2s ease">▾</span></div>'
       +'<div style="background:white;border-radius:14px;margin:0 14px 12px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:14px">'
       +simRows.map(function(r){var pct=totalSim>0?Math.round((r.val/totalSim)*100):0;return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:11px;font-weight:700">'+r.label+'</span><span style="font-size:11px;font-weight:800;color:'+r.color+'">'+fmt2(r.val)+' ('+pct+'%)</span></div>'+pbar(pct,r.color)+'</div>';}).join('')
       +'</div>';
   }
-  html+='<div style="padding:0 14px 6px;display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#40916c"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Tren Simpanan 6 Bulan</div></div>'
+  html+='<div class="lap-sec-header" onclick="window._toggleLapSec(this)" style="padding:0 14px 6px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none"><div style="width:4px;height:18px;border-radius:99px;background:#40916c"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;flex:1">Tren Simpanan 6 Bulan</div><span class="lap-sec-chev" style="font-size:11px;color:var(--text-soft);transition:transform .2s ease">▾</span></div>'
     +'<div style="background:white;border-radius:14px;margin:0 14px 12px;box-shadow:0 2px 10px rgba(0,0,0,0.06);padding:12px 14px"><div style="display:flex;align-items:flex-end;gap:4px;height:70px">'
     +trend6.map(function(t){var h=Math.max(4,Math.round((t.val/maxT)*56));return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:linear-gradient(180deg,#40916c,#1a472a);border-radius:4px 4px 0 0;height:'+h+'px"></div><div style="font-size:8px;color:var(--text-soft);font-weight:600">'+t.label+'</div></div>';}).join('')
     +'</div></div>';
   if(pinAktif.length){
-    html+='<div style="padding:0 14px 6px;display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#e63946"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Pinjaman Koperasi Aktif</div></div>'
+    html+='<div class="lap-sec-header" onclick="window._toggleLapSec(this)" style="padding:0 14px 6px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none"><div style="width:4px;height:18px;border-radius:99px;background:#e63946"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;flex:1">Pinjaman Koperasi Aktif</div><span class="lap-sec-chev" style="font-size:11px;color:var(--text-soft);transition:transform .2s ease">▾</span></div>'
       +'<div style="padding:0 14px 12px;display:flex;flex-direction:column;gap:6px">'
       +pinAktif.map(function(p){var pct=p.jumlah>0?Math.round(((p.jumlah-(p.sisaPokok||0))/p.jumlah)*100):0;var ang=Math.round((p.jumlah+(p.jumlah*(p.bunga||0)/100*(p.tenor||12)/12))/(p.tenor||12));return '<div style="background:white;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,0.06);overflow:hidden"><div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f5f5f5"><div><div style="font-size:11px;font-weight:700">'+(p.tujuan||'Pinjaman Koperasi')+'</div><div style="font-size:9px;color:var(--text-soft);margin-top:2px">'+(p.bunga||0)+'%/thn · '+p.tenor+' bln</div></div><div style="text-align:right"><div style="font-size:9px;color:var(--text-soft)">Sisa</div><div style="font-size:13px;font-weight:800;color:#e63946">'+fmt2(p.sisaPokok||0)+'</div></div></div><div style="padding:8px 14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:9px;color:var(--text-soft)">Terbayar '+pct+'%</span><span style="font-size:9px;color:#b07a00;font-weight:700">'+fmt2(ang)+'/bln</span></div>'+pbar(pct,'linear-gradient(90deg,#40916c,#2d6a4f)')+'</div></div>';}).join('')
       +'</div>';
   }
   var allPemAktif=pemAktif.concat(pemSyrAktif);
   if(allPemAktif.length){
-    html+='<div style="padding:0 14px 6px;display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#7c3aed"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Pembiayaan Renco Capital</div></div>'
+    html+='<div class="lap-sec-header" onclick="window._toggleLapSec(this)" style="padding:0 14px 6px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none"><div style="width:4px;height:18px;border-radius:99px;background:#7c3aed"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;flex:1">Pembiayaan Renco Capital</div><span class="lap-sec-chev" style="font-size:11px;color:var(--text-soft);transition:transform .2s ease">▾</span></div>'
       +'<div style="padding:0 14px 12px;display:flex;flex-direction:column;gap:6px">'
       +allPemAktif.map(function(p){var tenor=p.tenor||12,bayar=p.angsuranDibayar||0;var pct=tenor>0?Math.round((bayar/tenor)*100):0;var sp=typeof p.sisaPokokRC==='number'?p.sisaPokokRC:(typeof p.sisaPokok==='number'?p.sisaPokok:Math.round((p.jumlah||0)/tenor*Math.max(0,tenor-bayar)));var cic=p.cicilanPerBln||p.cicilan||0;var jl={syariah:'Murabahah',qardh:'Qardh','modal-usaha':'Mudharabah',murabahah:'Murabahah',mudharabah:'Mudharabah',ijarah:'Ijarah',musyarakah:'Musyarakah'}[p.jenis||p.akad||'']||(p.jenis||p.akad||'Pembiayaan');return '<div style="background:white;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,0.06);overflow:hidden"><div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f5f5f5"><div><div style="font-size:11px;font-weight:700">'+(p.tujuan||jl)+'</div><div style="font-size:9px;color:#7c3aed;font-weight:700;margin-top:2px">'+jl+' · '+bayar+'/'+tenor+' angsuran</div></div><div style="text-align:right"><div style="font-size:9px;color:var(--text-soft)">Sisa</div><div style="font-size:13px;font-weight:800;color:#7c3aed">'+fmt2(sp)+'</div></div></div><div style="padding:8px 14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:9px;color:var(--text-soft)">'+pct+'% terbayar</span><span style="font-size:9px;color:#b07a00;font-weight:700">'+fmt2(cic)+'/bln</span></div>'+pbar(pct,'linear-gradient(90deg,#7c3aed,#6b21a8)')+'</div></div>';}).join('')
       +'</div>';
   }
   var allPengajuanList=pinPengajuan.concat(pemPengajuan).concat(pemSyrPengaj);
   if(allPengajuanList.length){
-    html+='<div style="padding:0 14px 6px;display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#4361ee"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Pengajuan Pending</div></div>'
+    html+='<div class="lap-sec-header" onclick="window._toggleLapSec(this)" style="padding:0 14px 6px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none"><div style="width:4px;height:18px;border-radius:99px;background:#4361ee"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;flex:1">Pengajuan Pending</div><span class="lap-sec-chev" style="font-size:11px;color:var(--text-soft);transition:transform .2s ease">▾</span></div>'
       +'<div style="padding:0 14px 12px;display:flex;flex-direction:column;gap:6px">'
       +allPengajuanList.map(function(p){var isPmb=!!(p.jenis||p.akad);var jl=isPmb?({syariah:'Murabahah',qardh:'Qardh','modal-usaha':'Mudharabah',murabahah:'Murabahah',mudharabah:'Mudharabah',ijarah:'Ijarah'}[p.jenis||p.akad||'']||(p.jenis||p.akad||'Pembiayaan')):'Pinjaman Koperasi';return '<div style="background:rgba(67,97,238,0.04);border:1.5px solid rgba(67,97,238,0.2);border-radius:12px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:11px;font-weight:700">'+(p.tujuan||jl)+'</div><div style="font-size:9px;color:#4361ee;margin-top:2px;font-weight:700">⏳ Menunggu admin · '+fmtTgl(p.tanggal)+'</div></div><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:#4361ee">'+fmt2(p.jumlah)+'</div><div style="font-size:9px;font-weight:700;color:#4361ee;background:rgba(67,97,238,0.1);padding:1px 7px;border-radius:99px;margin-top:3px">Pengajuan</div></div></div>';}).join('')
       +'</div>';
   }
-  html+='<div class="txn-history-toggle-btn" onclick="txnHistoryToggle(this,\'txnHistoryBody\')" style="padding:0 14px 6px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none"><div style="display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#f4a922"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Transaksi Terbaru</div></div><span class="chev" style="font-size:13px;color:var(--text-soft)">▾</span></div>'
+  html+='<div class="txn-history-toggle-btn" onclick="txnHistoryToggle(this,\'txnHistoryBody\')" style="padding:0 14px 6px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none"><div style="display:flex;align-items:center;gap:8px"><div style="width:4px;height:18px;border-radius:99px;background:#f4a922"></div><div style="font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Transaksi Terbaru</div></div><span class="chev" style="font-size:11px;color:var(--text-soft)">▾</span></div>'
     +'<div id="txnHistoryBody" class="txn-history-body">'
     +'<div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:6px;padding:0 14px 8px">'
       +'<div style="position:relative;flex:1;min-width:0">'
@@ -59663,10 +59781,11 @@ function _confirmUpdateSuccess() {
     try { return sessionStorage.getItem('rencoIklanDismissed') === '1'; } catch(e){ return false; }
   }
 
+  // Pengumuman bisa tampil di lebih dari satu halaman sekaligus (Beranda & Keuangan),
+  // semuanya berbagi data yang sama — jadi dismiss/render bekerja di SEMUA kartu ".iklan-glass-card".
   window._iklanDismiss = function(){
     try { sessionStorage.setItem('rencoIklanDismissed', '1'); } catch(e){}
-    var card = document.getElementById('iklanGlassCard');
-    if (card) card.style.display = 'none';
+    document.querySelectorAll('.iklan-glass-card').forEach(function(card){ card.style.display = 'none'; });
   };
 
   // Editor sederhana (prompt berurutan) — hanya untuk Admin
@@ -59692,31 +59811,33 @@ function _confirmUpdateSuccess() {
   };
 
   window._iklanRender = function(){
-    var card = document.getElementById('iklanGlassCard');
-    if (!card) return;
+    var cards = document.querySelectorAll('.iklan-glass-card');
+    if (!cards.length) return;
     var data = _iklanGet();
     var _isAdm = (typeof isAdmin === 'function' && isAdmin()) || (typeof AUTH !== 'undefined' && AUTH && AUTH.user && AUTH.user.role === 'admin');
-    if (!data.enabled || (_iklanDismissedThisSession() && !_isAdm)) {
-      card.style.display = 'none';
-      return;
-    }
-    var titleEl = document.getElementById('iklanTitle');
-    var descEl = document.getElementById('iklanDesc');
-    if (titleEl) titleEl.textContent = data.title;
-    if (descEl) descEl.textContent = data.desc;
-    var imgEl = document.getElementById('iklanImg');
-    if (imgEl) {
-      if (data.img) { imgEl.src = data.img; imgEl.style.display = ''; }
-      else { imgEl.style.display = 'none'; }
-    }
-    var cta = document.getElementById('iklanCta');
-    if (cta) {
-      if (data.link) { cta.href = data.link; cta.style.display = 'inline-flex'; }
-      else { cta.style.display = 'none'; }
-    }
-    var editBtn = document.getElementById('iklanEditBtn');
-    if (editBtn) editBtn.style.display = _isAdm ? '' : 'none';
-    card.style.display = '';
+    cards.forEach(function(card){
+      if (!data.enabled || (_iklanDismissedThisSession() && !_isAdm)) {
+        card.style.display = 'none';
+        return;
+      }
+      var titleEl = card.querySelector('.iklan-title');
+      var descEl = card.querySelector('.iklan-desc');
+      if (titleEl) titleEl.textContent = data.title;
+      if (descEl) descEl.textContent = data.desc;
+      var imgEl = card.querySelector('.iklan-img');
+      if (imgEl) {
+        if (data.img) { imgEl.src = data.img; imgEl.style.display = ''; }
+        else { imgEl.style.display = 'none'; }
+      }
+      var cta = card.querySelector('.iklan-cta');
+      if (cta) {
+        if (data.link) { cta.href = data.link; cta.style.display = 'inline-flex'; }
+        else { cta.style.display = 'none'; }
+      }
+      var editBtn = card.querySelector('.iklan-edit-btn');
+      if (editBtn) editBtn.style.display = _isAdm ? '' : 'none';
+      card.style.display = '';
+    });
   };
 
   document.addEventListener('DOMContentLoaded', function(){
