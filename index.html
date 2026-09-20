@@ -9225,8 +9225,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <button class="login-btn-secondary" id="daftarAkunBtn" onclick="_openDaftarAkunLogin()" style="display:none">Daftar Akun Baru</button>
     <div class="login-footer">
       RENCO &copy; 2026 &middot; Bersama Membangun Kesejahteraan<br>
-      <span style="opacity:0.6">Hubungi admin jika lupa password</span><br>
-      <span style="opacity:0.45;font-size:10px">Koperasi Renco V0.2 &middot; Diperbarui 20 September 2026</span>
+      <span style="opacity:0.6">Hubungi admin jika lupa password</span>
     </div>
   </div>
   <div id="loginScreenWatermark" style="position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:10.5px;font-weight:600;letter-spacing:0.4px;color:rgba(255,255,255,0.38);pointer-events:none;user-select:none;z-index:1"></div>
@@ -9344,7 +9343,7 @@ var _LOGIN_INFO_CONTENT = {
         '<div style="margin-top:14px;padding-top:12px;border-top:1.5px solid rgba(45,106,79,0.15);text-align:center">' +
           '<div style="font-size:13px;font-weight:800;color:#1c3025">Koperasi RENCO</div>' +
           '<div style="font-size:12px;color:#2d6a4f;font-weight:600;margin-top:2px">Bersama Membangun Kesejahteraan</div>' +
-          '<div style="font-size:10.5px;color:#9ca3af;font-weight:600;margin-top:8px">Koperasi Renco V0.2 &middot; Diperbarui 20 September 2026</div>' +
+          '<div id="loginInfoVersionLine" style="font-size:10.5px;color:#9ca3af;font-weight:600;margin-top:8px"></div>' +
         '</div>' +
       '</div>'
   },
@@ -9455,6 +9454,19 @@ function _renderStrukturPengurusBody() {
     list.map(_cardPengurus).join('') +
   '</div>';
 }
+/* Isi baris versi/pembaruan pada panel "Tentang Koperasi Renco" — mengambil teks yang SAMA
+   dengan watermark admin di paling bawah halaman login (DB.appSettings.loginWatermark),
+   supaya cukup diedit di satu tempat (Pengaturan Admin) dan tampil konsisten di kedua lokasi. */
+function _fillLoginInfoVersionLine() {
+  var el = document.getElementById('loginInfoVersionLine');
+  if (!el) return;
+  var teks = '';
+  try {
+    if (window.DB && DB.appSettings && DB.appSettings.loginWatermark) teks = DB.appSettings.loginWatermark;
+  } catch(e) {}
+  el.textContent = teks;
+  el.style.display = teks ? '' : 'none';
+}
 function _openLoginInfo(key) {
   var d = _LOGIN_INFO_CONTENT[key];
   if (!d) return;
@@ -9464,6 +9476,7 @@ function _openLoginInfo(key) {
   else if (d.bodyCompact) body = d.bodyCompact; // konten panjang → mulai dari tab ringkasan
   else body = d.body;
   document.getElementById('loginInfoBody').innerHTML = body;
+  _fillLoginInfoVersionLine();
   var dd = document.getElementById('loginMenuDropdown');
   if (dd) dd.classList.remove('open');
   if (typeof openModal === 'function') openModal('modalLoginInfo');
@@ -9475,6 +9488,7 @@ function _loginInfoGotoTab(key, tabIndex) {
   var body = tabIndex === 1 ? (d.bodyFull || d.body) : (d.bodyCompact || d.body);
   var el = document.getElementById('loginInfoBody');
   if (el) { el.innerHTML = body; el.scrollTop = 0; }
+  _fillLoginInfoVersionLine();
 }
 window._loginInfoGotoTab = _loginInfoGotoTab;
 </script>
@@ -9601,7 +9615,7 @@ window.clearPengurusFoto = function() {
   _resetPengurusFotoPreview();
 };
 
-window.savePengurusForm = function() {
+window.savePengurusForm = async function() {
   var nama = (document.getElementById('pengurusFormNama').value || '').trim();
   var jabatan = (document.getElementById('pengurusFormJabatan').value || '').trim();
   var pendidikan = (document.getElementById('pengurusFormPendidikan').value || '').trim();
@@ -9611,21 +9625,36 @@ window.savePengurusForm = function() {
 
   if (!DB.pengurusList) DB.pengurusList = [];
 
-  if (_pengurusEditId) {
-    var p = DB.pengurusList.find(function(x){ return x.id === _pengurusEditId; });
+  var isEdit = !!_pengurusEditId;
+  var id = _pengurusEditId;
+  if (!isEdit) {
+    if (typeof DB.nextPengurusId !== 'number') DB.nextPengurusId = 1;
+    id = 'peng' + DB.nextPengurusId;
+  }
+
+  /* Upload foto ke Supabase Storage dulu (jadi URL pendek, bukan base64 penuh
+     di database) — skema sama seperti foto profil nasabah & logo bank. Kalau
+     upload gagal (offline/error), fallback simpan base64 sementara. */
+  var fotoFinal = _pengurusFotoB64;
+  if (_pengurusFotoB64 && _pengurusFotoB64.indexOf('data:') === 0) {
+    if (typeof showToast === 'function') showToast('📤 Mengunggah foto...');
+    try { fotoFinal = await _uploadFotoToStorage('pengurus', id, _pengurusFotoB64); }
+    catch(e) { console.warn('[RENCO☁] Upload foto pengurus gagal, simpan base64 sementara:', e && e.message); fotoFinal = _pengurusFotoB64; }
+  }
+
+  if (isEdit) {
+    var p = DB.pengurusList.find(function(x){ return x.id === id; });
     if (p) {
       p.nama = nama; p.jabatan = jabatan; p.pendidikan = pendidikan; p.pengalaman = pengalaman;
-      p.foto = _pengurusFotoB64 || '';
+      p.foto = fotoFinal || '';
     }
     if (typeof showToast === 'function') showToast('✅ Data pengurus berhasil diperbarui');
   } else {
-    if (typeof DB.nextPengurusId !== 'number') DB.nextPengurusId = 1;
-    var newId = 'peng' + DB.nextPengurusId;
     DB.nextPengurusId++;
     DB.pengurusList.push({
-      id: newId,
+      id: id,
       nama: nama, jabatan: jabatan, pendidikan: pendidikan, pengalaman: pengalaman,
-      foto: _pengurusFotoB64 || '',
+      foto: fotoFinal || '',
       urutan: DB.pengurusList.length
     });
     if (typeof showToast === 'function') showToast('✅ Pengurus berhasil ditambahkan');
@@ -14817,7 +14846,7 @@ let DB = {
   nextPengurusId: 1,
   subKategoriOptions: {},
   appSettings: {
-    loginWatermark: ''
+    loginWatermark: 'Koperasi Renco V0.2 \u00b7 Diperbarui 20 September 2026'
   },
   auditLog: [] // Audit Log permanen — tidak boleh direset/dihapus di mana pun dalam kode ini
 };
@@ -20648,25 +20677,25 @@ function rpQRISHTML() {
         </div>
         <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(201,168,76,0.18),transparent);margin-bottom:10px"></div>
         <div style="display:flex;flex-direction:column;gap:7px">
-          <a href="https://wa.me/6287855712922" target="_blank" style="display:flex;align-items:center;gap:10px;background:rgba(37,211,102,0.08);border:1px solid rgba(37,211,102,0.22);border-radius:10px;padding:8px 11px;text-decoration:none" ontouchstart="this.style.background='rgba(37,211,102,0.14)'" ontouchend="this.style.background='rgba(37,211,102,0.08)'">
+          <a href="https://wa.me/6287855712922" target="_blank" style="display:flex;align-items:center;gap:10px;background:#ffffff;border:1px solid rgba(0,0,0,0.08);box-shadow:0 4px 14px rgba(0,0,0,0.12);border-radius:10px;padding:8px 11px;text-decoration:none;transition:background 0.18s" ontouchstart="this.style.background='#f3f4f6'" ontouchend="this.style.background='#ffffff'">
             <div style="width:26px;height:26px;border-radius:8px;background:rgba(37,211,102,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="#25d366" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:9px;color:rgba(255,255,255,0.4);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Customer Service</div>
-              <div style="font-size:12px;font-weight:800;color:#25d366;margin-top:1px">+62 878-5571-2922</div>
+              <div style="font-size:9px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Customer Service</div>
+              <div style="font-size:12px;font-weight:800;color:#128c4a;margin-top:1px">+62 878-5571-2922</div>
             </div>
-            <div style="background:rgba(37,211,102,0.15);border:1px solid rgba(37,211,102,0.3);border-radius:6px;padding:3px 7px;font-size:9px;font-weight:800;color:#25d366;flex-shrink:0">WA Only</div>
+            <div style="background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.35);border-radius:6px;padding:3px 7px;font-size:9px;font-weight:800;color:#128c4a;flex-shrink:0">WA Only</div>
           </a>
-          <a href="mailto:koperasirenco@gmail.com" style="display:flex;align-items:center;gap:10px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.22);border-radius:10px;padding:8px 11px;text-decoration:none" ontouchstart="this.style.background='rgba(99,102,241,0.14)'" ontouchend="this.style.background='rgba(99,102,241,0.08)'">
+          <a href="mailto:koperasirenco@gmail.com" style="display:flex;align-items:center;gap:10px;background:#ffffff;border:1px solid rgba(0,0,0,0.08);box-shadow:0 4px 14px rgba(0,0,0,0.12);border-radius:10px;padding:8px 11px;text-decoration:none;transition:background 0.18s" ontouchstart="this.style.background='#f3f4f6'" ontouchend="this.style.background='#ffffff'">
             <div style="width:26px;height:26px;border-radius:8px;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#818cf8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 6l-10 7L2 6" stroke="#818cf8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#6366f1" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 6l-10 7L2 6" stroke="#6366f1" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:9px;color:rgba(255,255,255,0.4);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Email</div>
-              <div style="font-size:11px;font-weight:800;color:#a5b4fc;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">koperasirenco@gmail.com</div>
+              <div style="font-size:9px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Email</div>
+              <div style="font-size:11px;font-weight:800;color:#4f46e5;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">koperasirenco@gmail.com</div>
             </div>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="opacity:0.4;flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7" stroke="rgba(165,180,252,0.7)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="opacity:0.6;flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7" stroke="#6366f1" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
         </div>
       </div>
@@ -30094,14 +30123,16 @@ function cetakDokPembSy(id) {
     if (!file.type.startsWith('image/')) { showToast && showToast('⚠️ Pilih file gambar'); return; }
     var reader = new FileReader();
     reader.onload = function(e) {
-      /* Kompres ke max 120×120 agar hemat storage */
+      /* Kompres jadi persegi 240×240 (crop tengah) — skema sama seperti foto profil nasabah */
       var img = new Image();
       img.onload = function() {
+        var sz = 240;
         var canvas = document.createElement('canvas');
-        var sz = 120;
         canvas.width = sz; canvas.height = sz;
         var ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, sz, sz);
+        var side = Math.min(img.width, img.height);
+        var sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, sz, sz);
         _logoB64 = canvas.toDataURL('image/png');
         /* Preview */
         var prev  = document.getElementById('rpBankLogoPreview');
@@ -30131,7 +30162,7 @@ function cetakDokPembSy(id) {
   /* ─────────────────────────────────────────
      SIMPAN BANK (Tambah / Edit)
   ───────────────────────────────────────── */
-  window.rpSaveBank = function() {
+  window.rpSaveBank = async function() {
     var nama   = (document.getElementById('rpBankNamaInput').value   || '').trim();
     var noRek  = (document.getElementById('rpBankNoRekInput').value  || '').trim();
     var anama  = (document.getElementById('rpBankAtasNamaInput').value || '').trim();
@@ -30142,6 +30173,17 @@ function cetakDokPembSy(id) {
     if (!anama) { _flashInput('rpBankAtasNamaInput', 'Atas nama wajib diisi'); return; }
 
     var banks = _getBanks();
+    var id    = _editId || ('bank_' + Date.now());
+
+    /* Upload logo ke Supabase Storage dulu (jadi URL pendek, bukan base64 penuh
+       di database) — skema sama seperti foto profil nasabah. Kalau upload gagal
+       (offline/error), fallback simpan base64 sementara. */
+    var logoFinal = _logoB64;
+    if (_logoB64 && _logoB64.indexOf('data:') === 0) {
+      showToast && showToast('📤 Mengunggah logo...');
+      try { logoFinal = await _uploadFotoToStorage('bank-logo', id, _logoB64); }
+      catch(e) { console.warn('[RENCO☁] Upload logo bank gagal, simpan base64 sementara:', e && e.message); logoFinal = _logoB64; }
+    }
 
     if (_editId) {
       /* Edit */
@@ -30151,17 +30193,17 @@ function cetakDokPembSy(id) {
         banks[idx].noRek    = noRek;
         banks[idx].atasNama = anama;
         banks[idx].catatan  = cat;
-        banks[idx].logoImg  = _logoB64;
+        banks[idx].logoImg  = logoFinal;
       }
     } else {
       /* Tambah baru */
       banks.push({
-        id:       'bank_' + Date.now(),
+        id:       id,
         bankNama: nama,
         noRek:    noRek,
         atasNama: anama,
         catatan:  cat,
-        logoImg:  _logoB64,
+        logoImg:  logoFinal,
       });
     }
 
