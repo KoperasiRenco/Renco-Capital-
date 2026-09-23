@@ -7092,12 +7092,12 @@ function _applyNasabahDataIsolation() {
       var filtered = myList.map(function(a) {
         var txns     = (db.transaksi || []).filter(function(t){ return t.kkId === a.id && t.type === 'simpanan'; });
         var tarikTxns= (db.transaksi || []).filter(function(t){ return t.kkId === a.id && t.type === 'tarik-sukarela'; });
+        var transferTxns = (db.transaksi || []).filter(function(t){ return t.kkId === a.id && (t.type === 'transfer-sukarela-keluar' || t.type === 'transfer-sukarela-masuk'); });
         var pokok    = txns.filter(function(t){ return t.jenis==='pokok'; }).reduce(function(s,b){ return s+b.jumlah; },0);
         var wajib    = txns.filter(function(t){ return t.jenis==='wajib'; }).reduce(function(s,b){ return s+b.jumlah; },0);
-        var sukMasuk = txns.filter(function(t){ return t.jenis==='sukarela'; }).reduce(function(s,b){ return s+b.jumlah; },0);
-        var sukKeluar= tarikTxns.reduce(function(s,b){ return s+b.jumlah; },0);
-        var suk      = Math.max(0, sukMasuk - sukKeluar);
-        var allTxns  = txns.concat(tarikTxns);
+        // Sukarela pakai saldoSukarelaNasabah() sbg sumber tunggal — sudah mencakup transfer sesama nasabah
+        var suk      = typeof saldoSukarelaNasabah === 'function' ? saldoSukarelaNasabah(a.id) : Math.max(0, txns.filter(function(t){ return t.jenis==='sukarela'; }).reduce(function(s,b){ return s+b.jumlah; },0) - tarikTxns.reduce(function(s,b){ return s+b.jumlah; },0));
+        var allTxns  = txns.concat(tarikTxns, transferTxns);
         return {a:a, pokok:pokok, wajib:wajib, suk:suk, total:pokok+wajib+suk, txns:allTxns};
       });
       /* Pastikan filter member tab juga menunjuk ke nasabah sendiri */
@@ -18341,7 +18341,11 @@ function rwToggleDrop(id) {
 function totalSimpananKK(kkId) {
   const masuk  = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='simpanan').reduce((a,b)=>a+b.jumlah,0);
   const keluar = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='tarik-sukarela').reduce((a,b)=>a+b.jumlah,0);
-  return Math.max(0, masuk - keluar);
+  // Transfer sukarela sesama nasabah: masuk menambah, keluar mengurangi Total Simpanan
+  // (sebelumnya belum diperhitungkan di sini, beda dengan saldoSukarelaNasabah)
+  const transferKeluar = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='transfer-sukarela-keluar').reduce((a,b)=>a+b.jumlah,0);
+  const transferMasuk  = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='transfer-sukarela-masuk').reduce((a,b)=>a+b.jumlah,0);
+  return Math.max(0, masuk - keluar - transferKeluar + transferMasuk);
 }
 // Dana simpanan yang diperhitungkan sebagai basis kas (hanya pokok + wajib, TIDAK termasuk sukarela)
 function totalSimpananKasKK(kkId) {
@@ -27389,14 +27393,14 @@ function renderSimpananHTML() {
   const nasabahSimpanan = DB.nasabah.map(a=>{
     const txns = DB.transaksi.filter(t=>t.kkId===a.id && t.type==='simpanan');
     const tarikTxns = DB.transaksi.filter(t=>t.kkId===a.id && t.type==='tarik-sukarela');
+    const transferTxns = DB.transaksi.filter(t=>t.kkId===a.id && (t.type==='transfer-sukarela-keluar' || t.type==='transfer-sukarela-masuk'));
     const pokok = txns.filter(t=>t.jenis==='pokok').reduce((s,b)=>s+b.jumlah,0);
     const wajib = txns.filter(t=>t.jenis==='wajib').reduce((s,b)=>s+b.jumlah,0);
-    const sukMasuk = txns.filter(t=>t.jenis==='sukarela').reduce((s,b)=>s+b.jumlah,0);
-    const sukKeluar = tarikTxns.reduce((s,b)=>s+b.jumlah,0);
-    const suk = Math.max(0, sukMasuk - sukKeluar);
+    // Sukarela pakai saldoSukarelaNasabah() sbg sumber tunggal — sudah mencakup transfer sesama nasabah
+    const suk = typeof saldoSukarelaNasabah === 'function' ? saldoSukarelaNasabah(a.id) : Math.max(0, txns.filter(t=>t.jenis==='sukarela').reduce((s,b)=>s+b.jumlah,0) - tarikTxns.reduce((s,b)=>s+b.jumlah,0));
     const total = pokok+wajib+suk;
-    // Gabungkan transaksi setor + tarik supaya riwayat & subtotal sinkron dengan saldo sebenarnya
-    const allTxns = [...txns, ...tarikTxns];
+    // Gabungkan transaksi setor + tarik + transfer supaya riwayat & subtotal sinkron dengan saldo sebenarnya
+    const allTxns = [...txns, ...tarikTxns, ...transferTxns];
     return {a,pokok,wajib,suk,total,txns:allTxns};
   });
   const grand = nasabahSimpanan.reduce((s,x)=>s+x.total,0);
@@ -27495,14 +27499,14 @@ function buildRiwayatPanel(nasabahSimpanan) {
     nasabahSimpanan = _srcNasabah.map(a=>{
       const txns = DB.transaksi.filter(t=>t.kkId===a.id && t.type==='simpanan');
       const tarikTxns = DB.transaksi.filter(t=>t.kkId===a.id && t.type==='tarik-sukarela');
+      const transferTxns = DB.transaksi.filter(t=>t.kkId===a.id && (t.type==='transfer-sukarela-keluar' || t.type==='transfer-sukarela-masuk'));
       const pokok = txns.filter(t=>t.jenis==='pokok').reduce((s,b)=>s+b.jumlah,0);
       const wajib = txns.filter(t=>t.jenis==='wajib').reduce((s,b)=>s+b.jumlah,0);
-      const sukMasuk = txns.filter(t=>t.jenis==='sukarela').reduce((s,b)=>s+b.jumlah,0);
-      const sukKeluar = tarikTxns.reduce((s,b)=>s+b.jumlah,0);
-      const suk = Math.max(0, sukMasuk - sukKeluar);
+      // Sukarela pakai saldoSukarelaNasabah() sbg sumber tunggal — sudah mencakup transfer sesama nasabah
+      const suk = typeof saldoSukarelaNasabah === 'function' ? saldoSukarelaNasabah(a.id) : Math.max(0, txns.filter(t=>t.jenis==='sukarela').reduce((s,b)=>s+b.jumlah,0) - tarikTxns.reduce((s,b)=>s+b.jumlah,0));
       const total = pokok+wajib+suk;
-      // Gabungkan transaksi setor + tarik supaya riwayat & subtotal sinkron dengan saldo sebenarnya
-      const allTxns = [...txns, ...tarikTxns];
+      // Gabungkan transaksi setor + tarik + transfer supaya riwayat & subtotal sinkron dengan saldo sebenarnya
+      const allTxns = [...txns, ...tarikTxns, ...transferTxns];
       return {a,pokok,wajib,suk,total,txns:allTxns};
     });
   }
@@ -27530,7 +27534,7 @@ function buildRiwayatPanel(nasabahSimpanan) {
 
   const totalFiltered = filtered.reduce((s,x)=>{
     if (_riwayatFilter==='semua') return s+x.total;
-    return s+x.txns.filter(t=>t.jenis===_riwayatFilter).reduce((a,b)=>a+(b.type==='tarik-sukarela'?-b.jumlah:b.jumlah),0);
+    return s+x.txns.filter(t=>t.jenis===_riwayatFilter).reduce((a,b)=>a+((b.type==='tarik-sukarela'||b.type==='transfer-sukarela-keluar')?-b.jumlah:b.jumlah),0);
   },0);
 
   // Summary strip totals
@@ -27567,8 +27571,11 @@ function buildRiwayatPanel(nasabahSimpanan) {
       </div>`;
       monthTxns.forEach((t,ri)=>{
         const jenis = t.jenis||'wajib';
-        const isTarik = t.type==='tarik-sukarela';
-        const jenisLabel = isTarik ? 'Tarik Sukarela' : ({pokok:'Pokok',wajib:'Wajib',sukarela:'Sukarela'}[jenis]||jenis);
+        const isTarik = t.type==='tarik-sukarela' || t.type==='transfer-sukarela-keluar';
+        const jenisLabel = t.type==='transfer-sukarela-keluar' ? 'Transfer Keluar'
+                          : t.type==='transfer-sukarela-masuk' ? 'Transfer Masuk'
+                          : isTarik ? 'Tarik Sukarela'
+                          : ({pokok:'Pokok',wajib:'Wajib',sukarela:'Sukarela'}[jenis]||jenis);
         html += `
         <div class="txn-row" style="animation-delay:${ri*0.03}s">
           <div class="txn-tl-col">
@@ -27586,7 +27593,7 @@ function buildRiwayatPanel(nasabahSimpanan) {
             <div class="txn-row-right">
               <div class="txn-row-amount ${isTarik?'minus':'plus'}" style="${isTarik?'color:var(--danger)':''}">${isTarik?'−':'+'}${fmt(t.jumlah)}</div>
               <div class="txn-row-actions">
-                ${isTarik ? `<button class="txn-act-btn" onclick="event.stopPropagation();_bukaLaporanTarikLalu('${t.id}')" title="Laporan / Kirim WhatsApp">${window._ico('doc')}</button>` : ''}
+                ${t.type==='tarik-sukarela' ? `<button class="txn-act-btn" onclick="event.stopPropagation();_bukaLaporanTarikLalu('${t.id}')" title="Laporan / Kirim WhatsApp">${window._ico('doc')}</button>` : ''}
                 <button class="txn-act-btn edit" onclick="event.stopPropagation();openEditTxnRiwayat('${t.id}')" title="Edit">${window._ico('edit')}</button>
                 <button class="txn-act-btn del" onclick="event.stopPropagation();hapusTxnRiwayat('${t.id}')" title="Hapus">${window._ico('trash')}</button>
               </div>
@@ -27604,7 +27611,7 @@ function buildRiwayatPanel(nasabahSimpanan) {
       ? [...x.txns].sort((a,b)=>new Date(b.tanggal)-new Date(a.tanggal))
       : [...x.txns.filter(t=>t.jenis===_riwayatFilter)].sort((a,b)=>new Date(b.tanggal)-new Date(a.tanggal));
     const isOpen = !!_riwayatOpen[x.a.id];
-    const subtotal = txnsToShow.reduce((s,t)=>s+(t.type==='tarik-sukarela'?-t.jumlah:t.jumlah),0);
+    const subtotal = txnsToShow.reduce((s,t)=>s+((t.type==='tarik-sukarela'||t.type==='transfer-sukarela-keluar')?-t.jumlah:t.jumlah),0);
 
     return `
       <div class="txn-group" id="grp_${x.a.id}">
@@ -45269,13 +45276,13 @@ renderSimpananHTML = function() {
   const ns = _srcNasabah.map(a => {
     const txns = DB.transaksi.filter(t => t.kkId===a.id && t.type==='simpanan');
     const tarikTxns = DB.transaksi.filter(t => t.kkId===a.id && t.type==='tarik-sukarela');
+    const transferTxns = DB.transaksi.filter(t => t.kkId===a.id && (t.type==='transfer-sukarela-keluar' || t.type==='transfer-sukarela-masuk'));
     const pokok  = txns.filter(t=>t.jenis==='pokok').reduce((s,b)=>s+b.jumlah,0);
     const wajib  = txns.filter(t=>t.jenis==='wajib').reduce((s,b)=>s+b.jumlah,0);
-    const sukMasuk = txns.filter(t=>t.jenis==='sukarela').reduce((s,b)=>s+b.jumlah,0);
-    const sukKeluar = tarikTxns.reduce((s,b)=>s+b.jumlah,0);
-    const suk    = Math.max(0, sukMasuk - sukKeluar);
-    // Gabungkan transaksi setor + tarik supaya ringkasan baris & riwayat sinkron dengan saldo sebenarnya
-    const allTxns = [...txns, ...tarikTxns];
+    // Sukarela pakai saldoSukarelaNasabah() sbg sumber tunggal — sudah mencakup transfer sesama nasabah
+    const suk    = typeof saldoSukarelaNasabah === 'function' ? saldoSukarelaNasabah(a.id) : Math.max(0, txns.filter(t=>t.jenis==='sukarela').reduce((s,b)=>s+b.jumlah,0) - tarikTxns.reduce((s,b)=>s+b.jumlah,0));
+    // Gabungkan transaksi setor + tarik + transfer supaya ringkasan baris & riwayat sinkron dengan saldo sebenarnya
+    const allTxns = [...txns, ...tarikTxns, ...transferTxns];
     return {a, pokok, wajib, suk, total:pokok+wajib+suk, txns: allTxns};
   });
   const grand     = ns.reduce((s,x)=>s+x.total, 0);
@@ -57962,9 +57969,8 @@ window.hitungTransparansiDana = hitungTransparansiDana;
 function hitungTransparansiDanaNasabah(kkId) {
   var pokok = DB.transaksi.filter(function(t){ return t.kkId===kkId && t.type==='simpanan' && t.jenis==='pokok'; }).reduce(function(a,b){ return a+b.jumlah; }, 0);
   var wajib = DB.transaksi.filter(function(t){ return t.kkId===kkId && t.type==='simpanan' && t.jenis==='wajib'; }).reduce(function(a,b){ return a+b.jumlah; }, 0);
-  var sukM = DB.transaksi.filter(function(t){ return t.kkId===kkId && t.type==='simpanan' && t.jenis==='sukarela'; }).reduce(function(a,b){ return a+b.jumlah; }, 0);
-  var sukK = DB.transaksi.filter(function(t){ return t.kkId===kkId && t.type==='tarik-sukarela'; }).reduce(function(a,b){ return a+b.jumlah; }, 0);
-  var sukarelaBebas = Math.max(0, sukM - sukK);
+  // Sukarela pakai saldoSukarelaNasabah() sbg sumber tunggal — sudah mencakup transfer sesama nasabah
+  var sukarelaBebas = typeof saldoSukarelaNasabah === 'function' ? saldoSukarelaNasabah(kkId) : 0;
   var tbLocked = (DB.tabunganBerjangka||[]).filter(function(t){ return t.kkId===kkId && t.status==='aktif'; }).reduce(function(a,b){ return a+b.jumlah; }, 0);
   return { pokok:pokok, wajib:wajib, sukarelaBebas:sukarelaBebas, tbLocked:tbLocked, totalDanaAnggota: pokok+wajib+sukarelaBebas+tbLocked };
 }
