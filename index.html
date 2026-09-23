@@ -234,17 +234,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
   window.addEventListener('online',  () => {
     _isOnline = true;  _showSync('online'); _flushPending();
-    // Nasabah: begitu online kembali, paksa muat ulang langsung dari Supabase
-    if (typeof window._isRestrictedNasabahSession === 'function' && window._isRestrictedNasabahSession()) {
-      if (typeof window.loadDB === 'function') window.loadDB();
-    }
+    // Begitu online kembali, paksa muat ulang langsung dari Supabase (semua peran)
+    if (typeof window.loadDB === 'function') window.loadDB();
   });
   window.addEventListener('offline', () => {
     _isOnline = false; _showSync('offline');
-    // Nasabah: begitu offline, langsung blokir akses ke data yang sedang tampil
-    if (typeof window._isRestrictedNasabahSession === 'function' && window._isRestrictedNasabahSession()) {
-      if (typeof window._rencoShowNasabahBlock === 'function') window._rencoShowNasabahBlock();
-    }
+    // Begitu offline, langsung blokir akses ke data yang sedang tampil (semua peran)
+    // — tidak ada fallback lokal untuk data koperasi.
+    if (typeof window._rencoShowNasabahBlock === 'function') window._rencoShowNasabahBlock();
   });
 
   // ── SYNC BADGE ──
@@ -923,8 +920,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // (sebelum data cloud ini tiba), sehingga render pertama bisa menampilkan
     // data tagihan yang salah/basi sampai admin manual "Hapus Semua" + "Generate".
     try { if (window.TagihanApp && typeof window.TagihanApp.reloadFromDB === 'function') window.TagihanApp.reloadFromDB(); } catch(e) {}
-    // Cache ke lokal HANYA sebagai backup offline — bukan sumber upload
-    try { localStorage.setItem('renco_koperasi_v4', JSON.stringify(window.DB)); } catch(e) {}
     _cloudLoaded = true; // ✅ Tandai cloud sudah berhasil dimuat
     _lastCloudSavedAt = cloudData._savedAt || null; // track untuk polling dedup
     // ── Cek versi basi (watermark) — bandingkan cache lama vs cloud ──
@@ -1129,23 +1124,13 @@ document.addEventListener('DOMContentLoaded', function() {
       _scheduleSync();
     };
 
-    // Patch loadDB — cloud-first, localStorage DIABAIKAN saat startup online
-    const _baseLoadDB = window.loadDB;
+    // Patch loadDB — CLOUD-ONLY, tanpa fallback localStorage sama sekali
+    // Berlaku untuk SEMUA peran (admin maupun nasabah): jika offline atau
+    // cloud gagal dimuat, tampilkan overlay blokir dan JANGAN pernah baca
+    // data lama dari localStorage/perangkat. Cloud adalah satu-satunya
+    // sumber data koperasi (nasabah/transaksi/pinjaman/dll).
     window.loadDB = async function() {
-      // ── ATURAN BARU ──
-      // Saat online: SKIP localStorage — langsung muat dari Supabase
-      // localStorage hanya dipakai sebagai fallback jika offline
-      // Ini mencegah data lokal dari HP manapun mengganggu data Supabase
-      //
-      // ── ATURAN KHUSUS NASABAH ──
-      // Akun dengan role 'nasabah' TIDAK BOLEH sama sekali membaca data dari
-      // localStorage/offline. Wajib selalu membaca langsung dari Supabase online.
-      // Jika offline atau cloud gagal dimuat, tampilkan overlay blokir — JANGAN
-      // fallback ke data lokal. Aturan ini TIDAK berlaku untuk admin.
-      var _restrictedNasabah = _isRestrictedNasabahSession();
-
       if (_isOnline) {
-        // Online: JANGAN baca localStorage dulu — tunggu cloud
         _initialized = true;
         _showSync('syncing', 'Memuat data cloud...');
         if (typeof window._splashSetProgress === 'function') {
@@ -1157,17 +1142,17 @@ document.addEventListener('DOMContentLoaded', function() {
           }
           var result = await _loadFromCloud();
           if (result && result.payload) {
-            // ✅ Cloud ada data → pakai cloud, abaikan localStorage
+            // ✅ Cloud ada data → pakai cloud
             _applyCloudData(result.payload); // ini juga set _cloudLoaded = true
             _showSync('success', '☁ ' + (window.DB.nasabah||[]).length + ' nasabah');
             if (typeof window._splashSetProgress === 'function') {
               window._splashSetProgress(90, 'Data terbaru diterima...');
             }
-            if (_restrictedNasabah) { _rencoHideNasabahBlock(); _rencoHideNasabahSoftBanner(); }
+            _rencoHideNasabahBlock(); _rencoHideNasabahSoftBanner();
             setTimeout(_reRenderAll, 100);
-            console.log('[RENCO☁] Cloud load berhasil — localStorage diabaikan saat startup');
+            console.log('[RENCO☁] Cloud load berhasil');
           } else {
-            // ⚠️ Cloud kosong → tampilkan app kosong, TIDAK upload lokal
+            // ⚠️ Cloud kosong → tampilkan app kosong, TIDAK upload apa pun
             // Biarkan admin yang mengisi data pertama kali
             console.log('[RENCO☁] Cloud kosong — app dimulai dengan data kosong');
             _showSync('success', '☁ Terhubung — data kosong');
@@ -1175,82 +1160,42 @@ document.addEventListener('DOMContentLoaded', function() {
               window._splashSetProgress(90, 'Terhubung ke cloud...');
             }
             _cloudLoaded = true; // izinkan upload setelah ini (admin bisa isi data)
-            if (_restrictedNasabah) { _rencoHideNasabahBlock(); _rencoHideNasabahSoftBanner(); }
+            _rencoHideNasabahBlock(); _rencoHideNasabahSoftBanner();
             setTimeout(_reRenderAll, 100);
           }
         } catch(e) {
           if (typeof window._splashSetProgress === 'function') {
             window._splashSetProgress(70, 'Koneksi lambat, mencoba lagi...');
           }
-          if (_restrictedNasabah) {
-            var _hasLocalCache = false;
-            try { _hasLocalCache = !!localStorage.getItem(DB_KEY); } catch(errCache) {}
-            if (_hasLocalCache) {
-              // ✅ FALLBACK RINGAN: ada cache lokal → tampilkan itu (mungkin belum
-              // terbaru), JANGAN blokir total. Upload tetap ditahan (_cloudLoaded
-              // tidak di-set) sampai cloud benar-benar berhasil dimuat, jadi data
-              // lama ini tidak akan menimpa cloud.
-              console.warn('[RENCO☁] Nasabah: gagal muat cloud, pakai cache lokal sementara (fallback ringan):', e.message);
-              _showSync('error', 'Gagal cloud — data lokal sementara');
-              if (typeof _baseLoadDB === 'function') _baseLoadDB.apply(this, arguments);
-              _rencoShowNasabahSoftBanner('Koneksi tidak stabil — data mungkin belum terbaru.');
-              _rencoStartSoftRetryLoop();
-              setTimeout(_reRenderAll, 100);
-              return;
-            }
-            // ❌ Tidak ada cache lokal sama sekali → tidak ada apa pun untuk
-            // ditampilkan, tetap blokir total (tidak ada pilihan lain).
-            console.warn('[RENCO☁] Nasabah: gagal muat cloud & tidak ada cache lokal, akses diblokir:', e.message);
-            _showSync('error', 'Gagal memuat data server');
-            _rencoShowNasabahBlock('Gagal memuat data dari server: ' + e.message + '. Coba lagi setelah koneksi internet stabil.');
-            return;
-          }
-          // ⚠️ Gagal load cloud (timeout/error) → fallback ke localStorage (khusus admin)
-          console.warn('[RENCO☁] Cloud gagal — fallback ke localStorage:', e.message);
-          _showSync('error', 'Gagal cloud — pakai data lokal LAMA');
-          if (typeof window._splashSetProgress === 'function') {
-            window._splashSetProgress(90, 'Memuat data tersimpan (offline)...');
-          }
-          if (typeof _baseLoadDB === 'function') _baseLoadDB.apply(this, arguments);
-          // Offline mode: TIDAK set _cloudLoaded, upload ditahan
-          if (typeof showToast === 'function') {
-            showToast('⚠️ Gagal terhubung ke server — menampilkan data lokal (mungkin LAMA). Tekan 🔄 setelah koneksi stabil sebelum menginput data baru.');
-          }
-          setTimeout(_reRenderAll, 100);
+          // ❌ Gagal muat cloud → TIDAK ADA fallback lokal untuk siapa pun.
+          // Blokir akses total sampai koneksi ke server berhasil.
+          console.warn('[RENCO☁] Gagal muat cloud, akses diblokir (tidak ada fallback lokal):', e.message);
+          _showSync('error', 'Gagal memuat data server');
+          _rencoShowNasabahBlock('Gagal memuat data dari server: ' + e.message + '. Coba lagi setelah koneksi internet stabil.');
         }
-      } else if (_restrictedNasabah) {
+      } else {
         // FIX #4: navigator.onLine kadang masih melaporkan false sesaat setelah
         // halaman baru dimuat/direstart (mis. tepat setelah cache & storage
         // dibersihkan, koneksi wifi/data baru "bangun"), padahal internet
         // sebenarnya sudah tersedia dalam 1-2 detik. Beri jeda singkat & cek
-        // ulang sebelum benar-benar memblokir akses Nasabah, supaya tidak
-        // salah tampil overlay "Butuh Koneksi Internet" padahal internet ada.
-        console.warn('[RENCO☁] Nasabah: status awal offline — cek ulang sebelum blokir');
+        // ulang sebelum benar-benar memblokir akses, supaya tidak salah
+        // tampil overlay "Butuh Koneksi Internet" padahal internet ada.
+        console.warn('[RENCO☁] Status awal offline — cek ulang sebelum blokir');
         _initialized = true;
         _showSync('offline');
         setTimeout(function() {
           if (navigator.onLine) {
-            console.log('[RENCO☁] Nasabah: internet ternyata sudah tersedia — lanjut muat cloud');
+            console.log('[RENCO☁] Internet ternyata sudah tersedia — lanjut muat cloud');
             _isOnline = true;
             window.loadDB();
           } else {
             _rencoShowNasabahBlock();
           }
         }, 1500);
-      } else {
-        // Offline (admin/belum login): pakai localStorage sebagai fallback
-        console.log('[RENCO☁] Offline — menggunakan data lokal');
-        if (typeof window._splashSetProgress === 'function') {
-          window._splashSetProgress(90, 'Tidak ada koneksi — memuat data tersimpan...');
-        }
-        if (typeof _baseLoadDB === 'function') _baseLoadDB.apply(this, arguments);
-        _initialized = true;
-        _showSync('offline');
-        setTimeout(_reRenderAll, 100);
       }
     };
 
-    console.log('[RENCO☁] ✅ Supabase bridge aktif — cloud-first mode + guard offline Nasabah');
+    console.log('[RENCO☁] ✅ Supabase bridge aktif — cloud-only mode, tanpa fallback lokal untuk semua peran');
   }
 
   // ── REALTIME SUBSCRIPTION ──
@@ -5440,22 +5385,53 @@ body {
   100%{ transform:translate3d(var(--dx),-105vh,0); opacity:0; }
 }
 .lb-vignette{ position:absolute; inset:0; background:radial-gradient(ellipse at 50% 50%, rgba(2,10,6,0) 45%, rgba(2,10,6,0.55) 100%); }
-/* Ayat di bagian atas halaman login — QS. Al-Mā'idah: 2 */
+/* Ayat di bagian atas halaman login — QS. Al-Mā'idah: 2
+   Default: hanya tampil PENGGALAN ayat Arabnya (setengah pertama) — ringkas & rapi.
+   Tidak ada teks keterangan; isyarat "bisa diketuk" cukup lewat panah bawah
+   yang bergerak naik-turun (.la-tap-cue) di bawah penggalan itu — itulah
+   titik fokusnya. Ketuk penggalan/panah itu → tampil ayat LENGKAP + terjemah,
+   dan background login di-blur supaya teksnya lebih mudah dibaca. Ketuk lagi
+   (di mana saja pada teks yang terbuka) untuk menutupnya kembali. */
 .login-ayat{
   position:absolute; left:0; right:0; top:calc(env(safe-area-inset-top, 0px) + 96px); z-index:1;
   padding:0 26px; text-align:center; pointer-events:none;
 }
+/* Parent pointer-events:none supaya tidak menghalangi elemen lain di background login;
+   tombol/blok yang bisa diketuk sendiri diberi pointer-events:auto. */
 .login-ayat .la-ar{
   font-family:'Amiri','Scheherazade New','Noto Naskh Arabic','Traditional Arabic',serif;
   font-size:19px; line-height:1.8; color:#fefae0; direction:rtl;
   text-shadow:0 2px 14px rgba(0,0,0,0.35);
 }
-.login-ayat .la-id{ font-size:10.5px; line-height:1.5; color:rgba(244,249,241,0.72); margin-top:3px; }
+@keyframes laFadeIn{ from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:translateY(0); } }
+.login-ayat .la-frag-btn{
+  pointer-events:auto; cursor:pointer; background:none; border:none; padding:2px 4px; width:100%;
+  display:flex; flex-direction:column; align-items:center; gap:2px; -webkit-tap-highlight-color:transparent;
+}
+.login-ayat .la-frag-btn .la-ar{ display:block; }
+/* Panah bawah berdenyut — pengganti teks keterangan, menandakan blok ini bisa diketuk */
+.login-ayat .la-tap-cue{
+  width:14px; height:14px; margin-top:2px;
+  animation:laArrowBounce 1.6s ease-in-out infinite;
+}
+.login-ayat .la-tap-cue svg{ display:block; }
+@keyframes laArrowBounce{
+  0%,100%{ opacity:.45; transform:translateY(0); }
+  50%{ opacity:1; transform:translateY(4px); }
+}
+.login-ayat .la-ar-full{ display:none; pointer-events:auto; cursor:pointer; animation:laFadeIn .35s ease; }
+.login-ayat.la-open .la-frag-btn{ display:none; }
+.login-ayat.la-open .la-ar-full{ display:block; }
+.login-ayat .la-ar-full .la-ar{ margin-bottom:8px; }
+.login-ayat .la-id{ font-size:10.5px; line-height:1.5; color:rgba(244,249,241,0.85); font-style:italic; }
+.login-ayat .la-ref{ font-size:9.5px; font-weight:700; color:rgba(255,209,102,0.85); margin-top:6px; }
 .login-ayat.la-compact .la-ar{ font-size:16.5px; line-height:1.7; }
-.login-ayat.la-compact .la-ref{ margin-top:2px; }
-.login-ayat .la-ref{ font-size:10.5px; font-weight:700; color:rgba(255,209,102,0.9); margin-top:5px; }
+/* Blur latar belakang login (bukan kartu login/formulirnya) saat ayat lengkap+terjemah
+   ditampilkan, supaya teksnya lebih fokus dan mudah dibaca */
+.login-bg{ transition:filter .35s ease; }
+.login-bg.lb-blur{ filter:blur(9px) saturate(1.1); }
 @media (max-height:560px){ .login-ayat{ display:none; } }
-@media (prefers-reduced-motion: reduce){ .login-bg *{ animation:none !important; } }
+@media (prefers-reduced-motion: reduce){ .login-bg *{ animation:none !important; } .login-ayat .la-tap-cue{ animation:none; opacity:.7; } }
 .login-btn{ position:relative; overflow:hidden; }
 .login-ripple{
   position:absolute; border-radius:50%; background:rgba(20,24,28,0.35);
@@ -6146,17 +6122,18 @@ function _loginFieldKeydown(e, which) {
   }, 400);
 })();
 /* ── Ayat di halaman login: muat otomatis di ruang atas kartu ──
-   Urutan: ayat lengkap → tanpa terjemahan → huruf Arab diperkecil → disembunyikan. Kalau kurang ruang,
-   kartu login digeser turun secukupnya (selama masih muat di layar). */
+   Ruang yang dibutuhkan mengikuti status buka/tutup ayat (lihat _loginAyatToggle di bawah).
+   Kalau kurang ruang: font Arab diperkecil (mode compact) → kalau masih kurang juga,
+   seluruh blok ayat disembunyikan sementara. Kartu login digeser turun secukupnya
+   selama masih muat di layar. */
 (function _initLoginAyatFit(){
   function fit(){
     var ls = document.getElementById('loginScreen');
     var v  = ls && ls.querySelector('.login-ayat');
     var c  = ls && ls.querySelector('.login-card');
     if (!ls || !v || !c || getComputedStyle(ls).display === 'none') return;
-    var id = v.querySelector('.la-id');
     var H = ls.clientHeight, GAP = 8, BOTTOM = 14;
-    function reset(){ c.style.marginTop = ''; v.style.display = ''; v.classList.remove('la-compact'); if (id) id.style.display = ''; }
+    function reset(){ c.style.marginTop = ''; v.style.display = ''; v.classList.remove('la-compact'); }
     function tryFit(){
       var need = v.offsetTop + v.offsetHeight + GAP - c.offsetTop;
       if (need <= 0) return true;
@@ -6167,7 +6144,6 @@ function _loginFieldKeydown(e, which) {
     }
     reset();
     if (tryFit()) return;
-    if (id) { id.style.display = 'none'; if (tryFit()) return; }
     v.classList.add('la-compact'); if (tryFit()) return;
     v.style.display = 'none';
   }
@@ -6185,7 +6161,26 @@ function _loginFieldKeydown(e, which) {
     }
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(soon);
   });
+  window._loginAyatFit = soon; // expose agar bisa dipanggil ulang saat tahap tampilan ayat berubah
 })();
+/* ── Ayat di halaman login — default hanya tampil PENGGALAN ayat Arab (ringkas),
+   dengan titik-titik berdenyut sebagai titik fokus (bukan teks) yang menandakan
+   bisa diketuk. Ketuk penggalan/titik itu → tampil ayat LENGKAP + terjemah, dan
+   latar belakang login di-blur supaya teksnya lebih mudah dibaca. Ketuk lagi di
+   teks yang terbuka untuk menutupnya kembali. ── */
+var _laOpen = false;
+function _loginAyatToggle() {
+  _laOpen = !_laOpen;
+  var wrap = document.getElementById('loginAyat');
+  var fragBtn = document.getElementById('loginAyatFragBtn');
+  var bg = document.querySelector('#loginScreen .login-bg');
+  if (wrap) wrap.classList.toggle('la-open', _laOpen);
+  if (fragBtn) fragBtn.setAttribute('aria-expanded', _laOpen ? 'true' : 'false');
+  if (bg) bg.classList.toggle('lb-blur', _laOpen);
+  // Kartu login mungkin perlu menyesuaikan posisi karena tinggi blok ayat berubah
+  if (typeof window._loginAyatFit === 'function') window._loginAyatFit();
+}
+window._loginAyatToggle = _loginAyatToggle;
 function _loginShakeField(which) {
   var el = (which === 'user' ? document.getElementById('loginUsername') : document.getElementById('loginPassword'));
   var field = el && el.closest('.login-field');
@@ -7025,7 +7020,7 @@ function _applyNasabahDataIsolation() {
           +avatar
           +'<div class="member-info" style="flex:1">'
             +'<div class="member-name">'+a.nama+'</div>'
-            +'<div class="member-sub" style="margin-top:2px;font-size:10px;color:var(--text-soft)">'+(a.status||'Aktif')+' \u00b7 '+((a.keluarga||[]).length)+' nasabah keluarga</div>'
+            +'<div class="member-sub" style="margin-top:2px;font-size:10px;color:var(--text-soft)">'+(a.status||'Aktif')+'</div>'
           +'</div>'
           +'<div style="display:flex;align-items:center;gap:8px">'
             +'<span class="badge '+(a.status==='Aktif'?'':'danger')+'" style="font-size:10px">'+(a.status||'Aktif')+'</span>'
@@ -7102,7 +7097,8 @@ function _applyNasabahDataIsolation() {
         var sukMasuk = txns.filter(function(t){ return t.jenis==='sukarela'; }).reduce(function(s,b){ return s+b.jumlah; },0);
         var sukKeluar= tarikTxns.reduce(function(s,b){ return s+b.jumlah; },0);
         var suk      = Math.max(0, sukMasuk - sukKeluar);
-        return {a:a, pokok:pokok, wajib:wajib, suk:suk, total:pokok+wajib+suk, txns:txns};
+        var allTxns  = txns.concat(tarikTxns);
+        return {a:a, pokok:pokok, wajib:wajib, suk:suk, total:pokok+wajib+suk, txns:allTxns};
       });
       /* Pastikan filter member tab juga menunjuk ke nasabah sendiri */
       window._memberTabSimpanan = myKkId;
@@ -7440,7 +7436,7 @@ function _renderNasabahDashboard(kkId) {
   /* --- QUICK ACTIONS: Simpanan, Tarik Tunai, Pinjaman, RencoPay --- */
   document.querySelectorAll('.quick-btn').forEach(function(btn) {
     var oc = btn.getAttribute('onclick') || '';
-    var show = oc.includes('modalSimpan') || oc.includes('modalTarikTunai') || oc.includes('modalPinjam') || oc.includes('openModalRencoPayMini');
+    var show = oc.includes('modalSimpan') || oc.includes('modalTarikTunai') || oc.includes("rpTab('transfer'") || oc.includes('modalPinjam') || oc.includes('openModalRencoPayMini');
     btn.style.display = show ? '' : 'none';
   });
 
@@ -7536,7 +7532,7 @@ function _renderNasabahDashboard(kkId) {
       var stTxn  = t.statusTxn; // 'pending' | 'aktif' | 'gagal' | undefined
       // Sudut pandang ANGGOTA: masuk ke anggota = pinjaman cair, tarik-sukarela; keluar dari anggota = simpanan, cicilan, ujrah-perpanjang
       // Sudut pandang ANGGOTA: keluar = simpanan, cicilan, angsuran-rc, semua variant ujrah/perpanjang
-      var _KELUAR_TYPES = ['simpanan','cicilan','angsuran-rc','ujrah-perpanjang','ujrah-langsung','ujrah-cicilan','ujrah-akumulasi','perpanjang'];
+      var _KELUAR_TYPES = ['simpanan','cicilan','angsuran-rc','ujrah-perpanjang','ujrah-langsung','ujrah-cicilan','ujrah-akumulasi','perpanjang','transfer-sukarela-keluar'];
       var isKeluar = _KELUAR_TYPES.includes(t.type);
       var txnLabel   = t.keterangan || t.jenis || t.type || 'Transaksi';
 
@@ -8672,7 +8668,7 @@ function _pendaftaranAnggotaKonfirmasi(id) {
     kategori: '', subKategori: '',
     keanggotaan: [],
     status: 'Tidak Aktif',
-    keluarga: [], bergabung: (typeof nowISO === 'function') ? nowISO() : new Date().toISOString()
+    bergabung: (typeof nowISO === 'function') ? nowISO() : new Date().toISOString()
   };
   DB.nasabah.push(nasabahBaru);
 
@@ -9155,10 +9151,16 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="lb-dots"><i style="--x:34%;--s:4px;--d:24s;--t:-4s;--dx:7px"></i><i style="--x:81%;--s:3px;--d:26s;--t:-18s;--dx:-32px"></i><i style="--x:81%;--s:2px;--d:30s;--t:-26s;--dx:20px"></i><i style="--x:37%;--s:4px;--d:19s;--t:-6s;--dx:20px"></i><i style="--x:73%;--s:4px;--d:23s;--t:-12s;--dx:-21px"></i><i style="--x:33%;--s:2px;--d:29s;--t:-29s;--dx:26px"></i><i style="--x:53%;--s:2px;--d:26s;--t:-24s;--dx:-32px"></i><i style="--x:24%;--s:4px;--d:16s;--t:-9s;--dx:-37px"></i><i style="--x:38%;--s:3px;--d:25s;--t:-23s;--dx:9px"></i><i style="--x:95%;--s:3px;--d:22s;--t:-18s;--dx:16px"></i><i style="--x:21%;--s:3px;--d:17s;--t:-1s;--dx:-23px"></i><i style="--x:67%;--s:2px;--d:20s;--t:-13s;--dx:40px"></i><i style="--x:42%;--s:3px;--d:24s;--t:-12s;--dx:33px"></i><i style="--x:48%;--s:4px;--d:25s;--t:-13s;--dx:34px"></i></div>
   <div class="lb-vignette"></div>
 </div>
-  <div class="login-ayat" aria-label="QS. Al-Mā'idah: 2">
-    <div class="la-ar" lang="ar" dir="rtl">وَتَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَىٰ ۖ وَلَا تَعَاوَنُوا عَلَى الْإِثْمِ وَالْعُدْوَانِ</div>
-    <div class="la-id">“Dan tolong-menolonglah kamu dalam (mengerjakan) kebajikan dan takwa, dan jangan tolong-menolong dalam berbuat dosa dan permusuhan.”</div>
-    <div class="la-ref">QS. Al-Mā'idah: 2</div>
+  <div class="login-ayat" id="loginAyat" aria-label="QS. Al-Mā'idah: 2">
+    <button type="button" class="la-frag-btn" id="loginAyatFragBtn" onclick="_loginAyatToggle()" aria-expanded="false" aria-controls="loginAyatFull" aria-label="Ketuk untuk lihat ayat lengkap dan terjemah">
+      <span class="la-ar" lang="ar" dir="rtl">وَتَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَىٰ ۖ</span>
+      <span class="la-tap-cue" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,209,102,0.9)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+    </button>
+    <div class="la-ar-full" id="loginAyatFull" onclick="_loginAyatToggle()">
+      <div class="la-ar" lang="ar" dir="rtl">وَتَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَىٰ ۖ وَلَا تَعَاوَنُوا عَلَى الْإِثْمِ وَالْعُدْوَانِ</div>
+      <div class="la-id">"Dan tolong-menolonglah kamu dalam (mengerjakan) kebajikan dan takwa, dan jangan tolong-menolong dalam berbuat dosa dan permusuhan."</div>
+      <div class="la-ref">QS. Al-Mā'idah: 2</div>
+    </div>
   </div>
   <div class="login-icon-row">
     <div class="login-icon-btn" id="loginMoonBtn" onclick="toggleDarkMode()" title="Mode Malam">
@@ -9220,7 +9222,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <button class="login-btn" id="loginBtn" onclick="handleLogin()">Masuk</button>
     <div class="login-trust">🔒 Koneksi Terenkripsi &amp; Aman</div>
     <div class="login-daftar-toggle" id="daftarAkunToggle" onclick="_showDaftarAkunBtn()">
-      Belum punya akun? <span>Daftar di sini</span>
+      Belum punya akun? <span>Daftar</span>
     </div>
     <button class="login-btn-secondary" id="daftarAkunBtn" onclick="_openDaftarAkunLogin()" style="display:none">Daftar Akun Baru</button>
     <div class="login-footer">
@@ -10663,6 +10665,9 @@ window.deletePengurus = function(id) {
         <button class="quick-btn" onclick="openModal('modalTarikTunai')">
           <span class="q-icon"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="qaTarik" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#f4a922"/><stop offset="1" stop-color="#a06800"/></linearGradient></defs><rect x="2" y="7" width="24" height="14" rx="3" fill="url(#qaTarik)" opacity="0.15"/><rect x="2" y="7" width="24" height="14" rx="3" stroke="url(#qaTarik)" stroke-width="1.8"/><path d="M2 11h24" stroke="url(#qaTarik)" stroke-width="1.8"/><rect x="6" y="15" width="5" height="3" rx="1" fill="url(#qaTarik)" opacity="0.8"/><path d="M17 17h5M19 15l3 2-3 2" stroke="url(#qaTarik)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="q-label">Tarik Tunai</span>
         </button>
+        <button class="quick-btn" id="qaTransferBtn" onclick="navTo('rencoPay');setTimeout(function(){renderRencoPay();rpTab('transfer',document.getElementById('rptab_transfer'));},200)">
+          <span class="q-icon"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="qaTf" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#f4a922"/><stop offset="1" stop-color="#a06800"/></linearGradient></defs><circle cx="14" cy="14" r="10" fill="url(#qaTf)" opacity="0.15"/><circle cx="14" cy="14" r="10" stroke="url(#qaTf)" stroke-width="1.8"/><path d="M8 14h9M13 10l4 4-4 4" stroke="url(#qaTf)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="q-label">Transfer</span>
+        </button>
         <button class="quick-btn" onclick="openModal('modalPinjam')">
           <span class="q-icon"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="qa2atm" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#e63946"/><stop offset="1" stop-color="#c0392b"/></linearGradient></defs><!-- Kartu ATM badan utama --><rect x="2" y="7" width="24" height="14" rx="2.5" fill="url(#qa2atm)" opacity="0.18"/><rect x="2" y="7" width="24" height="14" rx="2.5" stroke="url(#qa2atm)" stroke-width="1.8"/><!-- Strip magnetik atas --><rect x="2" y="11" width="24" height="3.5" fill="url(#qa2atm)" opacity="0.45"/><!-- Chip kartu --><rect x="5.5" y="15" width="5" height="3.5" rx="1" stroke="#e63946" stroke-width="1.3" fill="none"/><!-- Garis chip detail --><line x1="8" y1="15" x2="8" y2="18.5" stroke="#e63946" stroke-width="0.8" opacity="0.7"/><!-- Nomor kartu dots --><circle cx="14" cy="17.5" r="0.9" fill="#c0392b" opacity="0.8"/><circle cx="17" cy="17.5" r="0.9" fill="#c0392b" opacity="0.8"/><circle cx="20" cy="17.5" r="0.9" fill="#c0392b" opacity="0.8"/><circle cx="23" cy="17.5" r="0.9" fill="#c0392b" opacity="0.8"/></svg></span><span class="q-label">Pinjaman</span>
         </button>
@@ -12066,6 +12071,7 @@ window.deletePengurus = function(id) {
   <div style="display:flex;gap:0;background:white;border-bottom:2px solid #f0f0f0;position:sticky;top:0;z-index:20;overflow-x:auto;scrollbar-width:none" id="rpTabBar">
     <button class="rp-tab-btn" id="rptab_qris" onclick="rpTab('qris',this)" style="display:none">◈ QRIS</button>
     <button class="rp-tab-btn" id="rptab_pembayaran" onclick="rpTab('pembayaran',this)" style="display:none">💳 Pembayaran</button>
+    <button class="rp-tab-btn" id="rptab_transfer" onclick="rpTab('transfer',this)" style="display:none">🔁 Transfer</button>
     <button class="rp-tab-btn" id="rptab_riwayat" onclick="rpTab('riwayat',this)" style="display:none">◷ Riwayat</button>
     <button class="rp-tab-btn" id="rptab_pengingat" onclick="rpTab('pengingat',this)" style="display:none">📣 Pengingat</button>
     <button class="rp-tab-btn" id="rptab_approval" onclick="rpTab('approval',this)" style="display:none;position:relative">
@@ -12378,11 +12384,6 @@ window.deletePengurus = function(id) {
             ➕ Tambah Kategori / Kelompok
           </button>
         </div>
-      </div>
-      <div id="kkSeksiKeluarga" style="display:none">
-        <h4 style="font-size:13px;font-weight:700;color:var(--text-soft);margin:16px 0 10px;text-transform:uppercase;letter-spacing:0.5px">Keluarga Nasabah</h4>
-        <div id="familyFormList"></div>
-        <button class="btn btn-outline btn-sm" onclick="addFamilyField()" id="addFamilyBtn" style="margin-bottom:16px">➕ Tambah Keluarga</button>
       </div>
       <button class="btn btn-primary btn-block" onclick="saveKK()">💾 Simpan</button>
     </div>
@@ -13974,47 +13975,25 @@ function saveDB() {
     if (typeof _checkEskalasi === 'function') _checkEskalasi();
     _dbIntegrity();
 
-    var payload = JSON.stringify(DB);
+    // Catatan: DB koperasi (nasabah/transaksi/pinjaman/dll) TIDAK LAGI di-cache
+    // ke localStorage sama sekali — window.DB hanya disimpan di memori di sini,
+    // dan satu-satunya penyimpanan permanen adalah cloud (Supabase), yang
+    // dilakukan oleh _scheduleSync()/_doSync() lewat patch saveDB() di bridge
+    // Supabase. Tidak ada lagi backup/cache lokal maupun fallback offline.
 
-    // 1. Buat backup SEBELUM overwrite (rotasi: simpan yang lama sebagai bak)
-    try {
-      var existing = localStorage.getItem(DB_KEY);
-      if (existing) localStorage.setItem(DB_BACKUP_KEY, existing);
-    } catch(e) { /* backup gagal, lanjut */ }
-
-    // 2. Cek ukuran — peringatkan jika mendekati batas
-    var sizeKB = Math.round(payload.length / 1024);
-    if (sizeKB > 4000) {
-      console.warn('[RENCO DB] Ukuran data ~' + sizeKB + 'KB mendekati batas localStorage (5MB).');
-      if (typeof showToast === 'function') showToast('⚠️ Data mendekati batas penyimpanan (' + sizeKB + 'KB). Pertimbangkan arsip data lama.');
-    }
-
-    // 3. Sinkronisasi tagihan ke localStorage untuk TagihanApp
+    // Sinkronisasi tagihan ke localStorage untuk TagihanApp (modul ini masih
+    // membaca/menulis localStorage langsung di banyak tempat — lihat catatan
+    // terpisah; belum termasuk migrasi cloud-only di perubahan ini)
     try {
       if (DB.rencoPay && Array.isArray(DB.rencoPay.tagihan)) {
         localStorage.setItem('rencopay_tagihan_automate', JSON.stringify(DB.rencoPay.tagihan));
       }
     } catch(e) { /* tidak kritis */ }
 
-    // 4. Simpan
-    localStorage.setItem(DB_KEY, payload);
     window.DB = DB;
 
   } catch(e) {
-    // QuotaExceededError — coba bersihkan dan simpan lagi
-    if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-      console.error('[RENCO DB] Storage penuh! Mencoba pembersihan darurat...');
-      _dbEmergencyClean();
-      try {
-        localStorage.setItem(DB_KEY, JSON.stringify(DB));
-        if (typeof showToast === 'function') showToast('⚠️ Penyimpanan hampir penuh — data foto lama dibersihkan otomatis.');
-      } catch(e2) {
-        console.error('[RENCO DB] Gagal simpan bahkan setelah pembersihan:', e2);
-        if (typeof showToast === 'function') showToast('❌ KRITIS: Penyimpanan penuh! Export data sekarang dengan dbExport().');
-      }
-    } else {
-      console.error('[RENCO DB] saveDB error:', e);
-    }
+    console.error('[RENCO DB] saveDB error:', e);
   }
   window.DB = DB;
 }
@@ -14693,43 +14672,14 @@ window._renderBlacklistCardHTML = _renderBlacklistCardHTML;
    LOAD DB — baca dari localStorage, fallback ke backup jika corrupt
 ───────────────────────────────────────────────────────────── */
 function loadDB() {
-  var loaded = false;
-
-  // Coba baca data utama
-  try {
-    var raw = localStorage.getItem(DB_KEY);
-    if (raw) {
-      var parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        DB = Object.assign({}, DB, parsed);
-        loaded = true;
-      }
-    }
-  } catch(e) {
-    console.error('[RENCO DB] loadDB parse error — mencoba backup:', e);
-  }
-
-  // Jika gagal, coba backup
-  if (!loaded) {
-    try {
-      var bak = localStorage.getItem(DB_BACKUP_KEY);
-      if (bak) {
-        var parsedBak = JSON.parse(bak);
-        if (parsedBak && typeof parsedBak === 'object') {
-          DB = Object.assign({}, DB, parsedBak);
-          loaded = true;
-          console.warn('[RENCO DB] Data utama corrupt — dipulihkan dari backup.');
-          if (typeof showToast === 'function') setTimeout(function(){ showToast('⚠️ Data dipulihkan dari backup. Periksa kelengkapan data.'); }, 2000);
-        }
-      }
-    } catch(e2) {
-      console.error('[RENCO DB] Backup juga corrupt:', e2);
-    }
-  }
-
-  if (!loaded) {
-    console.warn('[RENCO DB] Tidak ada data tersimpan — memulai dengan data kosong.');
-  }
+  // CLOUD-ONLY: data koperasi tidak lagi dibaca dari localStorage/backup lokal.
+  // Fungsi ini praktis tidak pernah dipanggil langsung — window.loadDB selalu
+  // di-patch oleh bridge Supabase (lihat _patchAppFunctions()) SEBELUM
+  // panggilan pertama saat startup, dan patch tersebut memuat data
+  // eksklusif dari cloud (dengan overlay blokir jika gagal, bukan fallback
+  // lokal). Body ini disederhanakan agar tidak diam-diam menghidupkan
+  // kembali data lama dari perangkat jika suatu saat terpanggil langsung.
+  console.warn('[RENCO DB] loadDB() dasar dipanggil tanpa cloud bridge — memulai dengan data kosong (tidak ada fallback lokal).');
 
   _dbMigrate();
   _dbIntegrity();
@@ -18401,9 +18351,21 @@ function totalSimpananKasKK(kkId) {
 function saldoSukarelaNasabah(kkId) {
   const setor  = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='simpanan' && t.jenis==='sukarela').reduce((a,b)=>a+b.jumlah,0);
   const tarik  = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='tarik-sukarela').reduce((a,b)=>a+b.jumlah,0);
+  // Transfer sesama nasabah: keluar mengurangi, masuk menambah saldo sukarela
+  const transferKeluar = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='transfer-sukarela-keluar').reduce((a,b)=>a+b.jumlah,0);
+  const transferMasuk  = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='transfer-sukarela-masuk').reduce((a,b)=>a+b.jumlah,0);
   // Catatan: saldo BOLEH minus. Minus berarti Nasabah punya utang (mis. biaya admin pinjaman
   // yang dipotong otomatis melebihi saldo tabungan sukarela yang tersedia).
-  return setor - tarik;
+  return setor - tarik - transferKeluar + transferMasuk;
+}
+// Total pending (menunggu approval) yang akan MENGURANGI saldo sukarela nasabah ini bila
+// disetujui — dipakai untuk mencegah double-spending saat Tarik Tunai diajukan
+// beruntun sebelum admin sempat memproses pengajuan sebelumnya. (Transfer sesama nasabah
+// diproses langsung/instan, jadi tidak pernah masuk pendingTransaksi.)
+function _pendingKeluarSukarela(kkId) {
+  return (DB.pendingTransaksi||[]).filter(function(p){
+    return p.status === 'pending' && p.type === 'tarik-sukarela' && p.kkId === kkId;
+  }).reduce(function(s,p){ return s + (p.jumlah||0); }, 0);
 }
 function totalPinjamanAktifKK(kkId) {
   return DB.pinjaman.filter(p=>p.kkId===kkId && (p.status==='aktif'||p.status==='menunggak')).reduce((a,b)=>a+(b.sisaPokok||0),0);
@@ -19084,6 +19046,9 @@ function _rpFilterTabsForUser() {
   // Tab Pembayaran hanya untuk nasabah (sembunyikan untuk admin agar tidak duplikat dengan tab Tagihan)
   var pembEl = document.getElementById('rptab_pembayaran');
   if (pembEl) pembEl.style.display = adm ? 'none' : '';
+  // Tab Transfer (sesama nasabah) hanya untuk nasabah
+  var tfEl = document.getElementById('rptab_transfer');
+  if (tfEl) tfEl.style.display = adm ? 'none' : '';
   // Tab Setting (pengaturan) hanya admin
   var setEl = document.getElementById('rptab_pengaturan');
   if (setEl) setEl.style.display = adm ? '' : 'none';
@@ -19093,8 +19058,14 @@ var _rpCurrentTab = 'qris';
 function rpTab(tab, el) {
   // Blokir tab admin-only jika user nasabah
   var adminTabs = ['tagihan','pengaturan','approval','pengingat'];
+  // Blokir tab khusus-nasabah jika user admin
+  var nasabahOnlyTabs = ['pembayaran','transfer'];
   var adm = (typeof isAdmin === 'function') ? isAdmin() : true;
   if (!adm && adminTabs.includes(tab)) {
+    tab = 'qris';
+    el = document.getElementById('rptab_qris');
+  }
+  if (adm && nasabahOnlyTabs.includes(tab)) {
     tab = 'qris';
     el = document.getElementById('rptab_qris');
   }
@@ -19105,6 +19076,7 @@ function rpTab(tab, el) {
   if (!c) return;
   if (tab==='qris') { c.innerHTML = rpQRISHTML(); if(window._rpAlurReset) window._rpAlurReset(); if(window._rpInjectTransferCard) window._rpInjectTransferCard(); }
   else if (tab==='pembayaran') { c.innerHTML = rpPembayaranMemberHTML(); setTimeout(function(){ _rpPembayaranBind(); }, 80); }
+  else if (tab==='transfer') { c.innerHTML = rpTransferHTML(); setTimeout(function(){ if (typeof tfInitWizard === 'function') tfInitWizard(); }, 60); }
   else if (tab==='tagihan') { c.innerHTML = rpTagihanHTML(); setTimeout(function(){ if(window.TagihanApp) TagihanApp.bindTab(); if(window.rpRenderCaraBayar) { _rpCBOpen=false; rpRenderCaraBayar(); } }, 50); }
   else if (tab==='riwayat') c.innerHTML = rpRiwayatHTML();
   else if (tab==='pengaturan') c.innerHTML = rpPengaturanHTML();
@@ -21152,6 +21124,118 @@ function rpPembayaranMemberHTML() {
     + '</div>'
 
     /* Kartu redirect + tombol "Buka Menu Pembayaran" dihapus (tidak ditampilkan lagi utk nasabah) */
+
+  + '</div>';
+}
+
+
+/* ── Tab RencoPay: Transfer Simpanan Sukarela Antar Nasabah ──
+   Formulir 4 LAYER terpisah (wizard):
+     1) Rekening Tujuan  — dicari lewat No. HP nasabah tujuan
+     2) Nominal          — jumlah transfer + keterangan
+     3) Cek              — ringkasan/konfirmasi sebelum kirim
+     4) Verifikasi       — tanda tangan digital (menggantikan password)
+   Diproses LANGSUNG tanpa approval admin. Setelah sukses, tersedia file
+   bukti pengiriman (gambar struk) yang bisa dibagikan langsung ke WhatsApp. */
+function rpTransferHTML() {
+  var adm = typeof isAdmin === 'function' ? isAdmin() : true;
+  if (adm) return '<div style="padding:32px;text-align:center;color:#9ca3af">Tab ini hanya untuk nasabah.</div>';
+
+  var kkId = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user.nasabahId : null;
+  if (!kkId) return '<div style="padding:32px;text-align:center;color:#9ca3af">Silakan login sebagai nasabah.</div>';
+
+  var fmtRp = typeof fmt === 'function' ? fmt : function(n){ return 'Rp '+Number(n||0).toLocaleString('id-ID'); };
+  var saldo = typeof saldoSukarelaNasabah === 'function' ? saldoSukarelaNasabah(kkId) : 0;
+
+  return '<div style="padding:20px 14px">'
+
+    /* Info Saldo Sukarela pengirim */
+    + '<div style="background:linear-gradient(135deg,#1a472a,#2d6a4f);border-radius:16px;padding:16px;color:white;text-align:center;margin-bottom:16px;position:relative;overflow:hidden">'
+      + '<div style="position:absolute;right:-10px;top:-10px;font-size:64px;opacity:0.07">🔁</div>'
+      + '<div style="font-size:9px;font-weight:800;color:rgba(232,201,126,0.7);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Saldo Simpanan Sukarela Anda</div>'
+      + '<div style="font-family:\'Playfair Display\',serif;font-size:26px;font-weight:900;color:#e8c97e" id="tfSaldoAngka">' + fmtRp(saldo) + '</div>'
+      + '<div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:4px" id="tfSaldoSub">Dapat ditransfer sewaktu-waktu</div>'
+    + '</div>'
+
+    /* Indikator langkah (4 layer) */
+    + '<div id="tfStepsBar" style="display:flex;align-items:center;gap:4px;margin-bottom:18px">'
+      + [1,2,3,4].map(function(n){
+          var labels = {1:'Tujuan',2:'Nominal',3:'Cek',4:'Verifikasi'};
+          return '<div style="flex:1;text-align:center">'
+            + '<div id="tfDot'+n+'" class="tf-step-dot" style="width:26px;height:26px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:'+(n===1?'#1a472a':'#e5e7eb')+';color:'+(n===1?'#e8c97e':'#9ca3af')+';transition:all .2s">'+n+'</div>'
+            + '<div style="font-size:8.5px;font-weight:700;color:'+(n===1?'#1a472a':'#9ca3af')+'" id="tfLbl'+n+'">'+labels[n]+'</div>'
+          + '</div>';
+        }).join('<div style="width:14px;height:2px;background:#e5e7eb;margin-bottom:16px" class="tf-step-line"></div>')
+    + '</div>'
+
+    /* ══ LAYER 1 — Rekening Tujuan (No. HP) ══ */
+    + '<div id="tfStep1" class="tf-step">'
+      + '<div class="field"><label>📱 No. HP Rekening Tujuan</label>'
+        + '<input type="tel" id="tfHp" placeholder="Contoh: 08123456789" autocomplete="off" inputmode="numeric" oninput="tfCariPenerima()">'
+      + '</div>'
+      + '<div id="tfPenerimaResult" style="min-height:1px;margin-bottom:6px"></div>'
+      + '<div style="margin:14px 0 18px;padding:10px 12px;background:rgba(45,106,79,0.06);border-radius:10px;font-size:10.5px;color:#2d6a4f;line-height:1.6">ℹ️ Nomor HP dipakai sebagai nomor rekening/tujuan transfer — pastikan No. HP sudah sesuai dengan data nasabah tujuan.</div>'
+      + '<button class="btn btn-primary btn-block" id="tfNext1" disabled style="opacity:0.5" onclick="tfGoto(2)">Lanjut ke Nominal →</button>'
+    + '</div>'
+
+    /* ══ LAYER 2 — Nominal ══ */
+    + '<div id="tfStep2" class="tf-step" style="display:none">'
+      + '<div id="tfPenerimaConfirm2" style="background:#f8faf9;border-radius:10px;padding:10px 12px;margin-bottom:14px;border:1.5px solid rgba(45,106,79,0.15);font-size:11.5px;color:#2d6a4f"></div>'
+      + '<div class="field"><label>Jumlah Transfer (Rp)</label>'
+        + '<input type="number" id="tfJumlah" placeholder="0" min="1" oninput="tfUpdateNominalPreview()">'
+        + '<div id="tfJumlahError" style="display:none;color:#dc2626;font-size:11px;margin-top:4px;font-weight:600"></div>'
+      + '</div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'
+        + '<button type="button" onclick="setTfNominal(25000)"  style="flex:1;min-width:70px;padding:7px 4px;border-radius:10px;border:1.5px solid rgba(45,106,79,0.25);background:rgba(45,106,79,0.06);color:#2d6a4f;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">25rb</button>'
+        + '<button type="button" onclick="setTfNominal(50000)"  style="flex:1;min-width:70px;padding:7px 4px;border-radius:10px;border:1.5px solid rgba(45,106,79,0.25);background:rgba(45,106,79,0.06);color:#2d6a4f;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">50rb</button>'
+        + '<button type="button" onclick="setTfNominal(100000)" style="flex:1;min-width:70px;padding:7px 4px;border-radius:10px;border:1.5px solid rgba(45,106,79,0.25);background:rgba(45,106,79,0.06);color:#2d6a4f;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">100rb</button>'
+        + '<button type="button" onclick="setTfSemuaSaldo()"    style="flex:1;min-width:70px;padding:7px 4px;border-radius:10px;border:1.5px solid rgba(244,169,34,0.4);background:rgba(244,169,34,0.1);color:#a06800;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Semua</button>'
+      + '</div>'
+      + '<div id="tfPreviewBox" style="display:none;background:#f8faf9;border-radius:12px;padding:12px 14px;margin-bottom:14px;border:1.5px solid rgba(45,106,79,0.12)">'
+        + '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:#6b7280">Saldo saat ini</span><span style="font-weight:700;color:#2d6a4f" id="tfPrevSaldo">Rp 0</span></div>'
+        + '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:#dc2626">Dikirim</span><span style="font-weight:700;color:#dc2626" id="tfPrevAmt">- Rp 0</span></div>'
+        + '<div style="height:1px;background:rgba(0,0,0,0.07);margin:6px 0"></div>'
+        + '<div style="display:flex;justify-content:space-between;font-size:13px"><span style="font-weight:700;color:#1c3025">Sisa Saldo</span><span style="font-weight:800;color:#1a472a" id="tfPrevSisa">Rp 0</span></div>'
+      + '</div>'
+      + '<div class="field"><label>Berita / Keterangan <span style="color:#9ca3af;font-weight:400">(opsional)</span></label>'
+        + '<input type="text" id="tfKet" placeholder="Contoh: Bayar arisan, titip belanja">'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;margin-top:4px">'
+        + '<button type="button" class="btn btn-block" style="background:#f1f3f2;color:#374151" onclick="tfGoto(1)">← Kembali</button>'
+        + '<button class="btn btn-primary btn-block" id="tfNext2" onclick="tfGoto(3)">Lanjut ke Cek →</button>'
+      + '</div>'
+    + '</div>'
+
+    /* ══ LAYER 3 — Cek / Ringkasan ══ */
+    + '<div id="tfStep3" class="tf-step" style="display:none">'
+      + '<div style="font-size:11.5px;font-weight:800;color:#1c3025;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px">🔎 Periksa Kembali Sebelum Mengirim</div>'
+      + '<div id="tfCekBox" style="background:#f8faf9;border-radius:14px;padding:14px 16px;margin-bottom:16px;border:1.5px solid rgba(45,106,79,0.15);font-size:12.5px;color:#1c3025;line-height:2"></div>'
+      + '<div style="padding:10px 12px;background:rgba(220,38,38,0.06);border-radius:10px;font-size:10.5px;color:#b91c1c;line-height:1.6;margin-bottom:16px">⚠️ Pastikan No. HP, nama penerima, dan nominal sudah benar. Transfer akan diproses langsung dan tidak dapat dibatalkan setelah tanda tangan diverifikasi.</div>'
+      + '<div style="display:flex;gap:8px">'
+        + '<button type="button" class="btn btn-block" style="background:#f1f3f2;color:#374151" onclick="tfGoto(2)">← Kembali</button>'
+        + '<button class="btn btn-primary btn-block" style="background:linear-gradient(135deg,#a06800,#f4a922)" onclick="tfGoto(4)">Lanjut ke Verifikasi →</button>'
+      + '</div>'
+    + '</div>'
+
+    /* ══ LAYER 4 — Verifikasi Tanda Tangan ══ */
+    + '<div id="tfStep4" class="tf-step" style="display:none">'
+      + '<div style="font-size:11.5px;font-weight:800;color:#1c3025;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px">✍️ Verifikasi — Tanda Tangan Digital</div>'
+      + '<div style="font-size:10.5px;color:#6b7280;line-height:1.6;margin-bottom:10px">Bubuhkan tanda tangan Anda di bawah ini untuk mengonfirmasi bahwa Andalah pemilik akun yang mengizinkan transfer ini.</div>'
+      + '<canvas id="tfTtdCanvas" width="320" height="140" style="width:100%;height:140px;border:1.5px dashed rgba(160,104,0,0.45);border-radius:12px;background:#fffdf5;touch-action:none;display:block"></canvas>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;margin-bottom:16px">'
+        + '<span style="font-size:10px;color:var(--text-soft,#9ca3af)">Gunakan jari/mouse untuk tanda tangan di atas</span>'
+        + '<button type="button" onclick="tfTtdClear()" style="font-size:10.5px;font-weight:700;color:#dc2626;background:none;border:none;cursor:pointer">🗑 Hapus</button>'
+      + '</div>'
+      + '<div id="tfTtdError" style="display:none;color:#dc2626;font-size:11px;margin-bottom:10px;font-weight:600"></div>'
+      + '<div style="display:flex;gap:8px;margin-bottom:10px">'
+        + '<button type="button" class="btn btn-block" style="background:#f1f3f2;color:#374151" onclick="tfGoto(3)">← Kembali</button>'
+        + '<button class="btn btn-primary btn-block" id="tfBtn" style="background:linear-gradient(135deg,#a06800,#f4a922);box-shadow:0 4px 16px rgba(244,169,34,0.3)" onclick="tfSubmitTransfer()">🔁 Kirim Transfer</button>'
+      + '</div>'
+      + '<div style="padding:10px 12px;background:rgba(244,169,34,0.07);border-radius:10px;font-size:10.5px;color:#a06800;line-height:1.6;display:flex;align-items:flex-start;gap:8px">'
+        + '<span style="font-size:14px;flex-shrink:0">ℹ️</span>'
+        + '<span>Transfer hanya dari <strong>Simpanan Sukarela</strong> Anda sendiri ke sesama Nasabah aktif, dan diproses <strong>langsung</strong> (tanpa menunggu approval admin). Tanda tangan digital dipakai sebagai verifikasi sederhana agar hanya Anda sendiri yang bisa mengirim.</span>'
+      + '</div>'
+    + '</div>'
 
   + '</div>';
 }
@@ -25327,7 +25411,7 @@ function renderNasabah(filter='') {
         ${renderAvatarHTML(a)}
         <div class="member-info" style="flex:1">
           <div class="member-name">${a.nama}</div>
-          <div class="member-sub" style="margin-top:2px;font-size:10px;color:var(--text-soft)">${statusAktif?'Aktif':'Tidak Aktif'} · ${(a.keluarga||[]).length} nasabah keluarga</div>
+          <div class="member-sub" style="margin-top:2px;font-size:10px;color:var(--text-soft)">${statusAktif?'Aktif':'Tidak Aktif'}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           ${(a.blacklist && a.blacklist.aktif) ? `<span title="Blacklist" style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(127,29,29,0.14);color:#7f1d1d;border:1px solid rgba(127,29,29,0.4)">🚫 Blacklist</span>` : (typeof hitungSkorKepercayaan === 'function') ? (function(){
@@ -25374,7 +25458,6 @@ function renderNasabah(filter='') {
 function filterNasabah(v) { renderNasabah(v); }
 
 // ========== ADD / EDIT KK ==========
-let familyFieldCount = 0;
 function openAddKK() {
   document.getElementById('modalKKTitle').textContent = 'Tambah Nasabah';
   document.getElementById('editKKId').value = '';
@@ -25387,16 +25470,11 @@ function openAddKK() {
   document.getElementById('kkStatus').value = 'Aktif';
   if(document.getElementById('kkKategori')) document.getElementById('kkKategori').value = '';
   if(document.getElementById('kkSubKategori')) document.getElementById('kkSubKategori').value = '';
-  familyFieldCount = 0;
-  document.getElementById('familyFormList').innerHTML = '';
   openModal('modalKK');
   // Tampilkan seksi & render setelah modal terbuka
   var sk = document.getElementById('kkSeksiKategori');
-  var sf = document.getElementById('kkSeksiKeluarga');
   if (sk) sk.style.display = '';
-  if (sf) sf.style.display = '';
   _kkRenderKeanggotaan([]);
-  setTimeout(_updateFamilyBtn, 50);
 }
 
 function openEditKK(id) {
@@ -25414,85 +25492,17 @@ function openEditKK(id) {
   openModal('modalKK');
   // Tampilkan seksi & render setelah modal terbuka
   var sk = document.getElementById('kkSeksiKategori');
-  var sf = document.getElementById('kkSeksiKeluarga');
   if (sk) sk.style.display = '';
-  if (sf) sf.style.display = '';
   var existingKeanggotaan = a.keanggotaan || [];
   if (!existingKeanggotaan.length && (a.kategori || a.subKategori)) {
     existingKeanggotaan = [{ kat: a.kategori||'', sub: a.subKategori||'' }];
   }
   _kkRenderKeanggotaan(existingKeanggotaan);
-  // Load family
-  familyFieldCount = 0;
-  document.getElementById('familyFormList').innerHTML = '';
-  (a.keluarga||[]).forEach(f => addFamilyField(f));
-  setTimeout(_updateFamilyBtn, 50);
-}
-
-function addFamilyField(data={}) {
-  const currentCount = document.getElementById('familyFormList').querySelectorAll('[id^="famNama"]').length;
-  if (currentCount >= 3) {
-    showToast('⚠️ Maksimal 3 keluarga nasabah');
-    return;
-  }
-  familyFieldCount++;
-  const i = familyFieldCount;
-  const div = document.createElement('div');
-  div.style.cssText = 'background:var(--cream);border-radius:10px;padding:12px;margin-bottom:10px;position:relative';
-  div.id = 'famField'+i;
-  div.innerHTML = `
-    <button onclick="document.getElementById('famField${i}').remove();_updateFamilyBtn()" style="position:absolute;right:8px;top:8px;background:none;border:none;font-size:16px;cursor:pointer;color:#aaa">✕</button>
-    <div class="field-row" style="margin-bottom:8px">
-      <div class="field"><label>Nama</label><input type="text" id="famNama${i}" placeholder="Nama keluarga" value="${data.nama||''}"></div>
-      <div class="field"><label>Hubungan</label>
-        <select id="famHubungan${i}">
-          ${['Istri','Suami','Anak','Orang Tua','Saudara','Lainnya'].map(h=>`<option ${data.hubungan===h?'selected':''}>${h}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>No. KTP</label><input type="text" id="famKtp${i}" placeholder="Opsional" value="${data.ktp||''}"></div>
-      <div class="field"><label>TTL</label><input type="date" id="famTtl${i}" value="${data.ttl||''}"></div>
-    </div>`;
-  document.getElementById('familyFormList').appendChild(div);
-  _updateFamilyBtn();
-}
-
-function _updateFamilyBtn() {
-  const btn = document.getElementById('addFamilyBtn');
-  if (!btn) return;
-  const count = document.getElementById('familyFormList').querySelectorAll('[id^="famNama"]').length;
-  if (count >= 3) {
-    btn.disabled = true;
-    btn.style.opacity = '0.4';
-    btn.style.cursor = 'not-allowed';
-    btn.textContent = '✕ Maksimal 3 keluarga';
-  } else {
-    btn.disabled = false;
-    btn.style.opacity = '1';
-    btn.style.cursor = 'pointer';
-    btn.textContent = '➕ Tambah Keluarga';
-  }
-}
-
-function collectFamilyFields() {
-  const list = [];
-  document.getElementById('familyFormList').querySelectorAll('[id^="famNama"]').forEach(el => {
-    const i = el.id.replace('famNama','');
-    const nama = el.value.trim();
-    if (nama) list.push({
-      nama, hubungan: document.getElementById('famHubungan'+i).value,
-      ktp: document.getElementById('famKtp'+i).value,
-      ttl: document.getElementById('famTtl'+i).value
-    });
-  });
-  return list;
 }
 
 function saveKK() {
   const nama = document.getElementById('kkNama').value.trim();
   if (!nama) { showToast('⚠️ Nama tidak boleh kosong'); return; }
-  const keluarga = collectFamilyFields();
   const editId = document.getElementById('editKKId').value;
 
   if (editId) {
@@ -25509,7 +25519,7 @@ function saveKK() {
         kategori:(document.getElementById('kkKategori')?.value||'').trim(),
         subKategori:(document.getElementById('kkSubKategori')?.value||'').trim(),
         keanggotaan: _kkCollectKeanggotaan(),
-        status:statusBaruKK, keluarga, ...clearOtomatis };
+        status:statusBaruKK, ...clearOtomatis };
     }
   } else {
     DB.nasabah.push({
@@ -25523,7 +25533,7 @@ function saveKK() {
       subKategori:(document.getElementById('kkSubKategori')?.value||'').trim(),
       keanggotaan: _kkCollectKeanggotaan(),
       status:document.getElementById('kkStatus').value,
-      keluarga, bergabung: nowISO()
+      bergabung: nowISO()
     });
   }
   saveDB(); closeModal('modalKK');
@@ -25925,17 +25935,6 @@ function showDetailNasabah(id) {
   // Total Simpanan Berjangka (BERKAH) yang masih aktif/terkunci milik nasabah ini
   const simpBerjangka = (DB.tabunganBerjangka||[]).filter(t=>t.kkId===id && t.status==='aktif').reduce((s,b)=>s+(b.jumlah||0),0);
 
-  const familyHTML = (a.keluarga||[]).length ? (a.keluarga||[]).map((f,fi)=>`
-    <div class="family-member" id="famMember_${id}_${fi}">
-      <div class="family-avatar">${roleEmoji(f.hubungan)}</div>
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:700">${f.nama}</div>
-        <div style="font-size:11px;color:var(--text-soft)">${f.ktp||'KTP: -'} | ${f.ttl?fmtDate(f.ttl):''}</div>
-      </div>
-      <span class="role-badge">${f.hubungan}</span>
-      <button onclick="hapusFamilyMember('${id}',${fi})" style="background:rgba(230,57,70,0.1);border:none;border-radius:8px;padding:4px 8px;cursor:pointer;color:var(--danger);font-size:14px;margin-left:4px" title="Hapus">🗑</button>
-    </div>`).join('') : '<div style="font-size:13px;color:#aaa;padding:10px 0">Belum ada keluarga nasabah</div>';
-
   const _KAS_MASUK = ['simpanan'];
   const _KAS_KELUAR = ['pinjaman','cicilan','angsuran','angsuran-rc','perpanjang','murabahah','tarik-sukarela'];
   const txnHTML = [...DB.transaksi.filter(t=>t.kkId===id)].reverse().slice(0,5).map(t=>{
@@ -26136,30 +26135,6 @@ function showDetailNasabah(id) {
       </div>`;
     })()}
 
-    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:16px">
-      <span>👨‍👩‍👧 Keluarga Nasabah <span style="font-size:11px;font-weight:600;color:var(--text-soft)">(${(a.keluarga||[]).length} orang)</span></span>
-      <button onclick="closeModal('modalDetailNasabah');setTimeout(()=>openEditNasabah('${id}'),180)" style="font-size:11px;font-weight:700;color:var(--forest-mid);background:rgba(45,106,79,0.10);border:1.5px solid rgba(45,106,79,0.2);padding:4px 10px;border-radius:8px;cursor:pointer;font-family:inherit">✏️ Edit</button>
-    </div>
-    <div class="card" style="margin:0 16px 4px;overflow:hidden">
-      ${(a.keluarga||[]).length ? (a.keluarga||[]).map((f,fi)=>`
-        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(0,0,0,0.05)">
-          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#1a472a,#2d6a4f);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${roleEmoji(f.hubungan)}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700;color:#1c3025">${f.nama||'-'}</div>
-            <div style="font-size:10px;color:#9ca3af;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap">
-              ${f.hubungan ? `<span style="background:rgba(45,106,79,0.1);color:#2d6a4f;border-radius:6px;padding:1px 7px;font-weight:700">${f.hubungan}</span>` : ''}
-              ${f.ktp ? `<span>🪪 ${f.ktp}</span>` : ''}
-              ${f.ttl ? `<span>🎂 ${fmtDate(f.ttl)}</span>` : ''}
-            </div>
-          </div>
-          <button onclick="hapusFamilyMember('${id}',${fi})" style="width:30px;height:30px;border-radius:8px;border:none;cursor:pointer;background:rgba(230,57,70,0.08);color:var(--danger);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Hapus">🗑</button>
-        </div>`).join('')
-      : `<div style="padding:24px;text-align:center;color:#d1d5db">
-          <div style="font-size:32px;margin-bottom:8px">👤</div>
-          <div style="font-size:12px;font-weight:700">Belum ada anggota keluarga</div>
-          <div style="font-size:10px;margin-top:4px">Tap <b>Edit</b> di atas untuk menambah</div>
-        </div>`}
-    </div>
     <div style="padding-bottom:24px"></div>`;
   openModal('modalDetailNasabah');
 }
@@ -26246,22 +26221,6 @@ function saveInlineEditNasabah(id) {
 
   // Refresh modal detail dengan data baru
   showDetailNasabah(id);
-}
-
-function roleEmoji(r) {
-  const map = {Istri:'👩',Suami:'👨',Anak:'🧒','Orang Tua':'👴',Saudara:'🧑',Lainnya:'👤'};
-  return map[r]||'👤';
-}
-
-function hapusFamilyMember(kkId, idx) {
-  const a = getNasabah(kkId);
-  if (!a || !a.keluarga) return;
-  const nama = a.keluarga[idx]?.nama || 'nasabah ini';
-  if (!confirm(`Hapus ${nama} dari daftar keluarga?`)) return;
-  a.keluarga.splice(idx, 1);
-  saveDB();
-  showDetailNasabah(kkId);
-  showToast('🗑 Nasabah keluarga dihapus');
 }
 
 function hapusNasabah(id) {
@@ -32757,6 +32716,7 @@ function saveTarikTunai() {
 window._txnSuksesMeta = function(jenisTxn) {
   var map = {
     'tarik':      { judul: 'Tarik Tunai',       labelJumlah: 'Jumlah Ditarik',   fileSlug: 'tarik-tunai',    waEmoji: '💰', labelSaldo: 'Saldo' },
+    'transfer':   { judul: 'Transfer Sesama Nasabah', labelJumlah: 'Jumlah Dikirim', fileSlug: 'transfer-sukarela', waEmoji: '🔁', labelSaldo: 'Saldo' },
     'simpanan':   { judul: 'Setoran Simpanan',  labelJumlah: 'Jumlah Setoran',   fileSlug: 'setoran-simpanan', waEmoji: '💵', labelSaldo: 'Saldo' },
     'pinjaman':   { judul: 'Pencairan Pinjaman',labelJumlah: 'Jumlah Pinjaman',  fileSlug: 'pencairan-pinjaman', waEmoji: '📤', labelSaldo: 'Sisa Pinjaman' },
     'cicilan':    { judul: 'Pembayaran Cicilan',labelJumlah: 'Jumlah Dibayar',   fileSlug: 'pembayaran-cicilan', waEmoji: '💳', labelSaldo: 'Sisa Pinjaman' }
@@ -32844,11 +32804,441 @@ function _kirimTxnSuksesWA(data) {
   window.open('https://wa.me/' + hp + '?text=' + encodeURIComponent(msg), '_blank');
 }
 
+// ══════════════════════════════════════════════════════════════
+//  BUKTI PENGIRIMAN (GAMBAR STRUK) — bisa dibagikan LANGSUNG
+//  sebagai FILE ke WhatsApp lewat Web Share API (navigator.share
+//  dengan files:[...]), sama seperti pola share QRIS di aplikasi
+//  ini. Kalau perangkat/browser tidak mendukung share file, bukti
+//  otomatis diunduh sebagai gambar + WhatsApp dibuka dengan pesan
+//  teks sebagai fallback.
+// ══════════════════════════════════════════════════════════════
+
+// Susun HTML struk bukti (dipakai html2canvas untuk difoto jadi gambar)
+function _buildBuktiGambarHTML(data) {
+  var meta = window._txnSuksesMeta(data.jenisTxn);
+  var tgl = new Date(data.tanggal || Date.now());
+  var tglLabel = tgl.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) +
+    ', ' + tgl.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA';
+  var kode = 'RC' + tgl.getTime().toString(36).toUpperCase();
+
+  var row = function (label, val, bold) {
+    return '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(0,0,0,0.08);font-size:12.5px">'
+      + '<span style="color:#6b7280">' + label + '</span>'
+      + '<span style="font-weight:' + (bold ? '800' : '600') + ';color:#1c3025;text-align:right">' + val + '</span>'
+    + '</div>';
+  };
+
+  var rows = '';
+  rows += row('Nama Pengirim', data.nama || '-');
+  if (data.toNama) rows += row('Rekening Tujuan', data.toNama);
+  if (data.toHp) rows += row('No. HP Tujuan', data.toHp);
+  rows += row('Waktu Transaksi', tglLabel);
+  rows += row(meta.labelJumlah, fmt(data.jumlah), true);
+  if (data.saldoSebelum != null) rows += row(meta.labelSaldo + ' Sebelum', fmt(data.saldoSebelum));
+  if (data.saldoSesudah != null) rows += row(data.saldoSebelum != null ? (meta.labelSaldo + ' Sesudah') : (meta.labelSaldo + ' Saat Ini'), fmt(data.saldoSesudah));
+  if (data.ket) rows += row('Keterangan', data.ket);
+
+  return '<div style="width:480px;font-family:\'Plus Jakarta Sans\',sans-serif;background:#fefae0;padding:0">'
+    + '<div style="background:linear-gradient(135deg,#1a472a,#2d6a4f);padding:26px 28px 22px;color:#fff;text-align:center">'
+      + '<div style="font-family:\'Playfair Display\',serif;font-size:20px;font-weight:800;letter-spacing:0.5px">KOPERASI RENCO</div>'
+      + '<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:2px">Bukti ' + meta.judul + '</div>'
+      + '<div style="width:44px;height:44px;border-radius:50%;background:rgba(232,201,126,0.18);display:flex;align-items:center;justify-content:center;font-size:22px;margin:14px auto 0">' + (meta.waEmoji || '✅') + '</div>'
+    + '</div>'
+    + '<div style="padding:22px 28px 10px">' + rows + '</div>'
+    + (data.ttdData ?
+        '<div style="padding:6px 28px 4px">'
+          + '<div style="font-size:10.5px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Tanda Tangan Verifikasi</div>'
+          + '<img src="' + data.ttdData + '" style="height:60px;display:block" />'
+        + '</div>' : '')
+    + '<div style="padding:16px 28px 26px;text-align:center">'
+      + '<div style="height:1px;background:repeating-linear-gradient(90deg,#c9b98a 0 6px,transparent 6px 12px);margin-bottom:14px"></div>'
+      + '<div style="font-size:9.5px;color:#a06800;font-weight:700;letter-spacing:0.4px">KODE VERIFIKASI: ' + kode + '</div>'
+      + '<div style="font-size:9.5px;color:#9ca3af;margin-top:4px">Bukti ini dibuat otomatis oleh Aplikasi Koperasi Renco</div>'
+    + '</div>'
+  + '</div>';
+}
+
+// Render struk ke gambar PNG (off-screen), lalu bagikan sebagai FILE ke WhatsApp.
+// Fallback: kalau Web Share (file) tidak didukung, gambar diunduh + WhatsApp dibuka via teks.
+async function _shareBuktiGambarWA(data) {
+  if (typeof html2canvas === 'undefined') { if (typeof showToast === 'function') showToast('⚠️ Komponen gambar belum siap, coba lagi sesaat lagi'); return; }
+  if (typeof showToast === 'function') showToast('📷 Menyiapkan bukti transfer...');
+
+  var printDiv = document.createElement('div');
+  printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:480px;z-index:-1';
+  printDiv.innerHTML = _buildBuktiGambarHTML(data);
+  document.body.appendChild(printDiv);
+
+  try {
+    await new Promise(function (r) { setTimeout(r, 150); });
+    var canvas = await html2canvas(printDiv.firstElementChild, { scale: 2, backgroundColor: '#fefae0', useCORS: true, width: 480, scrollX: 0, scrollY: 0, windowWidth: 480 });
+    document.body.removeChild(printDiv);
+
+    var fname = 'bukti-transfer-renco-' + (data.nama || 'nasabah').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + new Date().toISOString().slice(0, 10) + '.png';
+
+    canvas.toBlob(async function (blob) {
+      if (!blob) { if (typeof showToast === 'function') showToast('❌ Gagal membuat gambar bukti'); return; }
+      var file = new File([blob], fname, { type: 'image/png' });
+      var caption = _buildTxnSuksesWAMsg(data);
+      var canShareFile = !!(navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] })));
+
+      if (canShareFile) {
+        try {
+          await navigator.share({ files: [file], title: 'Bukti Transfer Koperasi Renco', text: caption });
+          if (typeof showToast === 'function') showToast('✅ Bukti transfer berhasil dibagikan!');
+          return;
+        } catch (e) {
+          // Share dibatalkan pengguna atau gagal — lanjut ke fallback unduh + WA teks
+        }
+      }
+
+      // Fallback: unduh gambar + buka WhatsApp dengan pesan teks
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = fname; a.click();
+      URL.revokeObjectURL(url);
+      if (typeof showToast === 'function') showToast('📥 Bukti diunduh. Silakan lampirkan gambarnya secara manual di WhatsApp.');
+      var hp = (data.hp || '').replace(/\D/g, '');
+      if (hp) {
+        if (hp.startsWith('0')) hp = '62' + hp.slice(1); else if (!hp.startsWith('62')) hp = '62' + hp;
+        window.open('https://wa.me/' + hp + '?text=' + encodeURIComponent(caption), '_blank');
+      }
+    }, 'image/png');
+  } catch (e) {
+    if (printDiv.parentNode) document.body.removeChild(printDiv);
+    if (typeof showToast === 'function') showToast('❌ Gagal menyiapkan bukti transfer');
+    console.error('[BuktiGambarWA]', e);
+  }
+}
+
 // ── Alias kompatibilitas mundur: fungsi lama khusus tarik tunai tetap berfungsi ──
 function _pdfGenTarikTunai(jsPDFCls, data) { data.jenisTxn = data.jenisTxn || 'tarik'; return _pdfGenTxnSukses(jsPDFCls, data); }
 function _downloadTarikTunaiPDF(data) { data.jenisTxn = data.jenisTxn || 'tarik'; return _downloadTxnSuksesPDF(data); }
 function _buildTarikTunaiWAMsg(data) { data.jenisTxn = data.jenisTxn || 'tarik'; return _buildTxnSuksesWAMsg(data); }
 function _kirimTarikTunaiWA(data) { data.jenisTxn = data.jenisTxn || 'tarik'; return _kirimTxnSuksesWA(data); }
+
+// ========== TRANSFER SIMPANAN SUKARELA ANTAR NASABAH (WIZARD 4 LAYER) ==========
+// Nasabah mengirim sebagian saldo Simpanan Sukarela miliknya ke sesama Nasabah aktif lain.
+// Rekening/nomor tujuan memakai NO. HP nasabah tujuan (bukan pilih nama dari daftar).
+// Formulir dipecah jadi 4 layer terpisah yang harus dilalui berurutan:
+//   1) Rekening Tujuan — cari nasabah lewat No. HP
+//   2) Nominal          — jumlah + keterangan
+//   3) Cek              — ringkasan akhir sebelum kirim
+//   4) Verifikasi       — tanda tangan digital (menggantikan password)
+// Transaksi dicatat sepasang: 'transfer-sukarela-keluar' (pengirim) & 'transfer-sukarela-masuk'
+// (penerima), dihubungkan lewat field transferId. Transfer diproses LANGSUNG (tanpa approval
+// admin), konsisten dengan versi sebelumnya. Setelah sukses, tersedia file bukti pengiriman
+// (gambar struk) yang bisa dibagikan langsung ke WhatsApp.
+
+var _tfState = { toKkId: null, toNama: '', toHp: '', toNoAnggota: '', jumlah: 0, ket: '', ttdData: null };
+var _tfCariTimer = null;
+
+// Normalisasi No. HP ke format lokal "0xxxxxxxxxx" agar 08xxx / 628xxx / 8xxx bisa dicocokkan
+function _tfNormHp(hp) {
+  var d = String(hp || '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.indexOf('62') === 0) d = '0' + d.slice(2);
+  else if (d.indexOf('0') !== 0) d = '0' + d;
+  return d;
+}
+
+function tfInitWizard() {
+  _tfState = { toKkId: null, toNama: '', toHp: '', toNoAnggota: '', jumlah: 0, ket: '', ttdData: null };
+  var hpInp = document.getElementById('tfHp');
+  if (hpInp) hpInp.value = '';
+  var resEl = document.getElementById('tfPenerimaResult');
+  if (resEl) resEl.innerHTML = '';
+  updateTransferSaldo();
+  tfGoto(1);
+}
+
+function updateTransferSaldo() {
+  var myKkId = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user.nasabahId : null;
+  var saldo = myKkId ? saldoSukarelaNasabah(myKkId) : 0;
+  var pendingKeluar = myKkId ? _pendingKeluarSukarela(myKkId) : 0;
+  var saldoEfektif = Math.max(0, saldo - pendingKeluar);
+  var el = document.getElementById('tfSaldoAngka');
+  if (el) el.textContent = fmt(saldoEfektif);
+  var sub = document.getElementById('tfSaldoSub');
+  if (sub) sub.textContent = pendingKeluar > 0 ? ('⏳ ' + fmt(pendingKeluar) + ' sedang menunggu persetujuan') : 'Dapat ditransfer sewaktu-waktu';
+}
+
+// ── LAYER 1: cari nasabah tujuan lewat No. HP (dipakai sebagai nomor rekening/tujuan) ──
+function tfCariPenerima() {
+  clearTimeout(_tfCariTimer);
+  _tfCariTimer = setTimeout(_tfCariPenerimaNow, 220);
+}
+function _tfCariPenerimaNow() {
+  var myKkId = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user.nasabahId : null;
+  var raw = document.getElementById('tfHp')?.value || '';
+  var norm = _tfNormHp(raw);
+  var resEl = document.getElementById('tfPenerimaResult');
+  var nextBtn = document.getElementById('tfNext1');
+  _tfState.toKkId = null; _tfState.toNama = ''; _tfState.toHp = ''; _tfState.toNoAnggota = '';
+
+  function disableNext() { if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.5'; } }
+  function enableNext() { if (nextBtn) { nextBtn.disabled = false; nextBtn.style.opacity = '1'; } }
+
+  if (!resEl) return;
+  if (norm.length < 8) { resEl.innerHTML = ''; disableNext(); return; }
+
+  var penerima = (DB.nasabah || []).find(function (a) {
+    return a.id !== myKkId && (a.status || 'Aktif') !== 'Tidak Aktif' && _tfNormHp(a.hp) === norm;
+  });
+
+  if (!penerima) {
+    resEl.innerHTML = '<div style="background:rgba(220,38,38,0.06);border:1.5px solid rgba(220,38,38,0.2);border-radius:10px;padding:10px 12px;font-size:11.5px;color:#b91c1c">⚠️ Nomor HP tidak ditemukan di antara nasabah aktif. Periksa kembali nomornya.</div>';
+    disableNext();
+    return;
+  }
+
+  _tfState.toKkId = penerima.id;
+  _tfState.toNama = penerima.nama || '-';
+  _tfState.toHp = penerima.hp || raw;
+  _tfState.toNoAnggota = penerima.noAnggota || penerima.id || '-';
+
+  resEl.innerHTML = '<div style="background:#f8faf9;border-radius:10px;padding:10px 12px;border:1.5px solid rgba(45,106,79,0.15);font-size:11.5px;color:#2d6a4f;display:flex;align-items:center;gap:10px">'
+    + '<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#e8c97e;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">✓</div>'
+    + '<div>Rekening ditemukan: <strong>' + _tfState.toNama + '</strong> · No. Anggota <strong>' + _tfState.toNoAnggota + '</strong> · ' + _tfState.toHp + '</div>'
+  + '</div>';
+  enableNext();
+}
+
+// ── Navigasi antar layer ──
+function tfGoto(step) {
+  if (step === 2 && !_tfState.toKkId) { showToast('⚠️ Cari & pilih rekening tujuan terlebih dahulu'); return; }
+  if (step === 3) {
+    var jumlah = parseFloat(document.getElementById('tfJumlah')?.value) || 0;
+    var ket = (document.getElementById('tfKet')?.value || '').trim();
+    var myKkId = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user.nasabahId : null;
+    var saldo = myKkId ? saldoSukarelaNasabah(myKkId) : 0;
+    if (jumlah <= 0) { showToast('⚠️ Masukkan jumlah transfer yang valid'); return; }
+    if (jumlah > saldo) { showToast('⚠️ Saldo sukarela tidak mencukupi (' + fmt(saldo) + ')'); return; }
+    _tfState.jumlah = jumlah;
+    _tfState.ket = ket;
+  }
+
+  [1, 2, 3, 4].forEach(function (n) {
+    var el = document.getElementById('tfStep' + n);
+    if (el) el.style.display = (n === step) ? '' : 'none';
+    var dot = document.getElementById('tfDot' + n);
+    var lbl = document.getElementById('tfLbl' + n);
+    if (dot) {
+      var done = n < step, active = n === step;
+      dot.style.background = active ? '#1a472a' : (done ? '#2d6a4f' : '#e5e7eb');
+      dot.style.color = (active || done) ? '#e8c97e' : '#9ca3af';
+      dot.textContent = done ? '✓' : n;
+    }
+    if (lbl) lbl.style.color = (n <= step) ? '#1a472a' : '#9ca3af';
+  });
+
+  if (step === 2) {
+    var conf2 = document.getElementById('tfPenerimaConfirm2');
+    if (conf2) conf2.innerHTML = 'Kirim ke: <strong>' + _tfState.toNama + '</strong> · No. Anggota <strong>' + _tfState.toNoAnggota + '</strong> · 📱 ' + _tfState.toHp;
+    tfUpdateNominalPreview();
+  }
+  if (step === 3) tfRenderCek();
+  if (step === 4) { tfTtdClear(); setTimeout(_tfBindTtdPad, 30); }
+}
+
+function tfUpdateNominalPreview() {
+  var myKkId = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user.nasabahId : null;
+  var jumlah = parseFloat(document.getElementById('tfJumlah')?.value) || 0;
+  var errEl = document.getElementById('tfJumlahError');
+  var previewBox = document.getElementById('tfPreviewBox');
+  var saldo = myKkId ? saldoSukarelaNasabah(myKkId) : 0;
+  var pendingKeluar = myKkId ? _pendingKeluarSukarela(myKkId) : 0;
+  saldo = Math.max(0, saldo - pendingKeluar);
+  var sisa = saldo - jumlah;
+
+  if (errEl) {
+    if (jumlah > saldo) {
+      errEl.textContent = '⚠️ Melebihi saldo sukarela tersedia (' + fmt(saldo) + ')';
+      errEl.style.display = 'block';
+    } else if (jumlah < 0) {
+      errEl.textContent = '⚠️ Jumlah tidak valid';
+      errEl.style.display = 'block';
+    } else {
+      errEl.style.display = 'none';
+    }
+  }
+
+  if (previewBox && jumlah > 0) {
+    previewBox.style.display = 'block';
+    var prevSaldo = document.getElementById('tfPrevSaldo');
+    var prevAmt = document.getElementById('tfPrevAmt');
+    var prevSisa = document.getElementById('tfPrevSisa');
+    if (prevSaldo) prevSaldo.textContent = fmt(saldo);
+    if (prevAmt) prevAmt.textContent = '- ' + fmt(jumlah);
+    if (prevSisa) {
+      prevSisa.textContent = fmt(Math.max(0, sisa));
+      prevSisa.style.color = sisa < 0 ? '#dc2626' : 'var(--forest)';
+    }
+  } else if (previewBox) {
+    previewBox.style.display = 'none';
+  }
+}
+
+function setTfNominal(n) {
+  var inp = document.getElementById('tfJumlah');
+  if (inp) { inp.value = n; tfUpdateNominalPreview(); }
+}
+
+function setTfSemuaSaldo() {
+  var myKkId = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user.nasabahId : null;
+  var saldo = myKkId ? saldoSukarelaNasabah(myKkId) : 0;
+  var pendingKeluar = myKkId ? _pendingKeluarSukarela(myKkId) : 0;
+  saldo = Math.max(0, saldo - pendingKeluar);
+  var inp = document.getElementById('tfJumlah');
+  if (inp) { inp.value = saldo; tfUpdateNominalPreview(); }
+}
+
+// ── LAYER 3: ringkasan/cek ──
+function tfRenderCek() {
+  var myKkId = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user.nasabahId : null;
+  var saldo = myKkId ? saldoSukarelaNasabah(myKkId) : 0;
+  var box = document.getElementById('tfCekBox');
+  if (!box) return;
+  box.innerHTML =
+    '<div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Rekening Tujuan</span><span style="font-weight:700">' + _tfState.toNama + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between"><span style="color:#6b7280">No. HP Tujuan</span><span style="font-weight:700">' + _tfState.toHp + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between"><span style="color:#6b7280">No. Anggota</span><span style="font-weight:700">' + _tfState.toNoAnggota + '</span></div>'
+    + '<div style="height:1px;background:rgba(0,0,0,0.07);margin:4px 0"></div>'
+    + '<div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Nominal</span><span style="font-weight:800;color:#a06800">' + fmt(_tfState.jumlah) + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Keterangan</span><span style="font-weight:700">' + (_tfState.ket || '-') + '</span></div>'
+    + '<div style="height:1px;background:rgba(0,0,0,0.07);margin:4px 0"></div>'
+    + '<div style="display:flex;justify-content:space-between"><span style="color:#6b7280">Saldo Saat Ini</span><span style="font-weight:700">' + fmt(saldo) + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between"><span style="font-weight:700;color:#1c3025">Sisa Setelah Kirim</span><span style="font-weight:800;color:#1a472a">' + fmt(Math.max(0, saldo - _tfState.jumlah)) + '</span></div>';
+}
+
+// ── LAYER 4: tanda tangan digital (menggantikan password) ──
+var _tfTtdDrawing = false, _tfTtdHasDrawn = false;
+function _tfBindTtdPad() {
+  var c = document.getElementById('tfTtdCanvas');
+  if (!c || c._tfBound) return;
+  c._tfBound = true;
+  var ctx = c.getContext('2d');
+  function pos(e) {
+    var r = c.getBoundingClientRect();
+    var sx = c.width / r.width, sy = c.height / r.height;
+    var cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    var cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+    return { x: cx * sx, y: cy * sy };
+  }
+  function start(e) { _tfTtdDrawing = true; _tfTtdHasDrawn = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+  function move(e) { if (!_tfTtdDrawing) return; var p = pos(e); ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.strokeStyle = '#1a2e1f'; ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+  function end() { _tfTtdDrawing = false; }
+  c.addEventListener('mousedown', start);
+  c.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  c.addEventListener('touchstart', start, { passive: false });
+  c.addEventListener('touchmove', move, { passive: false });
+  c.addEventListener('touchend', end);
+}
+
+function tfTtdClear() {
+  var c = document.getElementById('tfTtdCanvas');
+  if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  _tfTtdHasDrawn = false;
+  var err = document.getElementById('tfTtdError');
+  if (err) err.style.display = 'none';
+}
+
+function _tfTtdDataURL() {
+  var c = document.getElementById('tfTtdCanvas');
+  if (!c || !_tfTtdHasDrawn) return null;
+  return c.toDataURL('image/png');
+}
+
+// ── Eksekusi akhir: validasi ulang + catat transaksi + tampilkan bukti ──
+function tfSubmitTransfer() {
+  var myKkId = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user.nasabahId : null;
+  if (!myKkId) { showToast('⚠️ Fitur ini hanya untuk akun Nasabah'); return; }
+
+  var toKkId = _tfState.toKkId;
+  var jumlah = _tfState.jumlah;
+  var ket = _tfState.ket;
+  var ttdErr = document.getElementById('tfTtdError');
+  if (ttdErr) ttdErr.style.display = 'none';
+
+  if (!toKkId) { showToast('⚠️ Rekening tujuan belum valid'); tfGoto(1); return; }
+  if (toKkId === myKkId) { showToast('⚠️ Tidak bisa transfer ke diri sendiri'); return; }
+  if (jumlah <= 0) { showToast('⚠️ Masukkan jumlah transfer yang valid'); tfGoto(2); return; }
+
+  // Saldo dicek langsung (tanpa memperhitungkan pending, karena transfer diproses seketika)
+  var saldo = saldoSukarelaNasabah(myKkId);
+  if (jumlah > saldo) {
+    showToast('⚠️ Saldo sukarela tidak mencukupi (' + fmt(saldo) + ')');
+    return;
+  }
+
+  // ── Verifikasi: tanda tangan digital harus ada ──
+  var ttdData = _tfTtdDataURL();
+  if (!ttdData) {
+    if (ttdErr) { ttdErr.textContent = '⚠️ Bubuhkan tanda tangan Anda terlebih dahulu untuk verifikasi'; ttdErr.style.display = 'block'; }
+    return;
+  }
+
+  var penerima = (DB.nasabah || []).find(function (a) { return a.id === toKkId; });
+  var pengirim = (DB.nasabah || []).find(function (a) { return a.id === myKkId; });
+  var namaPenerima = penerima ? penerima.nama : toKkId;
+  var namaPengirim = pengirim ? pengirim.nama : myKkId;
+
+  // ── Verifikasi sederhana: konfirmasi akhir sebelum kirim ──
+  if (!confirm('Kirim ' + fmt(jumlah) + ' dari Simpanan Sukarela Anda ke ' + namaPenerima + ' (' + _tfState.toHp + ')?\n\nPastikan nama & No. HP penerima sudah benar. Transfer akan diproses LANGSUNG dan tidak dapat dibatalkan.')) {
+    return;
+  }
+
+  // Cek ulang saldo tepat sebelum eksekusi (mencegah double-submit / race)
+  saldo = saldoSukarelaNasabah(myKkId);
+  if (jumlah > saldo) {
+    showToast('⚠️ Saldo sukarela tidak mencukupi (' + fmt(saldo) + ')');
+    return;
+  }
+
+  var transferId = 'tf' + Date.now() + Math.random().toString(36).slice(2, 7);
+  var tglTf = nowISO();
+  if (!Array.isArray(DB.transaksi)) DB.transaksi = [];
+  DB.transaksi.push({
+    id: 'txn' + DB.nextTxnId++, kkId: myKkId, type: 'transfer-sukarela-keluar', jenis: 'sukarela',
+    jumlah, keterangan: 'Transfer ke ' + namaPenerima + ' (' + _tfState.toHp + ')' + (ket ? ' — ' + ket : ''),
+    tanggal: tglTf, transferId: transferId, toKkId: toKkId, toHp: _tfState.toHp, ttdData: ttdData
+  });
+  DB.transaksi.push({
+    id: 'txn' + DB.nextTxnId++, kkId: toKkId, type: 'transfer-sukarela-masuk', jenis: 'sukarela',
+    jumlah, keterangan: 'Transfer dari ' + namaPengirim + (ket ? ' — ' + ket : ''),
+    tanggal: tglTf, transferId: transferId, fromKkId: myKkId
+  });
+  saveDB();
+  renderHome();
+  showToast('✅ Transfer ' + fmt(jumlah) + ' ke ' + namaPenerima + ' berhasil!');
+
+  // Refresh tab Transfer (reset wizard + saldo terbaru) jika sedang terbuka
+  if (typeof rpTab === 'function' && document.getElementById('rptab_transfer') &&
+      document.getElementById('rptab_transfer').classList.contains('active')) {
+    rpTab('transfer', document.getElementById('rptab_transfer'));
+  }
+
+  // Tampilkan sheet laporan: download PDF, kirim WhatsApp (teks), atau bagikan bukti gambar ke WhatsApp
+  if (typeof window._showTxnSuksesSheet === 'function') {
+    window._showTxnSuksesSheet({
+      jenisTxn: 'transfer',
+      nama: namaPengirim,
+      hp: pengirim ? (pengirim.hp || '') : '',
+      toNama: namaPenerima,
+      toHp: _tfState.toHp,
+      jumlah: jumlah,
+      saldoSebelum: saldo,
+      saldoSesudah: saldo - jumlah,
+      ket: 'Transfer ke ' + namaPenerima + ' (' + _tfState.toHp + ')' + (ket ? ' — ' + ket : ''),
+      ttdData: ttdData,
+      tanggal: tglTf
+    });
+  }
+}
+
+// Alias kompatibilitas mundur, kalau ada bagian lain yang masih memanggil nama fungsi lama
+function saveTransferSukarela() { return tfSubmitTransfer(); }
 
 // Sheet konfirmasi generik setelah TRANSAKSI berhasil (Simpanan/Pinjaman/Cicilan/Tarik Tunai):
 // pilih Download PDF atau Kirim WhatsApp ke nasabah. Icon memakai SVG line-style modern.
@@ -32883,6 +33273,10 @@ function _showTxnSuksesSheet(data) {
         '<button onclick="_kirimTxnSuksesWA(window._lastTxnSuksesData)" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;text-align:left;background:#e7fdf0;color:#128c7e">' +
           '<div style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(37,211,102,.15)">' + window._ico('whatsapp', 19) + '</div>' +
           '<div style="flex:1"><div style="font-size:13px;font-weight:700">Kirim WhatsApp ke Nasabah</div><div style="font-size:10px;font-weight:500;opacity:.7;margin-top:1px">' + (hpDigits ? 'Ke ' + (data.hp || '') : '⚠️ No. HP nasabah belum diisi') + '</div></div>' +
+        '</button>' +
+        '<button onclick="_shareBuktiGambarWA(window._lastTxnSuksesData)" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;text-align:left;background:#fff7e6;color:#a06800">' +
+          '<div style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(244,169,34,.18);font-size:19px">🧾</div>' +
+          '<div style="flex:1"><div style="font-size:13px;font-weight:700">Bagikan Bukti Transfer (Gambar)</div><div style="font-size:10px;font-weight:500;opacity:.7;margin-top:1px">Kirim file struk langsung ke WhatsApp</div></div>' +
         '</button>' +
         '<button onclick="_closeTxnSuksesSheet()" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;text-align:left;background:#f9fafb;color:#374151">' +
           '<div style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(55,65,81,.08)">' + window._ico('x', 18) + '</div>' +
@@ -40052,14 +40446,6 @@ function renderPembiayaanNasabah(filterStatus) {
             </div>
           </div>
 
-          <!-- Nasabah keluarga info -->
-          ${a.keluarga && a.keluarga.length ? `
-          <div style="padding:10px 14px 4px;font-size:10px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.4px">Nasabah Keluarga</div>
-          <div style="padding:0 14px 8px;display:flex;flex-wrap:wrap;gap:6px">
-            ${a.keluarga.slice(0,4).map(k=>`<span style="font-size:11px;background:rgba(123,45,139,0.07);border:1px solid rgba(123,45,139,0.15);border-radius:8px;padding:3px 8px;color:#7b2d8b;font-weight:600">${k.nama} (${k.hubungan||k.role||'—'})</span>`).join('')}
-            ${a.keluarga.length>4?`<span style="font-size:11px;color:var(--text-soft);padding:3px 8px">+${a.keluarga.length-4} lainnya</span>`:''}
-          </div>` : ''}
-
           <!-- Daftar pembiayaan -->
           ${pmbs.length ? `
           <div style="padding:10px 14px 4px;font-size:10px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.4px">Riwayat Pembiayaan RC</div>
@@ -44888,7 +45274,9 @@ renderSimpananHTML = function() {
     const sukMasuk = txns.filter(t=>t.jenis==='sukarela').reduce((s,b)=>s+b.jumlah,0);
     const sukKeluar = tarikTxns.reduce((s,b)=>s+b.jumlah,0);
     const suk    = Math.max(0, sukMasuk - sukKeluar);
-    return {a, pokok, wajib, suk, total:pokok+wajib+suk, txns};
+    // Gabungkan transaksi setor + tarik supaya ringkasan baris & riwayat sinkron dengan saldo sebenarnya
+    const allTxns = [...txns, ...tarikTxns];
+    return {a, pokok, wajib, suk, total:pokok+wajib+suk, txns: allTxns};
   });
   const grand     = ns.reduce((s,x)=>s+x.total, 0);
   const totalTxn  = (_myId
