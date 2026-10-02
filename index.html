@@ -55619,6 +55619,44 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
      jenis & arus kas (masuk / keluar), dengan opsi Download PDF
      dan Upload ke Google Drive.
   ══════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════
+     KLASIFIKASI TUNGGAL TRANSAKSI ARSIP
+     Dipakai SEMUA tampilan Arsip (kartu bulanan, per anggota, PDF)
+     agar angka konsisten. Rumus TABUNGAN identik dengan totalSimpananKK():
+       Tabungan = simpanan + transfer-sukarela-masuk
+                  − tarik-sukarela − transfer-sukarela-keluar
+     (sebelumnya transfer-sukarela-* jatuh ke "Lain-lain" dan dihitung
+      sebagai KAS MASUK, sehingga Kas Masuk ≠ Tabungan)
+  ══════════════════════════════════════════════════════════════ */
+  window._arsipKlasifikasi = function(t) {
+    var tp = t.type, jenis, grup, kat;
+    if (tp === 'simpanan') {
+      jenis = {pokok:'Simpanan Pokok',wajib:'Simpanan Wajib',sukarela:'Simpanan Sukarela'}[t.jenis||''] || 'Simpanan';
+      grup = 'Simpanan'; kat = 'masuk';
+    } else if (tp === 'transfer-sukarela-masuk') {
+      jenis = 'Transfer Sukarela Masuk'; grup = 'Simpanan'; kat = 'masuk';
+    } else if (tp === 'tarik-sukarela' || tp === 'tarik') {
+      jenis = (t.kategori === 'biaya-admin') ? 'Potong Biaya Admin' : (tp === 'tarik' ? 'Penarikan' : 'Tarik Sukarela');
+      grup = 'Penarikan Simpanan'; kat = 'keluar';
+    } else if (tp === 'transfer-sukarela-keluar') {
+      jenis = 'Transfer Sukarela Keluar'; grup = 'Penarikan Simpanan'; kat = 'keluar';
+    } else if (tp === 'pinjaman') {
+      jenis = 'Pencairan Pinjaman'; grup = 'Pembiayaan / Pinjaman'; kat = 'keluar';
+    } else if (tp === 'pembiayaan') {
+      jenis = 'Pencairan Pembiayaan RC'; grup = 'Pembiayaan / Pinjaman'; kat = 'keluar';
+    } else if (tp === 'cicilan') {
+      jenis = 'Bayar Cicilan'; grup = 'Pembayaran Cicilan'; kat = 'masuk';
+    } else if (tp === 'angsuran') {
+      jenis = 'Angsuran RC'; grup = 'Pembayaran Angsuran RC'; kat = 'masuk';
+    } else if (tp === 'angsuran-rc') {
+      jenis = 'Angsuran Renco Capital'; grup = 'Pembayaran Angsuran RC'; kat = 'masuk';
+    } else {
+      jenis = t.keterangan || tp || 'Transaksi'; grup = 'Lain-lain'; kat = 'masuk';
+    }
+    return { jenis: jenis, jenisGrup: grup, kategori: kat,
+             tabungan: (grup === 'Simpanan' || grup === 'Penarikan Simpanan') };
+  };
+
   window.renderLaporanArsipHTML = function() {
     var months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
     var monthsShort = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
@@ -55688,43 +55726,12 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       // 1. Transaksi simpanan (pokok/wajib/sukarela)
       allTx.filter(function(t){ return _inBulan(t.tanggal, y, m) && t.statusTxn!=='pending' && t.statusTxn!=='gagal'; })
         .forEach(function(t){
-          // Sudut pandang KOPERASI:
-          // masuk  = simpanan, cicilan, angsuran (uang masuk ke koperasi)
-          // keluar = pencairan pinjaman, penarikan (uang keluar dari koperasi)
-          var isKeluar = (t.type==='tarik-sukarela' || t.type==='tarik'
-                       || t.type==='pinjaman'      || t.type==='pembiayaan');
-          var jenisLabel = {
-            'simpanan'      : 'Simpanan',
-            'tarik-sukarela': 'Tarik Sukarela',
-            'tarik'         : 'Penarikan',
-            'pinjaman'      : 'Pencairan Pinjaman',
-            'pembiayaan'    : 'Pencairan Pembiayaan RC',
-            'cicilan'       : 'Bayar Cicilan',
-            'angsuran'      : 'Angsuran RC',
-            'angsuran-rc'   : 'Angsuran Renco Capital',
-          }[t.type] || (t.keterangan||t.type||'Transaksi');
-          var subJenis = '';
-          if (t.type==='simpanan') {
-            subJenis = {pokok:'Simpanan Pokok',wajib:'Simpanan Wajib',sukarela:'Simpanan Sukarela'}[t.jenis||''] || 'Simpanan';
-            jenisLabel = subJenis;
-          }
-          var kategori = isKeluar ? 'keluar' : 'masuk';
-          var grup = isKeluar ? 'Arus Kas Keluar' : 'Arus Kas Masuk';
-          var jenisGrup = {
-            'simpanan':'Simpanan',
-            'tarik-sukarela':'Penarikan Simpanan',
-            'tarik':'Penarikan Simpanan',
-            'pinjaman':'Pembiayaan / Pinjaman',
-            'pembiayaan':'Pembiayaan / Pinjaman',
-            'cicilan':'Pembayaran Cicilan',
-            'angsuran':'Pembayaran Angsuran RC',
-            'angsuran-rc':'Pembayaran Angsuran RC',
-          }[t.type]||'Lain-lain';
+          var k = window._arsipKlasifikasi(t);
           rows.push({
             id: t.id, tanggal: t.tanggal, nama: _getNama(t.kkId), kkId: t.kkId,
-            jenis: jenisLabel, jenisGrup: jenisGrup,
-            kategori: kategori, grup: grup,
-            jumlah: t.jumlah||0, ket: t.keterangan||jenisLabel
+            jenis: k.jenis, jenisGrup: k.jenisGrup,
+            kategori: k.kategori, grup: k.kategori==='keluar' ? 'Arus Kas Keluar' : 'Arus Kas Masuk',
+            jumlah: t.jumlah||0, ket: t.keterangan||k.jenis
           });
         });
 
@@ -55798,6 +55805,26 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       return rows;
     }
 
+    /* ── Saldo TABUNGAN (rumus sama dgn totalSimpananKK) ──
+       idx = y*12+m → saldo s/d AKHIR bulan itu; null → semua transaksi.
+       kkId null → seluruh anggota. */
+    function _saldoTabungan(kkId, idx) {
+      var s = 0;
+      allTx.forEach(function(t){
+        if (kkId && t.kkId !== kkId) return;
+        if (t.statusTxn==='pending' || t.statusTxn==='gagal') return;
+        var k = window._arsipKlasifikasi(t);
+        if (!k.tabungan) return;
+        if (idx !== null) {
+          var d = new Date(t.tanggal); if (isNaN(d)) return;
+          if (d.getFullYear()*12 + d.getMonth() > idx) return;
+        }
+        s += (k.kategori==='masuk' ? 1 : -1) * (t.jumlah||0);
+      });
+      return s;
+    }
+    function _idxAkhirTahun(thn){ return thn==='semua' ? null : (parseInt(thn)*12 + 11); }
+
     /* ── Ringkasan angka per bulan ── */
     function _ringkasanBulan(y, m) {
       var rows = _getAllTxBulan(y, m);
@@ -55813,7 +55840,12 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       var nasabahBaru  = allNsb.filter(function(n){
         var d=new Date(n.createdAt||n.tanggal||''); return d.getFullYear()===y&&d.getMonth()===m;
       }).length;
-      return { totalMasuk, totalKeluar, selisih: totalMasuk-totalKeluar, nasabahAktif, nasabahBaru, byJenisGrup, rows };
+      var tabMasuk  = (byJenisGrup['Simpanan']&&byJenisGrup['Simpanan'].masuk)||0;
+      var tabKeluar = (byJenisGrup['Penarikan Simpanan']&&byJenisGrup['Penarikan Simpanan'].keluar)||0;
+      var idx = y*12+m;
+      return { totalMasuk, totalKeluar, selisih: totalMasuk-totalKeluar, nasabahAktif, nasabahBaru, byJenisGrup, rows,
+               tabMasuk: tabMasuk, tabKeluar: tabKeluar,
+               saldoAwal: _saldoTabungan(null, idx-1), saldoAkhir: _saldoTabungan(null, idx) };
     }
 
     /* ══════════════════════════════════
@@ -55891,53 +55923,31 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       var cicMasuk  = ((bg['Pembayaran Cicilan']&&bg['Pembayaran Cicilan'].masuk)||0) +
                       ((bg['Pembayaran Angsuran RC']&&bg['Pembayaran Angsuran RC'].masuk)||0);
       var pinKeluar = (bg['Pembiayaan / Pinjaman']&&bg['Pembiayaan / Pinjaman'].keluar)||0;
+      var lainMasuk = (bg['Lain-lain']&&bg['Lain-lain'].masuk)||0;
 
       return `
-      <div id="${cardId}" style="background:white;border-radius:16px;margin:0 0 12px;box-shadow:0 2px 12px rgba(0,0,0,0.08);overflow:hidden;border:${isBulanIni?'2px solid #2d6a4f':'1px solid rgba(0,0,0,0.07)'}">
+      <div id="${cardId}" style="background:white;border-radius:16px;margin:0 0 12px;box-shadow:0 2px 12px rgba(0,0,0,0.08);overflow:hidden;border:${isBulanIni?'2px solid #059669':'1px solid rgba(0,0,0,0.07)'}">
         <!-- Header Kartu -->
-        <div style="background:linear-gradient(135deg,#1a472a,#2d6a4f);padding:12px 14px">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="background:linear-gradient(135deg,#065f46,#059669);padding:13px 14px 12px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div>
-              ${isBulanIni?'<div style="font-size:9px;color:#fbbf24;font-weight:700;letter-spacing:.8px;margin-bottom:2px">● BULAN BERJALAN</div>':''}
-              <div style="font-size:16px;font-weight:800;color:white;letter-spacing:.3px">${label}</div>
-              <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px">${r.rows.length} transaksi · ${r.nasabahAktif} anggota aktif${r.nasabahBaru>0?' · '+r.nasabahBaru+' anggota baru':''}</div>
+              ${isBulanIni?'<div style="font-size:9px;color:#fde68a;font-weight:800;letter-spacing:.8px;margin-bottom:2px">● BULAN BERJALAN</div>':''}
+              <div style="font-size:17px;font-weight:900;color:white">${label}</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.75);margin-top:2px">${r.rows.length} transaksi · ${r.nasabahAktif} anggota aktif${r.nasabahBaru>0?' · '+r.nasabahBaru+' anggota baru':''}</div>
             </div>
-            <div style="text-align:right">
-              <div style="font-size:8px;color:rgba(255,255,255,0.45);margin-bottom:2px">SELISIH (MASUK − KELUAR)</div>
-              <div style="font-size:15px;font-weight:900;color:${selisihPos?'#a8e6cf':'#fca5a5'}">${selisihPos?'▲':'▼'} ${_fmtRp(Math.abs(r.selisih))}</div>
-            </div>
-          </div>
-          <!-- 4 kotak ringkasan -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-            <div style="background:rgba(255,255,255,0.1);border-radius:9px;padding:8px 10px">
-              <div style="font-size:8px;color:rgba(255,255,255,0.5);font-weight:700;margin-bottom:3px">📥 KAS MASUK TOTAL</div>
-              <div style="font-size:13px;font-weight:800;color:#a8e6cf">${_fmtRp(r.totalMasuk)}</div>
-            </div>
-            <div style="background:rgba(255,255,255,0.1);border-radius:9px;padding:8px 10px">
-              <div style="font-size:8px;color:rgba(255,255,255,0.5);font-weight:700;margin-bottom:3px">📤 KAS KELUAR TOTAL</div>
-              <div style="font-size:13px;font-weight:800;color:#fca5a5">${_fmtRp(r.totalKeluar)}</div>
+            <div style="text-align:right;background:rgba(255,255,255,0.16);border-radius:12px;padding:6px 10px">
+              <div style="font-size:8px;color:rgba(255,255,255,0.8);font-weight:700">SELISIH KAS (MASUK − KELUAR)</div>
+              <div style="font-size:14px;font-weight:900;color:white">${selisihPos?'▲ +':'▼ −'}${_fmtRp(Math.abs(r.selisih))}</div>
             </div>
           </div>
         </div>
 
-        <!-- Sub-ringkasan jenis -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border-bottom:1px solid rgba(0,0,0,0.06)">
-          <div style="padding:8px 8px;text-align:center;border-right:1px solid rgba(0,0,0,0.06)">
-            <div style="font-size:8px;color:#2d6a4f;font-weight:700;margin-bottom:2px">▲ Simpanan</div>
-            <div style="font-size:11px;font-weight:800;color:#1a472a">${_fmtRp(simpMasuk)}</div>
-          </div>
-          <div style="padding:8px 8px;text-align:center;border-right:1px solid rgba(0,0,0,0.06)">
-            <div style="font-size:8px;color:#2563eb;font-weight:700;margin-bottom:2px">▲ Cicilan</div>
-            <div style="font-size:11px;font-weight:800;color:#1e40af">${_fmtRp(cicMasuk)}</div>
-          </div>
-          <div style="padding:8px 8px;text-align:center;border-right:1px solid rgba(0,0,0,0.06)">
-            <div style="font-size:8px;color:#b07a00;font-weight:700;margin-bottom:2px">▼ Penarikan</div>
-            <div style="font-size:11px;font-weight:800;color:#8a6000">${_fmtRp(tarikKel)}</div>
-          </div>
-          <div style="padding:8px 8px;text-align:center">
-            <div style="font-size:8px;color:#e63946;font-weight:700;margin-bottom:2px">▼ Pinjaman</div>
-            <div style="font-size:11px;font-weight:800;color:#c1121f">${_fmtRp(pinKeluar)}</div>
-          </div>
+        <!-- Arus kas lain (di luar simpanan) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:1px solid rgba(0,0,0,0.06);background:#fafafa">
+          <div style="padding:7px 4px;text-align:center;border-right:1px solid rgba(0,0,0,0.05)"><div style="font-size:8px;color:#2563eb;font-weight:700">▲ Cicilan</div><div style="font-size:10px;font-weight:800;color:#1e40af">${_fmtRp(cicMasuk)}</div></div>
+          <div style="padding:7px 4px;text-align:center;border-right:1px solid rgba(0,0,0,0.05)"><div style="font-size:8px;color:#e63946;font-weight:700">▼ Pencairan</div><div style="font-size:10px;font-weight:800;color:#c1121f">${_fmtRp(pinKeluar)}</div></div>
+          <div style="padding:7px 4px;text-align:center;border-right:1px solid rgba(0,0,0,0.05)"><div style="font-size:8px;color:#6b7280;font-weight:700">▲ Lainnya</div><div style="font-size:10px;font-weight:800;color:#374151">${_fmtRp(lainMasuk)}</div></div>
+          <div style="padding:7px 4px;text-align:center"><div style="font-size:8px;color:#6b7280;font-weight:700">Kas Masuk/Keluar</div><div style="font-size:9px;font-weight:800;color:#374151">${_fmtRp(r.totalMasuk)} / ${_fmtRp(r.totalKeluar)}</div></div>
         </div>
 
         <!-- Toggle detail transaksi -->
@@ -55976,6 +55986,15 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       var allRows = [];
       bulanFiltered.forEach(function(b){ allRows = allRows.concat(_getAllTxBulan(b.y, b.m)); });
 
+      // Angka TABUNGAN per anggota dihitung SEBELUM filter arus kas (agar tidak ikut tersaring)
+      var tabByAnggota = {};
+      allRows.forEach(function(r){
+        if (r.jenisGrup!=='Simpanan' && r.jenisGrup!=='Penarikan Simpanan') return;
+        if (!tabByAnggota[r.kkId]) tabByAnggota[r.kkId] = {masuk:0, keluar:0};
+        tabByAnggota[r.kkId][r.kategori] += r.jumlah;
+      });
+      var idxAkhirPeriode = _idxAkhirTahun(filterTahun);
+
       // Filter jenis arus kas
       if (filterJenis!=='semua') allRows = allRows.filter(function(r){return r.kategori===filterJenis;});
 
@@ -56000,7 +56019,8 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
 
       return nasabahIds.map(function(kkId){
         var data  = byAnggota[kkId];
-        var selisi= data.masuk - data.keluar;
+        var tabA  = tabByAnggota[kkId] || {masuk:0, keluar:0};
+        var saldoTab = _saldoTabungan(kkId, idxAkhirPeriode);
 
         // Data email nasabah — dipakai oleh tombol "Kirim PDF" (Web Share) dan
         // "Kirim PDF ke Semua (berurutan)" untuk memastikan dokumen dikirim ke
@@ -56058,15 +56078,11 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
         var inisial = (data.nama||'?')[0].toUpperCase();
         return `
         <div style="background:white;border-radius:16px;margin:0 0 12px;box-shadow:0 2px 10px rgba(0,0,0,0.07);overflow:hidden;border:1px solid rgba(0,0,0,0.07)">
-          <div style="background:linear-gradient(135deg,#0d2b1a,#1a472a);padding:12px 14px;display:flex;align-items:center;gap:12px">
+          <div style="background:linear-gradient(135deg,#065f46,#059669);padding:12px 14px;display:flex;align-items:center;gap:12px">
             <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#f4a922,#ffd166);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#1a472a;flex-shrink:0">${inisial}</div>
             <div style="flex:1">
               <div style="font-size:16px;font-weight:800;color:white">${data.nama}</div>
               <div style="font-size:10px;color:rgba(255,255,255,0.5)">${data.rows.length} transaksi · ${filterTahun==='semua'?'Semua Tahun':filterTahun}</div>
-            </div>
-            <div style="text-align:right">
-              <div style="font-size:8px;color:rgba(255,255,255,0.4);margin-bottom:2px">SALDO PERIODE</div>
-              <div style="font-size:15px;font-weight:900;color:${selisi>=0?'#a8e6cf':'#fca5a5'}">${selisi>=0?'+':'-'}${_fmtRp(Math.abs(selisi))}</div>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid rgba(0,0,0,0.06)">
@@ -56077,6 +56093,16 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
             <div style="padding:8px 14px">
               <div style="font-size:8px;color:#e63946;font-weight:700">⬆️ Total Keluar</div>
               <div style="font-size:13px;font-weight:800;color:#b91c1c">${_fmtRp(data.keluar)}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid rgba(0,0,0,0.06);background:#f0fdf4">
+            <div style="padding:7px 14px;border-right:1px solid rgba(0,0,0,0.06)">
+              <div style="font-size:8px;color:#2d6a4f;font-weight:700">💰 Setoran Periode</div>
+              <div style="font-size:12px;font-weight:800;color:#155d38">${_fmtRp(tabA.masuk)}</div>
+            </div>
+            <div style="padding:7px 14px">
+              <div style="font-size:8px;color:#b07a00;font-weight:700">📤 Penarikan Periode</div>
+              <div style="font-size:12px;font-weight:800;color:#8a6000">${_fmtRp(tabA.keluar)}</div>
             </div>
           </div>
           <div style="padding:10px 10px 4px">
@@ -56107,17 +56133,20 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     /* ══════════════════════════════════
        GRAND TOTAL
     ══════════════════════════════════ */
-    var grandMasuk = 0, grandKeluar = 0, grandTx = 0;
+    var grandMasuk = 0, grandKeluar = 0, grandTx = 0, grandTabMasuk = 0, grandTabKeluar = 0;
     bulanFiltered.forEach(function(b){
       var r = _ringkasanBulan(b.y, b.m);
       grandMasuk  += r.totalMasuk;
       grandKeluar += r.totalKeluar;
       grandTx     += r.rows.length;
+      grandTabMasuk  += r.tabMasuk;
+      grandTabKeluar += r.tabKeluar;
     });
+    var grandSaldoTab = _saldoTabungan(null, _idxAkhirTahun(filterTahun));
 
     /* ── Filter pills ── */
     function _pill(label, active, onclick){
-      return `<button onclick="${onclick}" style="padding:5px 13px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;background:${active?'#2d6a4f':'rgba(45,106,79,0.1)'};color:${active?'white':'#2d6a4f'};transition:all .2s">${label}</button>`;
+      return `<button onclick="${onclick}" style="padding:5px 13px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;background:${active?'#059669':'#ecfdf5'};color:${active?'white':'#047857'};box-shadow:${active?'0 2px 8px rgba(5,150,105,0.35)':'none'};transition:all .2s">${label}</button>`;
     }
 
     var filterTahunHTML = ['semua',...tahunList.map(String)].map(function(t){
@@ -56197,24 +56226,29 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
 
     return `
     <!-- ══ HEADER ARSIP ══ -->
-    <div style="background:linear-gradient(135deg,#0d2b1a 0%,#1a472a 50%,#2d6a4f 100%);padding:18px 14px 16px;margin:10px 14px;border-radius:18px;color:white;position:relative;overflow:hidden">
-      <div style="position:absolute;right:-20px;top:-20px;font-size:110px;opacity:0.04;line-height:1">🗄️</div>
-      <div style="font-size:9px;color:rgba(255,255,255,0.4);font-weight:700;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:3px">Arsip Transaksi Lengkap</div>
-      <div style="font-size:18px;font-weight:800;color:white;margin-bottom:2px">Koperasi RENCO</div>
-      <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-bottom:14px">Otomatis merekam semua transaksi per anggota</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-        <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:9px 8px;text-align:center">
-          <div style="font-size:8px;color:rgba(255,255,255,0.4);font-weight:700;margin-bottom:3px">KAS MASUK</div>
-          <div style="font-size:12px;font-weight:800;color:#a8e6cf">${_fmtRp(grandMasuk)}</div>
+    <div style="background:linear-gradient(145deg,#064e3b 0%,#047857 55%,#10b981 100%);padding:18px 16px 16px;margin:10px 14px;border-radius:22px;color:white;position:relative;overflow:hidden;box-shadow:0 8px 24px rgba(4,120,87,0.35)">
+      <div style="position:absolute;right:-24px;top:-24px;font-size:130px;opacity:0.08;line-height:1">🗄️</div>
+      <div style="font-size:9px;color:rgba(255,255,255,0.7);font-weight:700;text-transform:uppercase;letter-spacing:1.2px">Arsip Transaksi · Koperasi RENCO</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.85);font-weight:700;margin-top:12px">💰 JUMLAH SALDO SIMPANAN</div>
+      <div style="font-size:28px;font-weight:900;letter-spacing:-.5px;margin:2px 0 4px;text-shadow:0 2px 8px rgba(0,0,0,0.15)">${_fmtRp(grandSaldoTab)}</div>
+      <div style="display:inline-block;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:99px;padding:3px 10px;font-size:9.5px;font-weight:800">✅ SALDO BERSIH</div>
+      <div style="font-size:9.5px;color:rgba(255,255,255,0.8);margin-top:6px;line-height:1.45">Saldo bersih = total setoran simpanan − penarikan (termasuk transfer sukarela). Angka ini sama dengan Total Simpanan di aplikasi.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:14px">
+        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:9px 6px;text-align:center">
+          <div style="font-size:8px;color:rgba(255,255,255,0.75);font-weight:700;margin-bottom:3px">⬇️ SETORAN</div>
+          <div style="font-size:11.5px;font-weight:800">${_fmtRp(grandTabMasuk)}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:9px 8px;text-align:center">
-          <div style="font-size:8px;color:rgba(255,255,255,0.4);font-weight:700;margin-bottom:3px">KAS KELUAR</div>
-          <div style="font-size:12px;font-weight:800;color:#fca5a5">${_fmtRp(grandKeluar)}</div>
+        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:9px 6px;text-align:center">
+          <div style="font-size:8px;color:rgba(255,255,255,0.75);font-weight:700;margin-bottom:3px">⬆️ PENARIKAN</div>
+          <div style="font-size:11.5px;font-weight:800">${_fmtRp(grandTabKeluar)}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:9px 8px;text-align:center">
-          <div style="font-size:8px;color:rgba(255,255,255,0.4);font-weight:700;margin-bottom:3px">TRANSAKSI</div>
-          <div style="font-size:12px;font-weight:800;color:#fde68a">${grandTx}</div>
+        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:9px 6px;text-align:center">
+          <div style="font-size:8px;color:rgba(255,255,255,0.75);font-weight:700;margin-bottom:3px">🧾 TRANSAKSI</div>
+          <div style="font-size:11.5px;font-weight:800">${grandTx}</div>
         </div>
+      </div>
+      <div style="margin-top:10px;background:rgba(0,0,0,0.18);border-radius:12px;padding:8px 10px;display:flex;justify-content:space-between;font-size:9.5px;font-weight:700">
+        <span>📥 Kas Masuk (semua): ${_fmtRp(grandMasuk)}</span><span>📤 Kas Keluar: ${_fmtRp(grandKeluar)}</span>
       </div>
     </div>
 
@@ -56332,12 +56366,8 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
 
     var rows = [];
     allTx2.filter(function(t){return _inB(t.tanggal) && t.statusTxn!=='pending' && t.statusTxn!=='gagal';}).forEach(function(t){
-      var isKeluar = (t.type==='tarik-sukarela'||t.type==='tarik'
-                  ||t.type==='pinjaman'||t.type==='pembiayaan');
-      var jenisLabel={simpanan:'Simpanan','tarik-sukarela':'Tarik Sukarela',tarik:'Penarikan',pinjaman:'Pencairan Pinjaman',pembiayaan:'Pencairan Pembiayaan RC',cicilan:'Bayar Cicilan',angsuran:'Angsuran RC','angsuran-rc':'Angsuran Renco Capital'}[t.type]||(t.keterangan||t.type||'Transaksi');
-      if(t.type==='simpanan'){jenisLabel={pokok:'Simpanan Pokok',wajib:'Simpanan Wajib',sukarela:'Simpanan Sukarela'}[t.jenis||'']||'Simpanan';}
-      var jenisGrup={simpanan:'Simpanan','tarik-sukarela':'Penarikan Simpanan',tarik:'Penarikan Simpanan',pinjaman:'Pembiayaan / Pinjaman',pembiayaan:'Pembiayaan / Pinjaman',cicilan:'Pembayaran Cicilan',angsuran:'Pembayaran Angsuran RC','angsuran-rc':'Pembayaran Angsuran RC'}[t.type]||'Lain-lain';
-      rows.push({id:t.id,tanggal:t.tanggal,nama:_getNama2(t.kkId),kkId:t.kkId,jenis:jenisLabel,jenisGrup:jenisGrup,kategori:isKeluar?'keluar':'masuk',jumlah:t.jumlah||0,ket:t.keterangan||jenisLabel});
+      var k = window._arsipKlasifikasi(t);
+      rows.push({id:t.id,tanggal:t.tanggal,nama:_getNama2(t.kkId),kkId:t.kkId,jenis:k.jenis,jenisGrup:k.jenisGrup,kategori:k.kategori,jumlah:t.jumlah||0,ket:t.keterangan||k.jenis});
     });
     allPin2.forEach(function(p){
       (p.cicilan||[]).filter(function(c){return _inB(c.tanggal||c.tglBayar);}).forEach(function(c){
@@ -56371,160 +56401,420 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
      satu warna aksen (hijau tua), tipografi konsisten, garis tipis
      sebagai pemisah (bukan blok warna penuh), angka rata kanan seperti
      dokumen pembukuan/ledger formal. */
-  function _pdfArsipHeader(doc, pageW, margin, judul, subJudul) {
-    var y = 15;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12.5);
-    doc.setTextColor(26, 71, 42);
-    doc.text('KOPERASI RENCO', margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(130, 130, 130);
-    doc.text(String(judul).toUpperCase(), pageW - margin, y, { align: 'right' });
-    y += 4.5;
-    doc.setDrawColor(26, 71, 42);
-    doc.setLineWidth(0.7);
-    doc.line(margin, y, pageW - margin, y);
-    y += 5.5;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.3);
-    doc.setTextColor(100, 100, 100);
-    doc.text(subJudul, margin, y);
-    return y + 8;
+  /* ═══════════════════════════════════════════════════════════════════
+     DESAIN ARSIP v2 — "Kop Desa"
+     Kop bernuansa pedesaan Lombok: Gunung Rinjani, sawah terasering,
+     pohon kelapa, dan lumbung Sasak (semua digambar vektor di jsPDF,
+     tanpa gambar eksternal). Dilengkapi kartu ringkasan berikon, tabel
+     berlencana Masuk/Keluar, bar TOTAL, dan footer bukit desa.
+     Hanya memengaruhi PDF Arsip / Riwayat Transaksi Lengkap.
+     Ruang kanan-bawah sengaja dikosongkan untuk stempel "Dokumen Asli"
+     yang ditempel otomatis oleh hook jsPDF.save().
+     ═══════════════════════════════════════════════════════════════════ */
+  var _arsipCtx = { judul: '' };
+
+  function _arsipOp(doc, v) {
+    try { doc.setGState(new doc.GState({ opacity: v })); } catch (e) {}
   }
 
-  function _pdfArsipLabel(doc, y, margin, title) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
-    doc.text(String(title).toUpperCase(), margin, y);
-    return y + 5;
+  function _arsipGrad(doc, x, y, w, h, c1, c2) {
+    var n = 48, sw = w / n;
+    for (var i = 0; i < n; i++) {
+      var t = i / (n - 1);
+      doc.setFillColor(Math.round(c1[0] + (c2[0] - c1[0]) * t), Math.round(c1[1] + (c2[1] - c1[1]) * t), Math.round(c1[2] + (c2[2] - c1[2]) * t));
+      doc.rect(x + i * sw, y, sw + 0.35, h, 'F');
+    }
   }
 
-  // Ringkasan: satu baris ramping, label kecil di atas nilai, dipisah garis vertikal tipis
-  function _pdfArsipRingkasan(doc, y, margin, usableW, items) {
-    var n = items.length, colW = usableW / n;
-    doc.setDrawColor(225, 225, 225);
-    doc.setLineWidth(0.2);
-    doc.line(margin, y, margin + usableW, y);
-    items.forEach(function (it, i) {
-      var x = margin + i * colW;
-      var padL = i === 0 ? 0 : 5;
-      if (i > 0) doc.line(x, y + 2, x, y + 15);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.6);
-      doc.setTextColor(140, 140, 140);
-      doc.text(String(it.label).toUpperCase(), x + padL, y + 6.5);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      var c = it.color || [40, 40, 40];
-      doc.setTextColor(c[0], c[1], c[2]);
-      doc.text(String(it.value), x + padL, y + 13.5, { maxWidth: colW - padL - 2 });
+  // Path absolut: segmen [x,y] = garis, [x1,y1,x2,y2,x3,y3] = kurva bezier
+  function _arsipPath(doc, start, segs, style, closed) {
+    var rel = [], cx = start[0], cy = start[1];
+    segs.forEach(function (s) {
+      if (s.length === 2) { rel.push([s[0] - cx, s[1] - cy]); cx = s[0]; cy = s[1]; }
+      else { rel.push([s[0] - cx, s[1] - cy, s[2] - cx, s[3] - cy, s[4] - cx, s[5] - cy]); cx = s[4]; cy = s[5]; }
     });
-    doc.line(margin, y + 17, margin + usableW, y + 17);
-    return y + 23;
+    doc.lines(rel, start[0], start[1], [1, 1], style || 'F', !!closed);
   }
 
-  // Tabel ledger minimalis: header teks + garis bawah tegas, baris dipisah garis tipis,
-  // tanpa blok warna (zebra) — angka rata kanan, grup sebagai label kecil bergaris atas.
+  function _arsipTitle(s) {
+    return String(s || '').toLowerCase().replace(/(^|\s)(\S)/g, function (m, a, b) { return a + b.toUpperCase(); });
+  }
+
+  function _arsipPalm(doc, x, base, h, lean, L) {
+    var cx = x + lean, cy = base - h;
+    doc.setDrawColor(104, 72, 40); doc.setLineWidth(0.9);
+    _arsipPath(doc, [x, base], [[x + lean * 0.1, base - h * 0.4, x + lean * 0.8, base - h * 0.75, cx, cy]], 'S', false);
+    doc.setFillColor(28, 110, 54);
+    [-170, -140, -110, -72, -40, -10, 158, 22].forEach(function (deg, i) {
+      var a = deg * Math.PI / 180, len = (i > 5 ? L * 0.78 : L);
+      var tx = cx + len * Math.cos(a), ty = cy + len * Math.sin(a) + len * 0.32;
+      var nx = -Math.sin(a) * 0.95, ny = Math.cos(a) * 0.95;
+      doc.triangle(cx + nx, cy + ny, cx - nx, cy - ny, tx, ty, 'F');
+    });
+    doc.setFillColor(110, 76, 40);
+    doc.circle(cx - 0.7, cy + 1.1, 0.65, 'F'); doc.circle(cx + 0.7, cy + 1.2, 0.65, 'F');
+  }
+
+  // Lumbung Sasak: atap alang-alang melengkung di atas tiang
+  function _arsipLumbung(doc, cx, base, s) {
+    doc.setFillColor(92, 64, 38);
+    [-4.2, -1.6, 1.0, 3.6].forEach(function (dx) { doc.rect(cx + dx * s, base - 3.2 * s, 0.7 * s, 3.4 * s, 'F'); });
+    doc.setFillColor(150, 108, 62);
+    doc.rect(cx - 5 * s, base - 9 * s, 10 * s, 6 * s, 'F');
+    doc.setFillColor(120, 84, 48);
+    doc.rect(cx - 1 * s, base - 8 * s, 2 * s, 4 * s, 'F');
+    doc.setFillColor(222, 178, 78);
+    _arsipPath(doc, [cx - 7.8 * s, base - 8.6 * s], [[cx - 6.2 * s, base - 13 * s, cx - 3 * s, base - 17 * s, cx, base - 17.8 * s], [cx + 3 * s, base - 17 * s, cx + 6.2 * s, base - 13 * s, cx + 7.8 * s, base - 8.6 * s]], 'F', true);
+    doc.setDrawColor(176, 130, 52); doc.setLineWidth(0.18);
+    [-3.4, -1.1, 1.2, 3.5].forEach(function (dx) { doc.line(cx + dx * s, base - 16 * s, cx + dx * 1.7 * s, base - 9.4 * s); });
+  }
+
+  // Logo halaman login (assets/logo-renco-capital.png) dimuat sekali di awal,
+  // lalu dipakai sinkron saat PDF dibuat. Jika belum/ gagal dimuat -> logo vektor cadangan.
+  var _arsipLogoImg = null;
+  var ARSIP_LOGO_SRC = (function () {
+    try {
+      var el = document.querySelector('#loginScreen .login-logo img');
+      if (el && el.getAttribute('src')) return el.getAttribute('src');
+    } catch (e) {}
+    return 'assets/logo-renco-capital.png';
+  })();
+  function _arsipMuatLogo() {
+    try {
+      var im = new Image();
+      im.onload = function () {
+        try {
+          var c = document.createElement('canvas');
+          c.width = im.naturalWidth; c.height = im.naturalHeight;
+          c.getContext('2d').drawImage(im, 0, 0);
+          _arsipLogoImg = { data: c.toDataURL('image/png'), w: im.naturalWidth, h: im.naturalHeight };
+        } catch (e) { console.warn('[RENCO] Logo arsip gagal dikonversi:', e); }
+      };
+      im.onerror = function () { console.warn('[RENCO] Logo arsip tidak ditemukan:', ARSIP_LOGO_SRC); };
+      im.src = ARSIP_LOGO_SRC;
+    } catch (e) {}
+  }
+  _arsipMuatLogo();
+
+  // Logo huruf R (emas + daun hijau) — cadangan bila logo login belum termuat
+  function _arsipLogo(doc, x0, y0) {
+    doc.setFillColor(244, 190, 40);
+    doc.roundedRect(x0 + 1.2, y0 + 0.5, 4.4, 15, 1, 1, 'F');
+    doc.setDrawColor(244, 190, 40); doc.setLineWidth(3.1);
+    _arsipPath(doc, [x0 + 3.2, y0 + 2.4], [[x0 + 9.4, y0 + 2.4], [x0 + 12.6, y0 + 2.4, x0 + 13.4, y0 + 4.6, x0 + 13.4, y0 + 6.1], [x0 + 13.4, y0 + 7.8, x0 + 12.4, y0 + 9.8, x0 + 9.4, y0 + 9.8], [x0 + 3.2, y0 + 9.8]], 'S', false);
+    doc.setFillColor(132, 204, 22);
+    _arsipPath(doc, [x0 + 6.6, y0 + 10.6], [[x0 + 11.2, y0 + 10.6], [x0 + 15.8, y0 + 16], [x0 + 10.6, y0 + 16]], 'F', true);
+  }
+
+  // Ikon kecil putih di dalam kotak berwarna (x,y = pojok kiri-atas kotak 10x10)
+  function _arsipIcon(doc, type, x, y, c) {
+    doc.setFillColor(255, 255, 255); doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.4);
+    if (type === 'wallet') {
+      doc.roundedRect(x + 1.8, y + 3, 6.4, 4.8, 0.9, 0.9, 'F');
+      doc.setFillColor(c[0], c[1], c[2]); doc.circle(x + 6.6, y + 5.4, 0.75, 'F');
+    } else if (type === 'people') {
+      doc.circle(x + 5, y + 3.6, 1.3, 'F'); doc.circle(x + 2.7, y + 4.4, 1, 'F'); doc.circle(x + 7.3, y + 4.4, 1, 'F');
+      doc.roundedRect(x + 3, y + 5.6, 4, 2.6, 1, 1, 'F'); doc.roundedRect(x + 1.2, y + 6, 2.2, 2, 0.8, 0.8, 'F'); doc.roundedRect(x + 6.6, y + 6, 2.2, 2, 0.8, 0.8, 'F');
+    } else if (type === 'cash') {
+      doc.roundedRect(x + 1.6, y + 3, 6.8, 4.2, 0.7, 0.7, 'F');
+      doc.setFillColor(c[0], c[1], c[2]); doc.circle(x + 5, y + 5.1, 1.1, 'F');
+    } else {
+      doc.roundedRect(x + 2.8, y + 1.8, 4.4, 6.4, 0.7, 0.7, 'F');
+      doc.setDrawColor(c[0], c[1], c[2]); doc.setLineWidth(0.3);
+      doc.line(x + 3.7, y + 4, x + 6.3, y + 4); doc.line(x + 3.7, y + 5.4, x + 6.3, y + 5.4); doc.line(x + 3.7, y + 6.8, x + 5.6, y + 6.8);
+    }
+  }
+
+  function _pdfArsipHeader(doc, pageW, margin, judul, subJudul) {
+    var H = 48;
+    _arsipGrad(doc, 0, 0, pageW, H, [5, 66, 50], [26, 112, 62]);
+
+    // Matahari pagi + Gunung Rinjani
+    doc.setFillColor(250, 204, 21);
+    _arsipOp(doc, 0.2); doc.circle(172, 15, 15, 'F');
+    _arsipOp(doc, 0.3); doc.circle(172, 15, 9.5, 'F');
+    doc.setFillColor(190, 235, 205); _arsipOp(doc, 0.22);
+    _arsipPath(doc, [92, 42], [[128, 28], [146, 19], [158, 14.5], [163, 12.5], [168, 14.5], [180, 20], [196, 29], [210, 35], [210, 48], [92, 48]], 'F', true);
+
+    // Bukit berlapis + sawah terasering
+    doc.setFillColor(82, 176, 92); _arsipOp(doc, 0.7);
+    _arsipPath(doc, [0, 34], [[40, 28, 80, 38, 120, 32], [150, 27, 185, 33, 210, 29], [210, 50], [0, 50]], 'F', true);
+    doc.setFillColor(150, 214, 112); _arsipOp(doc, 0.8);
+    _arsipPath(doc, [0, 39], [[30, 35, 70, 43, 110, 38], [150, 33, 180, 41, 210, 36], [210, 50], [0, 50]], 'F', true);
+    doc.setDrawColor(250, 225, 140); doc.setLineWidth(0.28); _arsipOp(doc, 0.85);
+    [2.2, 3.8].forEach(function (d) {
+      _arsipPath(doc, [0, 39 + d], [[30, 35 + d, 70, 43 + d, 110, 38 + d], [150, 33 + d, 180, 41 + d, 210, 36 + d]], 'S', false);
+    });
+    _arsipOp(doc, 1);
+
+    // Lumbung Sasak (di balik bukit depan)
+    _arsipLumbung(doc, 120.5, 45.5, 1.0);
+    _arsipLumbung(doc, 103, 45.5, 0.55);
+
+    // Bukit depan putih = tepi lengkung kop
+    doc.setFillColor(255, 255, 255);
+    _arsipPath(doc, [0, 44], [[40, 41, 80, 46.5, 125, 43.5], [160, 41, 190, 45.5, 210, 43], [210, 52], [0, 52]], 'F', true);
+    doc.setDrawColor(244, 169, 34); doc.setLineWidth(0.5);
+    _arsipPath(doc, [0, 44], [[40, 41, 80, 46.5, 125, 43.5], [160, 41, 190, 45.5, 210, 43]], 'S', false);
+
+    // Pohon kelapa di kiri & kanan
+    _arsipPalm(doc, 5, 47, 27, 3, 7.5);
+    _arsipPalm(doc, 206, 47, 25, -3, 7.5);
+
+    // Burung terbang
+    doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.35); _arsipOp(doc, 0.75);
+    [[140, 6], [147, 3.6], [154, 6.4]].forEach(function (b) {
+      _arsipPath(doc, [b[0] - 1.6, b[1]], [[b[0] - 0.8, b[1] - 1.1, b[0] - 0.2, b[1] - 0.9, b[0], b[1]], [b[0] + 0.2, b[1] - 0.9, b[0] + 0.8, b[1] - 1.1, b[0] + 1.6, b[1]]], 'S', false);
+    });
+    _arsipOp(doc, 1);
+
+    // Logo (sama dengan logo halaman login); cadangan: logo vektor + teks
+    var lg = _arsipLogoImg;
+    if (lg && lg.w && lg.h) {
+      var lw = 54, lh = lw * lg.h / lg.w;
+      if (lh > 20) { lh = 20; lw = lh * lg.w / lg.h; }
+      try { doc.addImage(lg.data, 'PNG', 18, 19.5 - lh / 2, lw, lh); lg = true; } catch (e) { lg = null; }
+    }
+    if (!lg) {
+      _arsipLogo(doc, 18, 9.5);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(23); doc.setTextColor(255, 255, 255);
+      doc.text('RENCO', 36, 21.5);
+      doc.setFontSize(7.2); doc.setTextColor(209, 250, 229);
+      doc.text('KOPERASI RENCO', 36.4, 27.2, { charSpace: 0.5 });
+    }
+    doc.setDrawColor(167, 243, 208); doc.setLineWidth(0.25); _arsipOp(doc, 0.6);
+    doc.line(76, 11, 76, 28); _arsipOp(doc, 1);
+
+    // Slogan
+    doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(11); doc.setTextColor(255, 255, 255);
+    doc.text('Bersama Membangun', 81, 16.5);
+    doc.text('Kesejahteraan', 85, 23);
+    doc.setDrawColor(244, 190, 40); doc.setLineWidth(0.6);
+    _arsipPath(doc, [84, 27], [[92, 25.6, 102, 25.6, 111, 26.6]], 'S', false);
+
+    // Kapsul info laporan
+    doc.setFillColor(4, 58, 40); _arsipOp(doc, 0.55);
+    doc.roundedRect(130, 9, 64, 22.5, 5, 5, 'F'); _arsipOp(doc, 1);
+    doc.setDrawColor(110, 214, 150); doc.setLineWidth(0.35);
+    doc.roundedRect(130, 9, 64, 22.5, 5, 5, 'S');
+    // ikon kalender besar
+    doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.4);
+    doc.roundedRect(135, 13.2, 6, 6, 1, 1, 'S'); doc.line(135, 15.2, 141, 15.2);
+    doc.setFillColor(255, 255, 255); doc.rect(138, 16.4, 0.7, 1.6, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.6); doc.setTextColor(209, 250, 229);
+    doc.text('Laporan Transaksi', 144, 14.4);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
+    doc.text(_arsipTitle(judul), 144, 19.6, { maxWidth: 48 });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.9); doc.setTextColor(224, 250, 235);
+    doc.setDrawColor(209, 250, 229); doc.setLineWidth(0.25);
+    doc.roundedRect(135, 22.4, 3.2, 3.2, 0.5, 0.5, 'S');
+    doc.text('Periode  : ' + _pdfTglPanjang(), 141, 25);
+    doc.setFillColor(209, 250, 229); doc.circle(136.6, 27.1, 0.75, 'F');
+    doc.roundedRect(135.3, 28, 2.6, 1.7, 0.8, 0.8, 'F');
+    doc.text(String(subJudul), 141, 29.1, { maxWidth: 50 });
+    return 55;
+  }
+
+  // Kop mini untuk halaman lanjutan
+  function _pdfArsipMiniHead(doc, pageW, margin) {
+    _arsipGrad(doc, 0, 0, pageW, 11, [5, 66, 50], [26, 112, 62]);
+    doc.setFillColor(255, 255, 255);
+    _arsipPath(doc, [0, 9], [[50, 7.2, 100, 10.6, 150, 8.4], [180, 7.2, 195, 9, 210, 8], [210, 12], [0, 12]], 'F', true);
+    doc.setDrawColor(244, 169, 34); doc.setLineWidth(0.35);
+    _arsipPath(doc, [0, 9], [[50, 7.2, 100, 10.6, 150, 8.4], [180, 7.2, 195, 9, 210, 8]], 'S', false);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(255, 255, 255);
+    doc.text('KOPERASI RENCO', margin, 6.2);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(209, 250, 229);
+    doc.text(_arsipTitle(_arsipCtx.judul), pageW - margin, 6.2, { align: 'right' });
+    return 18;
+  }
+
+  // Label bagian: pil hijau tua dengan ikon koin
+  function _pdfArsipLabel(doc, y, margin, title, usableW) {
+    var txt = String(title).toUpperCase();
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    var w = doc.getTextWidth(txt) + 24;
+    doc.setFillColor(6, 78, 59);
+    doc.roundedRect(margin, y, w, 8.4, 2.2, 2.2, 'F');
+    doc.setFillColor(22, 163, 74);
+    doc.roundedRect(margin + 0.8, y + 0.8, 8.4, 6.8, 1.8, 1.8, 'F');
+    doc.setFillColor(250, 204, 21);
+    doc.circle(margin + 5, y + 5.1, 1.7, 'F'); doc.circle(margin + 5, y + 3.4, 1.7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text(txt, margin + 12, y + 5.6);
+    doc.setFillColor(34, 197, 94);
+    doc.triangle(margin + w, y, margin + w + 3.2, y, margin + w, y + 8.4, 'F');
+    doc.setDrawColor(187, 230, 200); doc.setLineWidth(0.3);
+    if (usableW) doc.line(margin + w + 6, y + 4.2, margin + usableW, y + 4.2);
+    return y + 12.5;
+  }
+
+  // Ringkasan: panel lembut berisi kartu berikon (hijau = masuk/positif, merah muda = keluar)
+  function _pdfArsipRingkasan(doc, y, margin, usableW, items, perRow) {
+    var pad = 3, gap = 3, cols = perRow || 3, h = 18;
+    var w = (usableW - pad * 2 - gap * (cols - 1)) / cols;
+    var nRows = Math.ceil(items.length / cols);
+    var panelH = nRows * h + (nRows - 1) * gap + pad * 2;
+    doc.setFillColor(244, 252, 247); doc.setDrawColor(207, 232, 214); doc.setLineWidth(0.3);
+    doc.roundedRect(margin, y, usableW, panelH, 3, 3, 'FD');
+    items.forEach(function (it, i) {
+      var x = margin + pad + (i % cols) * (w + gap), yy = y + pad + Math.floor(i / cols) * (h + gap);
+      var c = it.color || [40, 40, 40], merah = c[0] > 100;
+      if (merah) { doc.setFillColor(254, 242, 242); doc.setDrawColor(252, 190, 190); }
+      else { doc.setFillColor(236, 253, 245); doc.setDrawColor(167, 243, 208); }
+      doc.setLineWidth(0.3); doc.roundedRect(x, yy, w, h, 2.6, 2.6, 'FD');
+      var ic = merah ? [200, 30, 45] : [22, 101, 52];
+      doc.setFillColor(ic[0], ic[1], ic[2]); doc.roundedRect(x + 3, yy + 4, 10, 10, 2.4, 2.4, 'F');
+      _arsipIcon(doc, it.icon, x + 3, yy + 4, ic);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(5.6); doc.setTextColor(70, 80, 74);
+      doc.text(String(it.label).toUpperCase(), x + 16, yy + 7.4, { maxWidth: w - 26 });
+      doc.setFontSize(10); doc.setTextColor(c[0], c[1], c[2]);
+      doc.text(String(it.value), x + 16, yy + 13.8, { maxWidth: w - 26 });
+      doc.setFillColor(c[0], c[1], c[2]);
+      var ax = x + w - 6;
+      if (merah) doc.triangle(ax - 2, yy + 7.6, ax + 2, yy + 7.6, ax, yy + 11.4, 'F');
+      else doc.triangle(ax - 2, yy + 11.4, ax + 2, yy + 11.4, ax, yy + 7.6, 'F');
+    });
+    return y + panelH + 7;
+  }
+
+  // Tabel: header hijau membulat, grup berikon & berwarna, lencana Masuk/Keluar, bar TOTAL
   function _pdfArsipTabel(doc, y, margin, usableW, pageH, cols, rows) {
-    var headH = 6.5, lineH = 6;
+    var headH = 7.6, lineH = 6.4, zi = 0, LIM = pageH - 32;
+    function newPage() { doc.addPage(); y = _pdfArsipMiniHead(doc, doc.internal.pageSize.getWidth(), margin); }
     function drawHead() {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.2);
-      doc.setTextColor(100, 100, 100);
+      doc.setFillColor(22, 101, 52); doc.roundedRect(margin, y, usableW, headH, 2.2, 2.2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.2); doc.setTextColor(255, 255, 255);
       var x = margin;
       cols.forEach(function (c) {
-        var align = c.align === 'right' ? 'right' : 'left';
-        doc.text(String(c.header).toUpperCase(), align === 'right' ? x + c.width - 1.5 : x + 1, y + 4.5, { align: align, maxWidth: c.width - 3 });
+        var right = c.align === 'right';
+        doc.text(String(c.header).toUpperCase(), right ? x + c.width - 3 : x + 3, y + 5, { align: right ? 'right' : 'left', maxWidth: c.width - 5 });
         x += c.width;
       });
-      y += headH;
-      doc.setDrawColor(70, 70, 70);
-      doc.setLineWidth(0.5);
-      doc.line(margin, y, margin + usableW, y);
-      y += 2.6;
+      y += headH + 1.5;
     }
     drawHead();
     rows.forEach(function (r) {
-      if (y + lineH + 4 > pageH - 26) { doc.addPage(); y = 16; drawHead(); }
       if (r._group) {
-        y += 1.5;
-        doc.setDrawColor(220, 220, 220);
-        doc.setLineWidth(0.2);
-        doc.line(margin, y, margin + usableW, y);
-        y += 4.2;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
-        doc.setTextColor(26, 71, 42);
-        doc.text(String(r._group), margin + 1, y);
-        y += 2.6;
+        if (y + 7.8 + lineH + 3 > LIM) { newPage(); drawHead(); }
+        var kel = String(r._group).indexOf('Kas Keluar') === 0;
+        var cic = /Cicilan|Angsuran/.test(String(r._group));
+        y += 1.8;
+        if (kel) doc.setFillColor(254, 226, 226); else if (cic) doc.setFillColor(204, 244, 240); else doc.setFillColor(214, 246, 224);
+        doc.roundedRect(margin, y, usableW, 7.4, 2, 2, 'F');
+        if (kel) doc.setFillColor(220, 38, 38); else if (cic) doc.setFillColor(13, 148, 136); else doc.setFillColor(22, 163, 74);
+        doc.circle(margin + 4.6, y + 3.7, 2.4, 'F');
+        doc.setFillColor(255, 255, 255);
+        if (kel) doc.triangle(margin + 3.4, y + 4.6, margin + 5.8, y + 4.6, margin + 4.6, y + 2.4, 'F');
+        else doc.triangle(margin + 3.4, y + 2.8, margin + 5.8, y + 2.8, margin + 4.6, y + 5, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+        if (kel) doc.setTextColor(153, 27, 27); else if (cic) doc.setTextColor(15, 90, 86); else doc.setTextColor(21, 94, 52);
+        doc.text(String(r._group), margin + 9.5, y + 5, { maxWidth: usableW - 12 });
+        y += 8.2; zi = 0;
         return;
       }
       if (r._total) {
-        doc.setDrawColor(60, 60, 60);
-        doc.setLineWidth(0.4);
-        doc.line(margin, y, margin + usableW, y);
-        y += 2.4;
+        if (y + 16 > pageH - 28) { newPage(); }
+        y += 3;
+        doc.setFillColor(6, 78, 59); doc.roundedRect(margin, y, usableW, 12, 3.4, 3.4, 'F');
+        doc.setFillColor(255, 255, 255);
+        doc.rect(margin + 4, y + 6.6, 1.5, 2.8, 'F'); doc.rect(margin + 6.5, y + 4.8, 1.5, 4.6, 'F'); doc.rect(margin + 9, y + 3, 1.5, 6.4, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(255, 255, 255);
+        doc.text('TOTAL', margin + 14, y + 7.9);
+        doc.setFontSize(7.8);
+        doc.text('M: ' + r.masukF, margin + 52, y + 7.4);
+        doc.setDrawColor(167, 243, 208); doc.setLineWidth(0.3); doc.line(margin + 93, y + 3.2, margin + 93, y + 8.8);
+        doc.text('K: ' + r.keluarF, margin + 97, y + 7.4);
+        doc.setFillColor(r.sisaNeg ? 220 : 22, r.sisaNeg ? 38 : 163, r.sisaNeg ? 38 : 74);
+        doc.roundedRect(margin + usableW - 38, y + 1.6, 35.5, 8.8, 4.4, 4.4, 'F');
+        doc.setFontSize(9); doc.text(r.sisaF, margin + usableW - 20.2, y + 6, { align: 'center' });
+        doc.setFontSize(4.8); doc.text('SISA KAS', margin + usableW - 20.2, y + 8.8, { align: 'center' });
+        y += 14;
+        return;
       }
+      if (y + lineH + 3 > LIM) { newPage(); drawHead(); zi = 0; }
+      if (zi++ % 2 === 1) { doc.setFillColor(243, 250, 245); doc.rect(margin, y, usableW, lineH, 'F'); }
       var x = margin;
-      doc.setFontSize(7.3);
       cols.forEach(function (c) {
         var val = r[c.key] != null ? String(r[c.key]) : '';
-        var align = c.align === 'right' ? 'right' : 'left';
-        doc.setFont('helvetica', (r._total || c.bold) ? 'bold' : 'normal');
-        var color = c.colorFn ? c.colorFn(r) : (r._total ? [30, 30, 30] : (c.color || [55, 55, 55]));
-        doc.setTextColor(color[0], color[1], color[2]);
-        doc.text(val, align === 'right' ? x + c.width - 1.5 : x + 1, y + 4, { align: align, maxWidth: c.width - 3 });
+        var right = c.align === 'right';
+        if (c.pill && val) {
+          doc.setFillColor(r._masuk ? 209 : 254, r._masuk ? 250 : 226, r._masuk ? 229 : 226);
+          doc.roundedRect(x + 3, y + 1.15, 12, 4, 2, 2, 'F');
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(6);
+          doc.setTextColor(r._masuk ? 21 : 185, r._masuk ? 128 : 28, r._masuk ? 61 : 28);
+          doc.text(val, x + 9, y + 4, { align: 'center' });
+        } else {
+          doc.setFont('helvetica', c.bold ? 'bold' : 'normal'); doc.setFontSize(7.3);
+          var color = c.colorFn ? c.colorFn(r) : [45, 55, 50];
+          doc.setTextColor(color[0], color[1], color[2]);
+          doc.text(val, right ? x + c.width - 3 : x + 3, y + 4.3, { align: right ? 'right' : 'left', maxWidth: c.width - 5 });
+        }
         x += c.width;
       });
+      doc.setDrawColor(226, 236, 229); doc.setLineWidth(0.15);
+      doc.line(margin, y + lineH, margin + usableW, y + lineH);
       y += lineH;
-      if (!r._total) {
-        doc.setDrawColor(238, 238, 238);
-        doc.setLineWidth(0.15);
-        doc.line(margin, y, margin + usableW, y);
-      }
     });
     return y;
   }
 
-  function _pdfArsipTtd(doc, y, pageW, pageH, margin) {
-    if (y + 38 > pageH - 14) { doc.addPage(); y = 16; }
-    var xKanan = pageW - margin - 50;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.8);
-    doc.setTextColor(110, 110, 110);
-    doc.text('Bendahara,', margin, y + 7);
-    doc.text('Selong, ' + _pdfTglPanjang(), xKanan, y + 7);
-    doc.text('Ketua Koperasi,', xKanan, y + 12);
-    doc.setTextColor(70, 70, 70);
-    doc.text('( ______________________ )', margin, y + 30);
-    doc.text('( ______________________ )', xKanan, y + 30);
-    return y + 36;
-  }
-
+  // Footer tiap halaman: bukit desa + keterangan dokumen; slogan hanya di halaman terakhir.
+  // Area kanan-bawah dikosongkan untuk stempel "Dokumen Asli".
   function _pdfArsipFooter(doc, pageW, pageH, margin, judul) {
     var total = doc.internal.getNumberOfPages();
     for (var p = 1; p <= total; p++) {
       doc.setPage(p);
-      doc.setDrawColor(230, 230, 230);
-      doc.setLineWidth(0.2);
-      doc.line(margin, pageH - 12, pageW - margin, pageH - 12);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.4);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Koperasi RENCO  ·  ' + judul + '  ·  Dokumen arsip', margin, pageH - 7.5);
-      doc.text('Hal. ' + p + ' / ' + total, pageW - margin, pageH - 7.5, { align: 'right' });
+      var b = pageH, R = 152;
+      doc.setFillColor(129, 199, 132); _arsipOp(doc, 0.55);
+      _arsipPath(doc, [0, b - 6], [[30, b - 11, 70, b - 4, 110, b - 8], [130, b - 10, 145, b - 6, R, b], [0, b]], 'F', true);
+      doc.setFillColor(22, 130, 70); _arsipOp(doc, 0.9);
+      _arsipPath(doc, [0, b - 3], [[35, b - 7, 80, b - 1, 120, b - 4], [135, b - 5, 145, b - 2, R, b], [0, b]], 'F', true);
+      _arsipOp(doc, 1);
+      doc.setDrawColor(244, 190, 40); doc.setLineWidth(0.35);
+      _arsipPath(doc, [0, b - 6], [[30, b - 11, 70, b - 4, 110, b - 8], [130, b - 10, 145, b - 6, R, b]], 'S', false);
+      // ikon daun + keterangan
+      doc.setFillColor(22, 163, 74);
+      _arsipPath(doc, [margin, b - 12], [[margin + 1.5, b - 15.5, margin + 4.2, b - 16, margin + 5.4, b - 16.2], [margin + 5.4, b - 13.2, margin + 3.6, b - 11.2, margin, b - 12]], 'F', true);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(6.6); doc.setTextColor(21, 94, 52);
+      doc.text('Koperasi RENCO   |   ' + String(judul).toUpperCase() + '   |   Dokumen Arsip', margin + 8, b - 12.6);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Hal. ' + p + ' / ' + total, R - 6, b - 12.6, { align: 'right' });
+      if (p === total) {
+        doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(9.5); doc.setTextColor(6, 78, 59);
+        doc.text('Transaksi Hari Ini,', margin + 8, b - 28);
+        doc.text('Menuju Masa Depan yang Lebih Baik', margin + 8, b - 23);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(167, 223, 186);
+        doc.text('\u201C', margin, b - 24);
+      }
     }
   }
 
-  function _pdfArsipBuildDoc(rows, judul, subJudul) {
+  /* Saldo Simpanan (rumus = totalSimpananKK). kkId null = semua anggota; idx = y*12+m (s/d akhir bulan) atau null = semua */
+  window._arsipSaldoSimpanan = function(kkId, idx) {
+    var sum = 0;
+    (DB.transaksi||[]).forEach(function(t){
+      if (kkId && t.kkId !== kkId) return;
+      if (t.statusTxn==='pending' || t.statusTxn==='gagal') return;
+      var k = window._arsipKlasifikasi(t); if (!k.tabungan) return;
+      if (idx !== null && idx !== undefined) {
+        var d = new Date(t.tanggal); if (isNaN(d)) return;
+        if (d.getFullYear()*12 + d.getMonth() > idx) return;
+      }
+      sum += (k.kategori==='masuk' ? 1 : -1) * (t.jumlah||0);
+    });
+    return sum;
+  };
+
+  function _pdfArsipBuildDoc(rows, judul, subJudul, opts) {
+    opts = opts || {};
     var jsPDFCls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
     if (!jsPDFCls) return null;
     var doc = new jsPDFCls({ orientation: 'p', unit: 'mm', format: 'a4' });
     var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
     var margin = 16, usableW = pageW - margin * 2;
-    var y = _pdfArsipHeader(doc, pageW, margin, judul, subJudul + '  ·  Dicetak ' + _pdfTglPanjang());
+    _arsipCtx.judul = judul;
+    var y = _pdfArsipHeader(doc, pageW, margin, judul, subJudul);
 
     var grupOrder = ['Simpanan','Pembayaran Cicilan','Pembayaran Angsuran RC','Penarikan Simpanan','Pembiayaan / Pinjaman','Lain-lain'];
     var byGrup = {};
@@ -56532,21 +56822,28 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     var totalMasuk = rows.filter(function(r){return r.kategori==='masuk';}).reduce(function(a,b){return a+b.jumlah;},0);
     var totalKeluar = rows.filter(function(r){return r.kategori==='keluar';}).reduce(function(a,b){return a+b.jumlah;},0);
 
-    y = _pdfArsipLabel(doc, y, margin, 'Ringkasan Arus Kas');
+    var tabMasukP  = (byGrup['Simpanan']||[]).reduce(function(a,b){return a+b.jumlah;},0);
+    var tabKeluarP = (byGrup['Penarikan Simpanan']||[]).reduce(function(a,b){return a+b.jumlah;},0);
+    var saldoSimp = window._arsipSaldoSimpanan(opts.kkId || null, opts.idx === undefined ? null : opts.idx);
+    var sisaKas = totalMasuk - totalKeluar;
+    var HIJAU = [21, 128, 61], MERAH = [185, 28, 28];
+    y = _pdfArsipLabel(doc, y, margin, 'Ringkasan Tabungan & Arus Kas', usableW);
     y = _pdfArsipRingkasan(doc, y, margin, usableW, [
-      { label: 'Kas Masuk', value: _pdfFmt(totalMasuk), color: [26, 71, 42] },
-      { label: 'Kas Keluar', value: _pdfFmt(totalKeluar), color: [180, 45, 55] },
-      { label: 'Jumlah Transaksi', value: String(rows.length), color: [40, 40, 40] },
-      { label: 'Selisih Bersih', value: _pdfFmt(totalMasuk - totalKeluar), color: (totalMasuk-totalKeluar)>=0?[26,71,42]:[180,45,55] }
-    ]);
+      { label: 'Setoran Tabungan', value: _pdfFmt(tabMasukP), color: HIJAU, icon: 'wallet' },
+      { label: 'Penarikan Tabungan', value: _pdfFmt(tabKeluarP), color: MERAH, icon: 'wallet' },
+      { label: 'Jumlah Saldo Simpanan', value: _pdfFmt(saldoSimp), color: saldoSimp >= 0 ? HIJAU : MERAH, icon: 'people' },
+      { label: 'Kas Masuk Total', value: _pdfFmt(totalMasuk), color: HIJAU, icon: 'cash' },
+      { label: 'Kas Keluar Total', value: _pdfFmt(totalKeluar), color: MERAH, icon: 'cash' },
+      { label: 'Sisa Kas', value: _pdfFmt(sisaKas), color: sisaKas >= 0 ? HIJAU : MERAH, icon: 'doc' }
+    ], 3);
 
-    y = _pdfArsipLabel(doc, y, margin, 'Detail Transaksi');
+    y = _pdfArsipLabel(doc, y, margin, 'Detail Transaksi', usableW);
     var cols = [
       { header: 'Tanggal', key: 'tglF', width: usableW * 0.16 },
       { header: 'Anggota', key: 'nama', width: usableW * 0.28 },
       { header: 'Jenis', key: 'jenis', width: usableW * 0.28 },
-      { header: 'Arus', key: 'arus', width: usableW * 0.11 },
-      { header: 'Jumlah', key: 'jumlahF', width: usableW * 0.17, align: 'right', colorFn: function(r){ return r._masuk ? [26,71,42] : [180,45,55]; } }
+      { header: 'Arus', key: 'arus', width: usableW * 0.11, pill: true },
+      { header: 'Jumlah', key: 'jumlahF', width: usableW * 0.17, align: 'right', bold: true, colorFn: function(r){ return r._masuk ? [26,71,42] : [180,45,55]; } }
     ];
     var tblRows = [];
     var months2 = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
@@ -56555,21 +56852,20 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       var gRows = byGrup[g];
       var isKel = gRows[0] && gRows[0].kategori==='keluar';
       var totG = gRows.reduce(function(a,b){return a+b.jumlah;},0);
-      tblRows.push({ _group: (isKel?'Kas Keluar':'Kas Masuk') + ' — ' + g + '  ·  ' + _pdfFmt(totG) });
+      tblRows.push({ _group: (isKel?'Kas Keluar':'Kas Masuk') + ' \u2014 ' + g + '  \u2022  ' + _pdfFmt(totG) });
       gRows.forEach(function(r){
         tblRows.push({ tglF: fmtTglR(r.tanggal), nama: r.nama, jenis: r.jenis, jumlahF: (r.kategori==='masuk'?'+ ':'- ')+_pdfFmt(r.jumlah), arus: r.kategori==='masuk'?'Masuk':'Keluar', _masuk: r.kategori==='masuk' });
       });
     });
     if (!tblRows.length) tblRows.push({ tglF:'', nama:'Tidak ada transaksi pada periode ini', jenis:'', jumlahF:'', arus:'' });
-    tblRows.push({ tglF:'', nama:'TOTAL', jenis:'M: '+_pdfFmt(totalMasuk)+'   K: '+_pdfFmt(totalKeluar), jumlahF: _pdfFmt(totalMasuk-totalKeluar), arus:'', _total:true });
+    tblRows.push({ _total:true, masukF: _pdfFmt(totalMasuk), keluarF: _pdfFmt(totalKeluar), sisaF: _pdfFmt(sisaKas), sisaNeg: sisaKas < 0 });
     y = _pdfArsipTabel(doc, y, margin, usableW, pageH, cols, tblRows);
-    y = _pdfArsipTtd(doc, y + 8, pageW, pageH, margin);
     _pdfArsipFooter(doc, pageW, pageH, margin, judul);
     return doc;
   }
 
-  function _pdfArsipNative(rows, judul, subJudul, fname) {
-    var doc = _pdfArsipBuildDoc(rows, judul, subJudul);
+  function _pdfArsipNative(rows, judul, subJudul, fname, opts) {
+    var doc = _pdfArsipBuildDoc(rows, judul, subJudul, opts);
     if (!doc) { if (typeof showToast === 'function') showToast('⚠️ Library PDF belum siap, coba lagi'); return; }
     doc.save(fname);
     return fname;
@@ -56582,7 +56878,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     try {
       var rows = _getRowsBulan(y, m);
       var fname = 'arsip-renco-'+months4[m]+'-'+y+'.pdf';
-      _pdfArsipNative(rows, 'ARSIP LAPORAN TRANSAKSI', months4[m]+' '+y, fname);
+      _pdfArsipNative(rows, 'ARSIP LAPORAN TRANSAKSI', months4[m]+' '+y, fname, { idx: y*12+m, ketSaldo: 'saldo s/d akhir ' + months4[m] + ' ' + y });
       if (typeof showToast === 'function') showToast('✅ PDF Arsip '+months4[m]+' '+y+' berhasil diunduh!');
     } catch(e) {
       if (typeof showToast === 'function') showToast('❌ Gagal membuat PDF. Coba lagi.');
@@ -56605,13 +56901,8 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     var allPinA  = DB.pinjaman||[];
     var allPemA  = [].concat(DB.pembiayaan||[], DB.pembiayaanSyariah||[]);
     allTxA.filter(function(t){return t.kkId===kkId && t.statusTxn!=='pending' && t.statusTxn!=='gagal';}).forEach(function(t){
-      // Dari perspektif koperasi: cicilan/angsuran = KAS MASUK (pembayaran diterima)
-      var isKeluar=(t.type==='tarik-sukarela'||t.type==='tarik'
-                 ||t.type==='pinjaman'||t.type==='pembiayaan');
-      var jenis={simpanan:'Simpanan','tarik-sukarela':'Tarik Sukarela',tarik:'Penarikan',pinjaman:'Pencairan Pinjaman',pembiayaan:'Pencairan Pembiayaan RC',cicilan:'Bayar Cicilan',angsuran:'Angsuran RC','angsuran-rc':'Angsuran Renco Capital'}[t.type]||(t.keterangan||t.type||'Transaksi');
-      if(t.type==='simpanan'){jenis={pokok:'Simpanan Pokok',wajib:'Simpanan Wajib',sukarela:'Simpanan Sukarela'}[t.jenis||'']||'Simpanan';}
-      var jenisGrup={simpanan:'Simpanan','tarik-sukarela':'Penarikan Simpanan',tarik:'Penarikan Simpanan',pinjaman:'Pembiayaan / Pinjaman',pembiayaan:'Pembiayaan / Pinjaman',cicilan:'Pembayaran Cicilan',angsuran:'Pembayaran Angsuran RC','angsuran-rc':'Pembayaran Angsuran RC'}[t.type]||'Lain-lain';
-      allRows2.push({id:t.id, tanggal:t.tanggal,nama:nama,kkId,jenis,jenisGrup,kategori:isKeluar?'keluar':'masuk',jumlah:t.jumlah||0,ket:t.keterangan||jenis});
+      var k = window._arsipKlasifikasi(t);
+      allRows2.push({id:t.id, tanggal:t.tanggal,nama:nama,kkId,jenis:k.jenis,jenisGrup:k.jenisGrup,kategori:k.kategori,jumlah:t.jumlah||0,ket:t.keterangan||k.jenis});
     });
     allPinA.filter(function(p){return p.kkId===kkId;}).forEach(function(p){
       (p.cicilan||[]).forEach(function(c){
@@ -56650,7 +56941,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     var allRows2 = kumpul.rows;
     try {
       var fname = 'riwayat-'+nama.toLowerCase().replace(/\s+/g,'-')+'.pdf';
-      _pdfArsipNative(allRows2, 'RIWAYAT TRANSAKSI LENGKAP', nama, fname);
+      _pdfArsipNative(allRows2, 'RIWAYAT TRANSAKSI LENGKAP', nama, fname, { kkId: kkId, ketSaldo: 'saldo terkini' });
       if (typeof showToast === 'function') showToast('✅ PDF '+nama+' berhasil diunduh!');
     } catch(e){ if(typeof showToast==='function') showToast('❌ Gagal membuat PDF'); console.error(e); }
   };
@@ -56683,7 +56974,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     if (!confirm('Kirim PDF riwayat transaksi '+nb.nama+'?\n\nKe email terdaftar: '+emailNb+'\n\nEmail ini akan disalin ke clipboard — tempel di kolom "Kepada" setelah memilih aplikasi Email.')) return;
     if (typeof showToast==='function') showToast('📎 Menyiapkan PDF untuk '+nb.nama+' ('+emailNb+')...');
     var kumpul = _arsipKumpulRowsAnggota(kkId);
-    var doc = _pdfArsipBuildDoc(kumpul.rows, 'RIWAYAT TRANSAKSI LENGKAP', nb.nama);
+    var doc = _pdfArsipBuildDoc(kumpul.rows, 'RIWAYAT TRANSAKSI LENGKAP', nb.nama, { kkId: kkId, ketSaldo: 'saldo terkini' });
     if (!doc) { if (typeof showToast==='function') showToast('⚠️ Library PDF belum siap, coba lagi'); return; }
     var fname = 'riwayat-'+nb.nama.toLowerCase().replace(/\s+/g,'-')+'.pdf';
     var file;
@@ -56726,7 +57017,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       var d = valid[i];
       if (typeof showToast==='function') showToast('📎 ('+(i+1)+'/'+valid.length+') Menyiapkan PDF '+d.nama+' → '+d.email+'...');
       var kumpul = _arsipKumpulRowsAnggota(d.kkId);
-      var doc = _pdfArsipBuildDoc(kumpul.rows, 'RIWAYAT TRANSAKSI LENGKAP', d.nama);
+      var doc = _pdfArsipBuildDoc(kumpul.rows, 'RIWAYAT TRANSAKSI LENGKAP', d.nama, { kkId: d.kkId, ketSaldo: 'saldo terkini' });
       if (!doc) { dilewati++; continue; }
       var fname = 'riwayat-'+d.nama.toLowerCase().replace(/\s+/g,'-')+'.pdf';
       var file;
@@ -56765,7 +57056,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     var label2 = filterT==='semua'?'Semua Periode':'Tahun '+filterT;
     try {
       var fname = 'arsip-renco-lengkap-'+label2.replace(/\s+/g,'-').toLowerCase()+'.pdf';
-      _pdfArsipNative(allRows3, 'ARSIP TRANSAKSI LENGKAP', label2 + ' · ' + allRows3.length + ' transaksi', fname);
+      _pdfArsipNative(allRows3, 'ARSIP TRANSAKSI LENGKAP', label2 + ' · ' + allRows3.length + ' transaksi', fname, { idx: filterT==='semua' ? null : parseInt(filterT)*12+11, ketSaldo: filterT==='semua' ? 'saldo terkini' : 'saldo s/d akhir tahun ' + filterT });
       if(typeof showToast==='function') showToast('✅ PDF Arsip Lengkap berhasil diunduh!');
     }catch(e){if(typeof showToast==='function')showToast('❌ Gagal membuat PDF');console.error(e);}
   };
