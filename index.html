@@ -30,6 +30,38 @@
 <link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<script id="tagihan-cloud-shim">
+/* ═══ TAGIHAN CLOUD-ONLY ═══
+   Data tagihan/transaksi RencoPay ('rencopay_tagihan_automate') TIDAK lagi disimpan di localStorage.
+   Semua baca/tulis/hapus kunci ini dialihkan ke DB.rencoPay.tagihan (memori) lalu langsung disimpan
+   ke cloud Supabase lewat saveDB(). Kode lama yang memanggil localStorage tetap jalan tanpa diubah. */
+(function(){
+  var K='rencopay_tagihan_automate', P=Storage.prototype;
+  var rawGet=P.getItem, rawSet=P.setItem, rawDel=P.removeItem;
+  window._lsRaw={get:function(k){try{return rawGet.call(localStorage,k);}catch(e){return null;}},del:function(k){try{rawDel.call(localStorage,k);}catch(e){}}};
+  var t=null;
+  function cloudSave(){ clearTimeout(t); t=setTimeout(function(){ try{ if(typeof window.saveDB==='function') window.saveDB(); }catch(e){} },250); }
+  function arr(){ var d=window.DB; return d&&d.rencoPay&&Array.isArray(d.rencoPay.tagihan)?d.rencoPay.tagihan:null; }
+  P.getItem=function(k){
+    if(this===localStorage && k===K){ var a=arr(); return a?JSON.stringify(a):null; }
+    return rawGet.apply(this,arguments);
+  };
+  P.setItem=function(k,v){
+    if(this===localStorage && k===K){
+      var d=window.DB; if(!d) return;                 /* DB belum siap: jangan tulis ke localStorage */
+      var a; try{ a=JSON.parse(v); }catch(e){ return; }
+      if(!Array.isArray(a)) return;
+      if(!d.rencoPay||typeof d.rencoPay!=='object') d.rencoPay={};
+      d.rencoPay.tagihan=a; cloudSave(); return;
+    }
+    return rawSet.apply(this,arguments);
+  };
+  P.removeItem=function(k){
+    if(this===localStorage && k===K){ var d=window.DB; if(d&&d.rencoPay){ d.rencoPay.tagihan=[]; cloudSave(); } return; }
+    return rawDel.apply(this,arguments);
+  };
+})();
+</script>
 <script>
 /* Tangkap prompt install lebih awal; blokir banner bawaan browser "Tambahkan ke layar utama" agar diganti tombol Install di halaman login */
 window.__rcInstallEvt=null;
@@ -15212,11 +15244,7 @@ function saveDB() {
     // Sinkronisasi tagihan ke localStorage untuk TagihanApp (modul ini masih
     // membaca/menulis localStorage langsung di banyak tempat — lihat catatan
     // terpisah; belum termasuk migrasi cloud-only di perubahan ini)
-    try {
-      if (DB.rencoPay && Array.isArray(DB.rencoPay.tagihan)) {
-        localStorage.setItem('rencopay_tagihan_automate', JSON.stringify(DB.rencoPay.tagihan));
-      }
-    } catch(e) { /* tidak kritis */ }
+    /* Tagihan tidak lagi disalin ke localStorage — cloud-only (lihat #tagihan-cloud-shim). */
 
     window.DB = DB;
 
@@ -15386,9 +15414,10 @@ function _bangunRencanaHapus(seedTxns, seedPins) {
     }
 
     /* 8) Iuran wajib → tagihan kembali "Belum Lunas" + catatan dompet RencoPay */
-    if (x.type === 'simpanan' && x.jenis === 'wajib' && x.bulanIuran) {
-      P.tagihan.push({ kkId: x.kkId, bulan: x.bulanIuran, txnId: x.id });
-      var pb = String(x.bulanIuran).split('-');
+    if (x.type === 'simpanan' && x.jenis === 'wajib' && _iwKeyTxn(x)) {
+      var bulanX = _iwKeyTxn(x);
+      P.tagihan.push({ kkId: x.kkId, bulan: bulanX, txnId: x.id });
+      var pb = String(bulanX).split('-');
       var lblB = _RL_BULAN[(+pb[1]) - 1] + ' ' + pb[0];
       rpDompet.forEach(function (e) {
         if (e && e.kategori === 'Iuran Wajib' && e.kkId === x.kkId && e.jumlah === x.jumlah && String(e.keterangan || '').indexOf(lblB) >= 0) addRp(e);
@@ -15422,22 +15451,53 @@ function _pesanKonfirmasiHapus(t, P) {
   return msg;
 }
 
-function _kembalikanTagihanWajib(kkId, bulan) {
-  var sid = 'iw_' + kkId, ch = false;
-  function balik(arr) {
-    var c = false;
-    (arr || []).forEach(function (b) {
-      if (b && b.sourceId === sid && b.month === bulan && b.status === 'Lunas') { b.status = 'Belum Lunas'; delete b.paidAt; c = true; }
+/* Kunci bulan iuran dari sebuah transaksi simpanan wajib (bulanIuran, fallback tanggal) */
+function _iwKeyTxn(t) {
+  if (!t) return null;
+  if (t.bulanIuran) return String(t.bulanIuran);
+  var d = new Date(t.tanggal); if (isNaN(d)) return null;
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+window._iwKeyTxn = _iwKeyTxn;
+
+/* PUSAT sinkron status tagihan Iuran Wajib (dua arah: Lunas / Belum Lunas).
+   Menulis ke DB.rencoPay.tagihan lalu langsung disimpan ke cloud Supabase (saveDB) — TANPA localStorage.
+   Setelah itu daftar tagihan di memori (TagihanApp) dimuat ulang. */
+function _iwTagihanSet(kkId, monthKey, lunas) {
+  var TK = 'rencopay_tagihan_automate', sid = 'iw_' + kkId, changed = false;
+  var db = window.DB || (typeof DB !== 'undefined' ? DB : {});
+  var jumlah = (db.pengaturan && db.pengaturan.simpananWajib) || 100000;
+  function apply(arr) {
+    var found = false, ch = false;
+    arr.forEach(function (b) {
+      if (!b || b.sourceId !== sid || b.month !== monthKey) return;
+      found = true;
+      if (lunas && b.status !== 'Lunas') { b.status = 'Lunas'; b.paidAt = new Date().toISOString(); ch = true; }
+      else if (!lunas && b.status === 'Lunas') { b.status = 'Belum Lunas'; delete b.paidAt; ch = true; }
     });
-    return c;
+    if (!found && lunas) {
+      var n = (db.nasabah || []).find(function (x) { return x.id === kkId; });
+      arr.push({ id: 'REN' + Date.now().toString(36) + Math.floor(Math.random() * 1000), sourceId: sid, kkId: kkId,
+        type: 'Iuran Wajib', name: n ? n.nama : kkId, month: monthKey, dueDate: monthKey + '-12', amount: jumlah,
+        sisaTenor: 9999, status: 'Lunas', paidAt: new Date().toISOString(), createdAt: new Date().toISOString() });
+      ch = true;
+    }
+    return ch;
   }
-  try {
-    var TK = 'rencopay_tagihan_automate';
-    var bills = JSON.parse(localStorage.getItem(TK) || '[]');
-    if (balik(bills)) { localStorage.setItem(TK, JSON.stringify(bills)); ch = true; }
-  } catch (e) {}
-  if (DB.rencoPay && Array.isArray(DB.rencoPay.tagihan) && balik(DB.rencoPay.tagihan)) ch = true;
-  return ch;
+  if (!db.rencoPay || typeof db.rencoPay !== 'object') db.rencoPay = {};
+  if (!Array.isArray(db.rencoPay.tagihan)) db.rencoPay.tagihan = [];
+  var inDB = db.rencoPay.tagihan;
+  if (apply(inDB)) changed = true;
+  if (changed) {
+    try { if (typeof saveDB === 'function') saveDB(); } catch (e) {}
+    try { if (window.TagihanApp && typeof window.TagihanApp.reloadFromDB === 'function') window.TagihanApp.reloadFromDB(); } catch (e) {}
+  }
+  return changed;
+}
+window._iwTagihanSet = _iwTagihanSet;
+
+function _kembalikanTagihanWajib(kkId, bulan) {
+  return _iwTagihanSet(kkId, bulan, false);
 }
 
 function _jalankanRencanaHapus(P, ringkasan) {
@@ -15481,7 +15541,7 @@ function _jalankanRencanaHapus(P, ringkasan) {
   /* tagihan iuran wajib (hanya jika tidak ada transaksi wajib lain untuk bulan yang sama) */
   P.tagihan.forEach(function (tg) {
     var masihAda = (DB.transaksi || []).some(function (y) {
-      return y.type === 'simpanan' && y.jenis === 'wajib' && y.kkId === tg.kkId && y.bulanIuran === tg.bulan;
+      return y.type === 'simpanan' && y.jenis === 'wajib' && y.kkId === tg.kkId && _iwKeyTxn(y) === tg.bulan;
     });
     if (!masihAda && _kembalikanTagihanWajib(tg.kkId, tg.bulan)) n.tagihan++;
   });
@@ -15510,6 +15570,10 @@ function _jalankanRencanaHapus(P, ringkasan) {
   });
   safe(function () { if (window.TagihanApp && typeof window.TagihanApp.reloadFromDB === 'function') window.TagihanApp.reloadFromDB(); });
   safe(function () { if (typeof window._apvNotifPoll === 'function') setTimeout(window._apvNotifPoll, 300); });
+  /* Form/rekap Iuran Wajib: bulan yang transaksinya dihapus kembali bisa disetor */
+  safe(function () { var e = document.getElementById('iuranWajibContent'); if (e && e.offsetParent !== null && typeof renderNasabahIuranWajib === 'function') renderNasabahIuranWajib(); });
+  safe(function () { var e = document.getElementById('adminIuranWajibContent'); if (e && e.offsetParent !== null && typeof renderAdminIuranWajib === 'function') renderAdminIuranWajib(); });
+  safe(function () { var rc = document.getElementById('rpContent'); if (rc && rc.offsetParent !== null && typeof _rpCurrentTab !== 'undefined' && _rpCurrentTab === 'pembayaran' && typeof rpTab === 'function') rpTab('pembayaran', document.getElementById('rptab_pembayaran')); });
 
   var extra = [];
   if (n.txn > 1) extra.push((n.txn - 1) + ' transaksi terkait');
@@ -16248,7 +16312,7 @@ function _dbSyncRencoPay() {
 
   // Sinkronisasi tagihan ke DB.rencoPay.tagihan
   try {
-    var tagihanRaw = localStorage.getItem('rencopay_tagihan_automate');
+    var tagihanRaw = window._lsRaw ? window._lsRaw.get('rencopay_tagihan_automate') : null;   /* sisa data lama di perangkat ini */
     if (tagihanRaw) {
       var tagihanArr = JSON.parse(tagihanRaw);
       if (Array.isArray(tagihanArr) && tagihanArr.length) {
@@ -16257,7 +16321,8 @@ function _dbSyncRencoPay() {
         // Merge tagihan lama, hindari duplikat via id
         var existingTagIds = new Set(DB.rencoPay.tagihan.map(function(t){ return t.id; }));
         tagihanArr.forEach(function(t) { if (t && t.id && !existingTagIds.has(t.id)) DB.rencoPay.tagihan.push(t); });
-        // Jangan hapus key ini — masih dipakai oleh TagihanApp, tapi sinkronkan
+        // Sudah dipindah ke DB (cloud) — hapus salinan lama di localStorage perangkat ini
+        if (window._lsRaw) window._lsRaw.del('rencopay_tagihan_automate');
       }
     }
   } catch(e) { /* tidak kritis */ }
@@ -21213,33 +21278,7 @@ window._catatTransaksiIuranWajib = _catatTransaksiIuranWajib;
 /* Sinkronkan bill Iuran Wajib di 'rencopay_tagihan_automate' agar ikut Lunas
    ketika pembayaran dicatat lewat menu Struktur Pengurus (DB.transaksi) */
 function _syncTagihanIuranWajibKeLunas(kkId, monthKey) {
-  try {
-    var TAGIHAN_KEY = 'rencopay_tagihan_automate';
-    var bills = JSON.parse(localStorage.getItem(TAGIHAN_KEY) || '[]');
-    var sourceId = 'iw_' + kkId;
-    var target = bills.find(function(b){ return b.sourceId === sourceId && b.month === monthKey; });
-    var changed = false;
-    if (target) {
-      if (target.status !== 'Lunas') { target.status = 'Lunas'; target.paidAt = new Date().toISOString(); changed = true; }
-    } else {
-      var db = window.DB || (typeof DB !== 'undefined' ? DB : {});
-      var nasabah = (db.nasabah || []).find(function(n){ return n.id === kkId; });
-      bills.push({
-        id: 'REN' + Date.now().toString(36) + Math.floor(Math.random()*1000),
-        sourceId: sourceId, kkId: kkId, type: 'Iuran Wajib',
-        name: nasabah ? nasabah.nama : kkId, month: monthKey,
-        dueDate: monthKey + '-12', amount: 100000, sisaTenor: 9999,
-        status: 'Lunas', paidAt: new Date().toISOString(), createdAt: new Date().toISOString()
-      });
-      changed = true;
-    }
-    if (changed) {
-      localStorage.setItem(TAGIHAN_KEY, JSON.stringify(bills));
-      if (window.TagihanApp && typeof TagihanApp._syncAfterPay === 'function') {
-        TagihanApp._syncAfterPay(sourceId, monthKey);
-      }
-    }
-  } catch(e) {}
+  try { _iwTagihanSet(kkId, monthKey, true); } catch(e) {}
 }
 window._syncTagihanIuranWajibKeLunas = _syncTagihanIuranWajibKeLunas;
 
@@ -66735,8 +66774,17 @@ html.renco-dark .rpr-hint{background:rgba(244,214,122,.10);border-color:rgba(244
     el.innerHTML = '<button type="button" class="rpr-sw'+(on?' on':'')+'" role="switch" aria-checked="'+on+'" aria-label="Redominasi" onclick="rpRedenomToggle()"><i></i></button>';
     return el;
   }
+  /* Tombol hanya tampil di Beranda RencoPay (grid menu aktif); di tab lain disembunyikan.
+     Mode inline: hanya di tab awal (QRIS). */
+  function onBeranda(){
+    var g = document.getElementById('rpMenuGrid');
+    return !!(g && g.offsetParent!==null && getComputedStyle(g).display!=='none');
+  }
   function placeFixed(){
+    var il = document.querySelector('.rpr-pill.inl');
+    if(il){ var ab = document.querySelector('#rpTabBar-inline .rp-tab-btn.active'); var showI = !ab || ab.id==='rptab_qris-inline'; var dI = showI ? '' : 'none'; if(il.style.display!==dI) il.style.display = dI; }
     var el = document.getElementById('rpRedenomBar'); if(!el) return;
+    var d = onBeranda() ? '' : 'none'; if(el.style.display!==d) el.style.display = d;
     var kb = document.getElementById('rpKembaliKoperasiBtn');
     var vis = kb && getComputedStyle(kb).display!=='none';
     var r = vis ? '68px' : '12px'; if(el.style.right!==r) el.style.right = r;
