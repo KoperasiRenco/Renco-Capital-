@@ -10148,7 +10148,7 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 </style>
 </head>
-<body class="rp-theme">
+<body>
 <script>
   /* ── Mode Malam: terapkan sedini mungkin agar tidak ada kedip layar ── */
   (function() {
@@ -11409,6 +11409,7 @@ window.deletePengurus = function(id) {
           font-size:9px; font-weight:800; letter-spacing:0.3px;
           text-transform:uppercase; margin-top:2px; color:rgba(20,40,28,0.55);
         }
+        #page-home #homeTxnTitle::before{ content:none !important; display:none !important; }
         /* Judul seksi — aksen garis emas kecil biar lebih rapi & mudah dipindai */
         #page-home .section-title{ display:flex; align-items:center; gap:7px; }
         #page-home .section-title::before{
@@ -11875,17 +11876,13 @@ window.deletePengurus = function(id) {
         setTimeout(layout, 400); setTimeout(layout, 1500);
       })();
       </script>
-      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;padding-right:16px;animation:slideUp 0.4s ease both">
-        <span style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><path d="M7 7h10l-3-3M17 17H7l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Transaksi Terbaru</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button onclick="homeLihatSemuaTxn()" style="font-size:11px;font-weight:700;color:var(--forest-mid);background:none;border:none;cursor:pointer;padding:4px 0">Lihat Semua →</button>
-          <button id="homeTxnToggleBtn" onclick="toggleHomeTxn()" style="font-size:11px;font-weight:800;color:var(--forest-mid);background:rgba(45,106,79,0.1);border:1px solid rgba(45,106,79,0.18);cursor:pointer;padding:4px 11px;border-radius:99px;display:flex;align-items:center;gap:4px;transition:background .15s ease">▸ Tampilkan</button>
-        </div>
+      <div class="section-title" id="homeTxnTitle" style="display:flex;align-items:center;animation:slideUp 0.4s ease both">
+        <span style="font-family:'Playfair Display',serif;font-size:16px;font-weight:800;letter-spacing:.2px;text-transform:none;white-space:nowrap;background:linear-gradient(90deg,#1a472a,#2d6a4f 55%,#b8901c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#1a472a">Transaksi Terkini</span>
       </div>
-      <div id="homeTxnBody" style="transition:max-height 0.35s cubic-bezier(.4,0,.2,1);overflow:hidden;max-height:0">
+      <div id="homeTxnBody" style="overflow:visible">
       <div id="homeRiwayatChipBar" style="display:flex;gap:8px;padding:0 16px 10px">
-        <button class="hrw-chip active" onclick="_homeRiwayatFilter('koperasi', this)" style="flex:1;padding:7px 0;border-radius:99px;border:1.5px solid #1a472a;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:white;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;transition:.15s ease">🏦 Koperasi</button>
-        <button class="hrw-chip" onclick="_homeRiwayatFilter('rencopay', this)" style="flex:1;padding:7px 0;border-radius:99px;border:1.5px solid rgba(45,106,79,0.2);background:white;color:#6b7280;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;transition:.15s ease">💳 RencoPay</button>
+        <button class="hrw-chip active" onclick="_homeRiwayatFilter('koperasi', this)" style="flex:1;padding:7px 0;border-radius:99px;border:1.5px solid #1a472a;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:white;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;transition:.15s ease">Koperasi</button>
+        <button class="hrw-chip" onclick="_homeRiwayatFilter('rencopay', this)" style="flex:1;padding:7px 0;border-radius:99px;border:1.5px solid rgba(45,106,79,0.2);background:white;color:#6b7280;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;transition:.15s ease">RencoPay</button>
       </div>
       <div class="card txn-list-glass">
         <div id="homeTransaksiList"></div>
@@ -12121,6 +12118,13 @@ window.deletePengurus = function(id) {
         <div class="search-bar admin-only-feature" style="margin-top:4px">
           <input type="text" placeholder="Cari nasabah..." oninput="filterNasabah(this.value)">
           <button id="nasabahCloudRefreshBtn" onclick="(async()=>{if(window._rencoSupabase){if(typeof showToast==='function')showToast('☁ Memuat data terbaru...');var r=await window._rencoSupabase.load();if(r&&r.payload){if(typeof window._applyCloudDataPublic==='function')window._applyCloudDataPublic(r.payload);if(typeof renderNasabah==='function')renderNasabah();if(typeof renderHome==='function')renderHome();if(typeof showToast==='function')showToast('✅ Data nasabah diperbarui');}}})();" style="display:none;background:none;border:none;cursor:pointer;font-size:18px;padding:4px 8px;color:var(--forest-mid);flex-shrink:0" title="Refresh data dari cloud">☁</button>
+        </div>
+        <div id="nonaktifNotifBar" class="admin-only-feature" style="padding:0 14px 8px">
+          <button type="button" onclick="openNonaktifNotif()" style="width:100%;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid rgba(220,38,38,.28);background:rgba(220,38,38,.06);color:#b91c1c;font-weight:800;font-size:12px;font-family:inherit;cursor:pointer;text-align:left">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            <span style="flex:1">Pemberitahuan Akun Nonaktif</span>
+            <span id="nonaktifNotifBadge" style="display:none;min-width:20px;padding:1px 7px;background:#dc2626;color:#fff;font-size:11px;text-align:center">0</span>
+          </button>
         </div>
         <div id="nasabahStatusModeBar" style="display:flex;gap:6px;padding:2px 14px 10px;overflow-x:auto">
           <button type="button" class="ns-mode-btn" data-mode="semua" onclick="setNasabahStatusMode('semua')">Semua</button>
@@ -15814,10 +15818,11 @@ function _checkEskalasi() {
       var bulanBayar = new Set();
       txnAll.forEach(function(t) {
         if (t.kkId !== a.id || t.type !== 'simpanan' || (t.jenis||'') !== 'wajib') return;
-        var td = new Date(t.tanggal);
-        if (!isNaN(td)) {
-          bulanBayar.add(td.getFullYear() + '-' + String(td.getMonth() + 1).padStart(2, '0'));
-        }
+        // Pakai bulanIuran (bulan yang DIBAYAR); tanggal transaksi hanya fallback.
+        // Iuran bulan lalu yang baru dibayar sekarang harus menghapus status menunggak bulan lalu,
+        // bukan dihitung sebagai pembayaran bulan berjalan.
+        var kb = (typeof _iwKeyTxn === 'function') ? _iwKeyTxn(t) : null;
+        if (kb) bulanBayar.add(kb);
       });
 
       // Hitung bulan-bulan yang seharusnya sudah dibayar tapi belum
@@ -15879,6 +15884,7 @@ function _checkEskalasi() {
         a.status          = 'Tidak Aktif';
         a.statusOtomatis  = true; // penanda: nonaktif ini otomatis oleh sistem, bukan manual admin
         a.nonaktifTanggal = nowIso2;
+        a.notifNonaktif   = { status:'menunggu', tanggal: nowIso2, wa:false, email:false }; // antrean pemberitahuan ke WhatsApp & email terdaftar
         a.nonaktifAlasan  = 'Tidak ada transaksi selama ' + Math.floor(diffHariAktivitas/30) + ' bulan (sejak ' + lastAktivitas.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) + ')';
         if (!Array.isArray(a.nonAktifPeriods)) a.nonAktifPeriods = [];
         var periodeTerbuka2 = a.nonAktifPeriods.find(function(p){ return !p.sampai; });
@@ -16862,7 +16868,7 @@ function fmtDate(d) {
 function renderTxnItemInner(t, rightExtraHTML) {
   const isKredit = t.tipe === 'kredit';
   const label = t.keterangan || t.judul || 'Transaksi';
-  return '<div class="rp-txn-icon" style="background:' + (isKredit?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)') + '">' + (isKredit?'📥':'📤') + '</div>'
+  return '<div class="rp-txn-icon" style="background:' + (isKredit?'rgba(16,185,129,0.12)':'rgba(239,68,68,0.12)') + '">' + (isKredit?'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>':'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 20h16"/></svg>') + '</div>'
     + '<div class="rp-txn-info" style="flex:1;min-width:0">'
       + '<div class="rp-txn-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + label + '</div>'
       + '<div class="rp-txn-sub">' + fmtDate(t.tanggal||t.createdAt) + ' · ' + (t.kategori||'Umum') + '</div>'
@@ -26523,11 +26529,12 @@ function renderHome() {
       var adminWaNum = '';
       try { var s = window.DB && DB.rencoPay && DB.rencoPay.settings; adminWaNum = (s && s.adminWhatsapp) ? s.adminWhatsapp.replace(/\D/g,'') : ''; } catch(e){}
       if (!adminWaNum) adminWaNum = '6287855712922';
-      var waMsg = encodeURIComponent('Assalamu\'alaikum Admin, akun keanggotaan saya di Koperasi Renco dinonaktifkan otomatis karena tidak ada transaksi selama 3 bulan. Mohon bantuan untuk mengaktifkan kembali. Terima kasih.');
+      var waMsg = encodeURIComponent('Assalamu\'alaikum warahmatullahi wabarakatuh. Yth. Admin/Pengurus Koperasi RENCO, dengan hormat saya mengajukan permohonan pengaktifan kembali keanggotaan saya yang dinonaktifkan secara otomatis karena tidak terdapat transaksi selama 3 (tiga) bulan. Atas bantuan Bapak/Ibu, saya ucapkan terima kasih.');
       wrap.innerHTML = '<div style="padding:14px 16px;border-radius:14px;background:rgba(220,38,38,0.08);border:1.5px solid rgba(220,38,38,0.3)">'
         + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:20px">⏸️</span><span style="font-size:13px;font-weight:800;color:#dc2626">Akun Anda Nonaktif Otomatis</span></div>'
-        + '<div style="font-size:12px;color:var(--text);line-height:1.5;margin-bottom:10px">' + pesanAlasan + ' Silakan hubungi Admin Koperasi jika ingin mengaktifkan kembali keanggotaan Anda.</div>'
+        + '<div style="font-size:12px;color:var(--text);line-height:1.5;margin-bottom:10px">' + pesanAlasan + ' Apabila berkenan mengaktifkan kembali keanggotaan, mohon menghubungi Admin/Pengurus Koperasi melalui Email: koperasirenco@gmail.com atau WhatsApp: 087855712922.</div>'
         + '<a href="https://wa.me/' + adminWaNum + '?text=' + waMsg + '" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0;border-radius:10px;background:#25D366;color:white;font-weight:700;font-size:12px;text-decoration:none;font-family:inherit">💬 Hubungi Admin via WhatsApp</a>'
+        + '<a href="mailto:koperasirenco@gmail.com?subject=' + encodeURIComponent('Permohonan Pengaktifan Kembali Keanggotaan') + '" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0;margin-top:8px;border-radius:10px;background:#fff;color:#1a472a;border:1.5px solid rgba(26,71,42,.25);font-weight:700;font-size:12px;text-decoration:none;font-family:inherit">✉️ Hubungi Admin via Email</a>'
         + '</div>';
       wrap.style.display = '';
     } else if (wrap) {
@@ -26695,7 +26702,12 @@ window._homeRiwayatRender = function() {
 
   var MONTH_ID = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
 
-  tl.innerHTML = filtered.slice(0, 15).map(function(t) {
+  var _exp = !!window._homeTxnExpanded;
+  var _shown = filtered.slice(0, _exp ? 15 : 3);
+  var _moreBtn = filtered.length > 3
+    ? '<button type="button" onclick="window._homeTxnExpanded=!window._homeTxnExpanded;window._homeRiwayatRender();" style="display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:11px 0 6px;background:none;border:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800;color:var(--forest-mid);letter-spacing:.3px">' + (_exp ? 'Tampilkan lebih sedikit ▴' : 'Lihat transaksi lainnya ▾') + '</button>'
+    : '';
+  tl.innerHTML = _shown.map(function(t) {
     var isKredit = t.tipe === 'kredit';
     var tid = (t.id||'').replace(/[^a-z0-9_]/gi,'_');
     var editBtn = (t._src === 'rencopay' && !_meNasabah)
@@ -26720,7 +26732,7 @@ window._homeRiwayatRender = function() {
       + '</div>'
       + '<div id="rwshare_' + tid + '" class="txn-share-row" style="display:none;justify-content:flex-end;padding:3px 16px 8px">' + shareBtn + '</div>'
     + '</div>';
-  }).join('');
+  }).join('') + _moreBtn;
 };
 
 // ── Unduh Riwayat Terbaru (Beranda) sebagai CSV — sesuai filter aktif ──
@@ -35955,7 +35967,25 @@ function saveSimpanan() {
    - _populateBulanIuran  : isi dropdown bulan yang belum dibayar
    - openModalSimpananIuran: buka modal simpanan preset ke nasabah+wajib+bulan
 ════════════════════════════════════════════════════════════════ */
+/* Respons instan: tampilkan/sembunyikan field bulan SEKARANG (satu frame), lalu pekerjaan berat
+   (cek pokok/wajib, bangun dropdown bulan, isi nominal) dijalankan setelah layar sempat digambar.
+   Beberapa perubahan beruntun digabung jadi satu proses. */
+var _simpanJenisRAF = 0, _simpanJenisTO = 0;
 function _onSimpanJenisChange() {
+  var el = document.getElementById('simpanJenis');
+  var jenis = el ? el.value : '';
+  var f = document.getElementById('simpanBulanField');
+  if (f) f.style.display = (jenis === 'wajib') ? '' : 'none';
+  var sw = document.getElementById('simpanSukarelaWrap');
+  if (sw && jenis !== 'wajib') sw.style.display = 'none';
+  if (_simpanJenisRAF) cancelAnimationFrame(_simpanJenisRAF);
+  clearTimeout(_simpanJenisTO);
+  _simpanJenisRAF = requestAnimationFrame(function () {
+    _simpanJenisRAF = 0;
+    _simpanJenisTO = setTimeout(_onSimpanJenisChangeFull, 0);
+  });
+}
+function _onSimpanJenisChangeFull() {
   var jenis = (document.getElementById('simpanJenis')||{}).value;
   var field = document.getElementById('simpanBulanField');
   if (!field) return;
@@ -36123,6 +36153,7 @@ function _populateBulanIuran(kkId) {
 
   // ── Render dropdown (terbaru di atas) ──
   sel.innerHTML = '';
+  var _frag = document.createDocumentFragment();
   options.slice().reverse().forEach(function(o) {
     var opt = document.createElement('option');
     opt.value = o.key;
@@ -36134,8 +36165,9 @@ function _populateBulanIuran(kkId) {
     else if (o.locked)   opt.style.color = '#9ca3af';   // abu muda — terkunci
     else if (o.isMasaDepan) opt.style.color = '#2563eb'; // biru — akan datang (bisa dipilih)
     else                 opt.style.color = '#111827';   // hitam — tersedia
-    sel.appendChild(opt);
+    _frag.appendChild(opt);
   });
+  sel.appendChild(_frag);
 
   // ── Default pilihan: tunggak terlama → bulan ini → bulan depan ──
   var firstTunggak = options.find(function(o){ return !o.lunas && !o.pending && !o.isMasaDepan && !o.locked; });
@@ -66901,7 +66933,8 @@ html.renco-dark .rpr-hint{background:rgba(244,214,122,.10);border-color:rgba(244
     });
     placeFixed();
   }
-  try{ new MutationObserver(function(){ smallRp(); }).observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style']}); }catch(e){}
+  var _smallRaf=0;
+  try{ new MutationObserver(function(){ if(_smallRaf) return; _smallRaf=requestAnimationFrame(function(){ _smallRaf=0; smallRp(); }); }).observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style']}); }catch(e){}
   smallRp();
   /* Saat RencoPay dibuka pertama kali, pastikan bar muncul */
   document.addEventListener('click', function(){ setTimeout(function(){ if(onRpPage() && !document.getElementById('rpRedenomBar')) bar(); },400); }, true);
@@ -67252,4 +67285,599 @@ details.e-ls summary{font-weight:800;cursor:pointer;color:#14532d}
   mount();setTimeout(mount,1500);
 })();
 </script>
+<style id="clean-white-theme">
+/* TEMA PUTIH BERSIH — hanya aktif saat Mode Malam MATI (html:not(.renco-dark)).
+   Saat Mode Malam hidup, tema gelap hijau-emas lama (body.rp-theme) dipulihkan oleh skrip kecil di bawah. */
+html:not(.renco-dark){--cw-bg:#ffffff; --cw-bg2:#f7f9f8; --cw-bg3:#eef2f0;
+  --cw-line:#e6ebe8; --cw-line2:#d9e1dc;
+  --cw-ink:#14281c; --cw-soft:#5f7568; --cw-mute:#8a9b92;
+  --cw-acc:#1f6b45; --cw-acc2:#2d6a4f; --cw-acc-bg:#eaf4ee;
+  --cw-gold:#a97800; --cw-gold-bg:#fdf6e3;
+  --cw-shadow:0 1px 2px rgba(20,40,28,.05), 0 6px 20px rgba(20,40,28,.06);
+  --cream:#ffffff; --cream-dark:#f4f7f5;
+  --text:#14281c; --text-soft:#5f7568;
+  --card-shadow:0 1px 2px rgba(20,40,28,.05), 0 6px 20px rgba(20,40,28,.06);}
+html:not(.renco-dark) body,
+html:not(.renco-dark) body.rp-theme{--t-s1:#ffffff; --t-s2:#f7f9f8; --t-tx:#14281c; --t-txrgb:20,40,28; --t-soft:#5f7568; --t-sub:#3d5a48;
+  --t-acc:#1f6b45; --t-acc2:#2d6a4f; --t-tint:45,106,79; --t-nav:255,255,255; --t-glow:#eaf4ee; --t-ink:#ffffff; --t-dk:#f7f9f8;}
+html:not(.renco-dark) body .kop-underline{background:var(--cw-bg2) !important;background-image:none !important}
+html:not(.renco-dark) body #page-pembiayaan{background:#ffffff !important;background-image:none !important}
+html:not(.renco-dark) body .renco-capital-banner{background:#ffffff !important;background-image:none !important;border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body #page-pembiayaan .tab-bar,
+html:not(.renco-dark) body .tab-bar[style*="0a0f08"],
+html:not(.renco-dark) body .tab-bar[style*="0d1a0e"]{background:#ffffff !important;background-image:none !important;border-bottom:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body #page-pembiayaan .tab-pill{background:var(--cw-bg2) !important;background-image:none !important;border-color:var(--cw-line2) !important;color:var(--cw-soft) !important}
+html:not(.renco-dark) body #page-pembiayaan .tab-pill.active{background:#ffffff !important;background-image:none !important;border-color:var(--cw-line2) !important;color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-stat-card{background:#ffffff !important;background-image:none !important;border-color:var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-nisbah-box{background:#ffffff !important;background-image:none !important}
+html:not(.renco-dark) body .mdh-modal-awal-card{background:#ffffff !important;background-image:none !important}
+html:not(.renco-dark) body .mdh-toast{background:#ffffff !important;background-image:none !important}
+html:not(.renco-dark) body .keu-hero{background:#ffffff !important;background-image:none !important}
+html:not(.renco-dark) body #page-pembiayaan .section-title{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .rc-ijarah-sheet{background:#ffffff !important;background-image:none !important;border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body #page-pembiayaan .renco-capital-banner{border-bottom:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body #page-pembiayaan .tab-bar{background:#ffffff !important;background-image:none !important;border-bottom:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body #page-pembiayaan .tab-pill.active{border-color:var(--cw-line2) !important;color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-toast{background:#ffffff !important;background-image:none !important;color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-modal-overlay{background:#ffffff !important;background-image:none !important}
+html:not(.renco-dark) body .mdh-modal-sheet{background:#ffffff !important;background-image:none !important}
+html:not(.renco-dark) body .mdh-modal-header{border-bottom:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-modal-title{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-modal-close{background:var(--cw-bg2) !important;background-image:none !important;color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-sim-box{background:#ffffff !important;background-image:none !important;border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-sim-title{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-sim-item{background:var(--cw-bg2) !important;background-image:none !important;border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-sim-val{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-sim-lbl{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-hero{background:#ffffff !important;background-image:none !important;border:1px solid var(--cw-line2) !important;box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-hero-badge{border:1px solid var(--cw-line2) !important;color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-hero-title{color:var(--cw-ink) !important}
+html:not(.renco-dark) body .mdh-hero-sub{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-hero-amount{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-hstat{background:var(--cw-bg2) !important;background-image:none !important;border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-hstat-val{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-hstat-lbl{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-section-title{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-stat-card{background:#ffffff !important;background-image:none !important;box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-stat-val{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-stat-lbl{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-akad-card{background:#ffffff !important;background-image:none !important;box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-akad-header{border-bottom:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-akad-icon-3d{box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-akad-name{color:var(--cw-ink) !important}
+html:not(.renco-dark) body .mdh-akad-sub{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-akad-label{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-akad-value{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-item-card{background:#ffffff !important;background-image:none !important;box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-item-card:active{box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-item-name{color:var(--cw-ink) !important}
+html:not(.renco-dark) body .mdh-item-meta{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-item-amount{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-item-status.pengajuan{color:var(--cw-gold) !important;border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-item-status.lunas{background:var(--cw-bg2) !important;background-image:none !important;color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-item-progress-lbl{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-item-progress{background:var(--cw-bg2) !important;background-image:none !important}
+html:not(.renco-dark) body .mdh-form-wrap{background:#ffffff !important;background-image:none !important}
+html:not(.renco-dark) body .mdh-form-header{border-bottom:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-form-header-title{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-form-header-sub{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-field label{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-field input,
+html:not(.renco-dark) body .mdh-field select,
+html:not(.renco-dark) body .mdh-field textarea{background:var(--cw-bg2) !important;background-image:none !important;border:1px solid var(--cw-line2) !important;color:var(--cw-ink) !important}
+html:not(.renco-dark) body .mdh-field select option{background:#ffffff !important;background-image:none !important;color:var(--cw-ink) !important}
+html:not(.renco-dark) body .mdh-btn-outline{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-nisbah-box{background:#ffffff !important;background-image:none !important;border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-nisbah-title{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-nisbah-pct{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-nisbah-party.koperasi{border-color:var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-nisbah-party.nasabah{background:var(--cw-bg2) !important;background-image:none !important}
+html:not(.renco-dark) body .mdh-nisbah-party-name{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-lapkeu-section{background:#ffffff !important;background-image:none !important;box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-lapkeu-header{border-bottom:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-lapkeu-title{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-lapkeu-period{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-lapkeu-row.total{border-top:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-lapkeu-lbl{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-lapkeu-val.gold{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-modal-awal-card{background:#ffffff !important;background-image:none !important;box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-modal-awal-top{border-bottom:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-coin-3d{box-shadow:var(--cw-shadow) !important}
+html:not(.renco-dark) body .mdh-modal-awal-val{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-modal-awal-sub{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-bar-label{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-bar-val{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-tl-name{color:var(--cw-ink) !important}
+html:not(.renco-dark) body .mdh-tl-meta{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-tl-amount{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-bagi-card{border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-bagi-period{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-bagi-val{color:var(--cw-gold) !important}
+html:not(.renco-dark) body .mdh-bagi-lbl{color:var(--cw-soft) !important}
+html:not(.renco-dark) body .mdh-empty-icon{border:1px solid var(--cw-line2) !important}
+html:not(.renco-dark) body .mdh-empty-title{color:var(--cw-ink) !important}
+html:not(.renco-dark) body .mdh-empty-sub{color:var(--cw-soft) !important}
+html:not(.renco-dark),
+html:not(.renco-dark) body{background:#ffffff !important; color:var(--cw-ink);}
+html:not(.renco-dark) body #app,
+html:not(.renco-dark) body #app #content,
+html:not(.renco-dark) body #app .page{background:#ffffff !important;}
+html:not(.renco-dark) body #app .bottom-nav{background:#ffffff !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  border-top:1px solid var(--cw-line) !important;
+  box-shadow:0 -4px 18px rgba(20,40,28,.05) !important;}
+html:not(.renco-dark) body #app .bottom-nav::before{display:none !important;}
+html:not(.renco-dark) body #app .bottom-nav .nav-item .nav-icon{color:#8a9b92 !important; filter:none !important;}
+html:not(.renco-dark) body #app .bottom-nav .nav-item .nav-label{color:#8a9b92 !important;}
+html:not(.renco-dark) body #app .bottom-nav .nav-item.active .nav-icon{color:var(--cw-acc) !important; filter:none !important;}
+html:not(.renco-dark) body #app .bottom-nav .nav-item.active .nav-label{color:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app .bottom-nav .nav-item.active .nav-indicator{background:var(--cw-acc) !important;}
+html:not(.renco-dark) body #toast{background:#ffffff !important; color:var(--cw-ink) !important; border:1px solid var(--cw-line2); box-shadow:0 8px 30px rgba(20,40,28,.16) !important;}
+html:not(.renco-dark) body #app #forumGridMenu,
+html:not(.renco-dark) body #app #forumGridInner,
+html:not(.renco-dark) body #app [id$="GridMenu"],
+html:not(.renco-dark) body #app [id$="GridInner"],
+html:not(.renco-dark) body #app .keu-grid-card,
+html:not(.renco-dark) body #app .aksi-cepat,
+html:not(.renco-dark) body #app .quick-actions{background:#ffffff !important; background-image:none !important;
+  border:1px solid var(--cw-line) !important; box-shadow:var(--cw-shadow) !important;}
+html:not(.renco-dark) body #app #forumGridMenu{border:none !important; box-shadow:none !important;}
+html:not(.renco-dark) body #app #page-pembiayaan{background:#ffffff !important; background-image:none !important;}
+html:not(.renco-dark) body #app .renco-capital-banner{background:#ffffff !important; background-image:none !important;
+  border:1px solid var(--cw-line) !important; box-shadow:var(--cw-shadow) !important;}
+html:not(.renco-dark) body #app .renco-capital-banner::before,
+html:not(.renco-dark) body #app .renco-capital-banner::after{opacity:0 !important;}
+html:not(.renco-dark) body #app .rc-gold-line,
+html:not(.renco-dark) body #app .renco-capital-divider{background:var(--cw-line) !important; height:1px !important;}
+html:not(.renco-dark) body #app .renco-capital-logo{background:var(--cw-acc-bg) !important; box-shadow:none !important; border-color:var(--cw-line) !important;}
+html:not(.renco-dark) body #app .renco-capital-name,
+html:not(.renco-dark) body #app .renco-capital-stat-value{background:none !important; -webkit-background-clip:border-box !important; background-clip:border-box !important;
+  -webkit-text-fill-color:var(--cw-ink) !important; color:var(--cw-ink) !important; text-shadow:none !important;}
+html:not(.renco-dark) body #app .renco-capital-tagline{background:none !important; -webkit-text-fill-color:var(--cw-soft) !important; color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app .renco-capital-stat-label{color:var(--cw-gold) !important;}
+html:not(.renco-dark) body #app .renco-capital-stat-sub{color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app .renco-capital-star{background:none !important; -webkit-text-fill-color:rgba(169,120,0,.18) !important; color:rgba(169,120,0,.18) !important;}
+html:not(.renco-dark) body #app .renco-capital-badge{background:var(--cw-gold-bg) !important; border:1px solid #ecd9a0 !important;
+  -webkit-text-fill-color:var(--cw-gold) !important; color:var(--cw-gold) !important;}
+html:not(.renco-dark) body #app .stat-card{background:#ffffff !important; background-image:none !important;
+  border:1px solid var(--cw-line) !important; box-shadow:var(--cw-shadow) !important;}
+html:not(.renco-dark) body #app .stat-card .stat-val{color:var(--cw-ink) !important; text-shadow:none !important;}
+html:not(.renco-dark) body #app .stat-card .stat-lbl{color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app .stat-card .stat-icon svg{stroke:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app .tab-bar,
+html:not(.renco-dark) body #app #page-pembiayaan .tab-bar{background:#ffffff !important; background-image:none !important; border-bottom:1px solid var(--cw-line) !important;}
+html:not(.renco-dark) body #app .tab-pill,
+html:not(.renco-dark) body #app #page-pembiayaan .tab-pill{background:var(--cw-bg2) !important; border:1px solid var(--cw-line) !important; color:var(--cw-soft) !important; box-shadow:none !important;}
+html:not(.renco-dark) body #app .tab-pill svg{stroke:currentColor !important;}
+html:not(.renco-dark) body #app .tab-pill.active,
+html:not(.renco-dark) body #app #page-pembiayaan .tab-pill.active{background:var(--cw-acc) !important; background-image:none !important; border-color:var(--cw-acc) !important; color:#ffffff !important;}
+html:not(.renco-dark) body #app #page-rencoPay,
+html:not(.renco-dark) body #app #bottomNavRencoPay{--text:#14281c; --text-soft:#5f7568; --forest-ink:#ffffff; --forest-dark:#ffffff; --forest-deep:#ffffff;
+  --surface-1:#ffffff; --surface-2:#f7f9f8; --glass-border:#e6ebe8;
+  --card-shadow:0 1px 2px rgba(20,40,28,.05), 0 6px 20px rgba(20,40,28,.06);}
+html:not(.renco-dark) body #app #page-rencoPay{background:#ffffff !important; background-image:none !important; color:var(--cw-ink) !important;}
+html:not(.renco-dark) body #app #page-rencoPay::before,
+html:not(.renco-dark) body #app #page-rencoPay::after{display:none !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rpGreet-hi{color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rpGreet-name{color:var(--cw-ink) !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKembaliKoperasiBtn,
+html:not(.renco-dark) body #app #page-rencoPay #rpAdminExitBtn{background:#ffffff !important; color:var(--cw-acc) !important; border:1px solid var(--cw-line2) !important; box-shadow:var(--cw-shadow) !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKembaliKoperasiBtn *{color:var(--cw-acc) !important; stroke:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpMenuGrid > div{background:#ffffff !important; background-image:none !important; border:1px solid var(--cw-line) !important;
+  box-shadow:var(--cw-shadow) !important; backdrop-filter:none !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpMenuGrid button{color:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpMenuGrid button span{color:var(--cw-ink) !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpMenuGrid button svg{background:var(--cw-acc-bg) !important; background-image:none !important; border-color:var(--cw-line) !important; box-shadow:none !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpMenuGrid button svg *{stroke:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app #bottomNavRencoPay{background:#ffffff !important; border-top:1px solid var(--cw-line) !important; box-shadow:0 -4px 18px rgba(20,40,28,.05) !important;}
+html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item .nav-icon,
+html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item .nav-label{color:#8a9b92 !important; filter:none !important;}
+html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item.active .nav-icon,
+html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item.active .nav-label{color:var(--cw-acc) !important; filter:none !important;}
+html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item-kembali{background:var(--cw-acc-bg) !important; border:1px solid var(--cw-line2) !important; box-shadow:none !important;}
+html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item-kembali .nav-icon,
+html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item-kembali .nav-label{color:var(--cw-acc) !important; filter:none !important;}
+html:not(.renco-dark) body #rpFlash{background:#ffffff !important; background-image:none !important;}
+html:not(.renco-dark) body #rpFlash *{color:var(--cw-ink) !important; text-shadow:none !important;}
+html:not(.renco-dark) body #app .bk-hero{background:#ffffff !important; background-image:none !important; border-bottom:1px solid var(--cw-line);}
+html:not(.renco-dark) body #app .bk-hero::before{display:none !important;}
+html:not(.renco-dark) body #app .bk-hero-title{color:var(--cw-ink) !important;}
+html:not(.renco-dark) body #app .bk-hero-sub,
+html:not(.renco-dark) body #app .bk-stat-lbl,
+html:not(.renco-dark) body #app .bk-storage-label,
+html:not(.renco-dark) body #app .bk-storage-val,
+html:not(.renco-dark) body #app .bk-storage-footer span{color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app .bk-hero-icon{background:var(--cw-acc-bg) !important; background-image:none !important; border-color:var(--cw-line) !important;}
+html:not(.renco-dark) body #app .bk-close-btn{background:var(--cw-bg2) !important; color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app .bk-hero-divider{background:var(--cw-line) !important;}
+html:not(.renco-dark) body #app .bk-stat{background:var(--cw-bg2) !important; border:1px solid var(--cw-line) !important;}
+html:not(.renco-dark) body #app .bk-stat-val{color:var(--cw-ink) !important;}
+html:not(.renco-dark) body #app .bk-stat-val.gold-val{color:var(--cw-gold) !important;}
+html:not(.renco-dark) body #app .bk-storage-track{background:var(--cw-bg3) !important;}
+html:not(.renco-dark) body .mdh-nisbah-party.koperasi .mdh-nisbah-party-pct,
+html:not(.renco-dark) body .mdh-nisbah-pct,
+html:not(.renco-dark) body .mdh-hstat-val,
+html:not(.renco-dark) body .mdh-sim-val,
+html:not(.renco-dark) body .mdh-stat-val{color:var(--cw-gold) !important; -webkit-text-fill-color:var(--cw-gold) !important;}
+html:not(.renco-dark) body .mdh-nisbah-party.koperasi{background:var(--cw-gold-bg) !important; border-color:#ecd9a0 !important;}
+html:not(.renco-dark) body .mdh-nisbah-party.nasabah .mdh-nisbah-party-pct{color:var(--cw-acc) !important;}
+html:not(.renco-dark) body .mdh-modal-overlay{background:rgba(20,40,28,.45) !important;}
+html:not(.renco-dark) body #app [onclick^="openChallengeGame"]{background:#ffffff !important; background-image:none !important; border:1px solid var(--cw-line) !important;
+  box-shadow:var(--cw-shadow) !important;}
+html:not(.renco-dark) body #app [onclick^="openChallengeGame"] > div:first-child{background:var(--cw-gold-bg) !important;}
+html:not(.renco-dark) body #app [onclick^="openChallengeGame"] svg path[stroke="white"]{stroke:var(--cw-mute) !important;}
+html:not(.renco-dark) body #app [onclick^="openChallengeGame"] div[style*="font-size:14px"]{color:var(--cw-gold) !important;}
+html:not(.renco-dark) body #app [onclick^="openChallengeGame"] div[style*="font-size:11px"]{color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app [onclick^="openChallengeGame"] #homeChallengePct{color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app [onclick^="openChallengeGame"] #homeChallengeBar > div:first-child{background:var(--cw-bg3) !important;}
+html:not(.renco-dark) body #app .challenge-hero{background:#ffffff !important; background-image:none !important; border:1px solid var(--cw-line) !important; box-shadow:var(--cw-shadow) !important;}
+html:not(.renco-dark) body #app .challenge-hero::before{opacity:0 !important;}
+html:not(.renco-dark) body #app .challenge-hero h2{color:var(--cw-gold) !important;}
+html:not(.renco-dark) body #app .challenge-hero p{color:var(--cw-soft) !important;}
+html:not(.renco-dark) body #app .challenge-target{color:var(--cw-ink) !important;}
+html:not(.renco-dark) body #app .challenge-progress-wrap{background:var(--cw-bg3) !important;}
+html:not(.renco-dark) body #app #page-keuangan,
+html:not(.renco-dark) body #app #page-keuangan #keuanganGridMenu,
+html:not(.renco-dark) body #app #page-forum #forumGridMenu,
+html:not(.renco-dark) body #app #page-home #homeGridMenu{background:#ffffff !important; background-image:none !important;}
+html:not(.renco-dark) body #app .keu-pedoman-frame{background:#ffffff !important; background-image:none !important; border:1px solid var(--cw-line) !important; box-shadow:var(--cw-shadow) !important;}
+html:not(.renco-dark) body #app .keu-pedoman-frame *{border-color:var(--cw-line) !important;}
+html:not(.renco-dark) body #app .q-icon,
+html:not(.renco-dark) body #app .fgb-icon{width:50px !important; height:50px !important; border-radius:50% !important;
+  background:var(--cw-acc-bg) !important; background-image:none !important;
+  border:1px solid var(--cw-line) !important; box-shadow:none !important;
+  display:flex !important; align-items:center; justify-content:center;}
+html:not(.renco-dark) body #app .q-icon svg,
+html:not(.renco-dark) body #app .fgb-icon svg{width:24px !important; height:24px !important;}
+html:not(.renco-dark) body #app .q-icon svg [stroke]:not([stroke="none"]),
+html:not(.renco-dark) body #app .fgb-icon svg [stroke]:not([stroke="none"]){stroke:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app .q-label,
+html:not(.renco-dark) body #app .fgb-label{color:var(--cw-ink) !important; font-size:12.5px !important; font-weight:600 !important;}
+html:not(.renco-dark) body #app .forum-grid-btn.active .fgb-icon{background:var(--cw-acc) !important; border-color:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app .forum-grid-btn.active .fgb-icon svg [stroke]:not([stroke="none"]){stroke:#ffffff !important;}
+html:not(.renco-dark) body #app .forum-grid-btn.active .fgb-label{color:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app .quick-actions,
+html:not(.renco-dark) body #app .hero-banner,
+html:not(.renco-dark) body #app #forumGridInner,
+html:not(.renco-dark) body #app .renco-capital-banner,
+html:not(.renco-dark) body #app .keu-pedoman-frame{border-radius:24px !important;}
+html:not(.renco-dark) body #app .stat-card{border-radius:20px !important;}
+html:not(.renco-dark) body #app .kgb-icon{width:50px !important; height:50px !important; border-radius:50% !important;
+  background:var(--cw-acc-bg) !important; background-image:none !important;
+  border:1px solid var(--cw-line) !important; box-shadow:none !important;
+  display:flex !important; align-items:center; justify-content:center;}
+html:not(.renco-dark) body #app .kgb-icon svg{width:24px !important; height:24px !important;}
+html:not(.renco-dark) body #app .kgb-icon svg [stroke]:not([stroke="none"]){stroke:var(--cw-acc) !important;}
+html:not(.renco-dark) body #app .keu-grid-card,
+html:not(.renco-dark) body #app .keu-grid-card.keu-glass{background:transparent !important; background-image:none !important; box-shadow:none !important; border:none !important;}
+html:not(.renco-dark) body #app .keu-grid-card [class*="label"],
+html:not(.renco-dark) body #app .keu-grid-card span{color:var(--cw-ink) !important; font-size:12.5px !important; font-weight:600 !important;}
+html:not(.renco-dark) body #app #page-keuangan .keu-grid-card .kgb-icon{background:var(--cw-acc-bg) !important; background-image:none !important;
+  border:1px solid var(--cw-line) !important; box-shadow:none !important; border-radius:50% !important;}
+html:not(.renco-dark) body #app #page-keuangan .keu-grid-card::before{display:none !important;}
+html:not(.renco-dark) body #app #page-keuangan .keu-grid-card .kgb-label{color:var(--cw-ink) !important; font-size:12.5px !important; font-weight:600 !important;}
+html:not(.renco-dark) body #loginScreen,
+html:not(.renco-dark) body #splash{color:#eef7f0;}
+html:not(.renco-dark) body #loginScreen .login-logo,
+html:not(.renco-dark) body #loginScreen .login-logo *{color:#eef7f0;}
+html:not(.renco-dark) body #loginScreen .login-field input{background-color:rgba(255,255,255,0.043) !important;}
+</style>
+<script id="clean-white-theme-sync">
+/* Sinkron tema: Mode Malam hidup -> pulihkan tampilan gelap lama (body.rp-theme); mati -> putih bersih */
+(function(){
+  var h=document.documentElement;
+  function sync(){
+    var on=h.classList.contains('renco-dark');
+    if(document.body) document.body.classList.toggle('rp-theme',on);
+  }
+  try{ new MutationObserver(sync).observe(h,{attributes:true,attributeFilter:['class']}); }catch(e){}
+  if(document.body) sync(); else document.addEventListener('DOMContentLoaded',sync);
+})();
+</script>
+<style id="home-square-edge-gradient">
+/* ═══ Beranda: hanya kartu Simpanan (hero) yang melengkung; elemen lain siku & tepi kiri-kanan simetris gradien hijau halus ═══ */
+#page-home{
+  --edge-g: linear-gradient(90deg, rgba(64,145,108,.20) 0%, rgba(64,145,108,.07) 7%, rgba(64,145,108,0) 16%, rgba(64,145,108,0) 84%, rgba(64,145,108,.07) 93%, rgba(64,145,108,.20) 100%);
+}
+/* Hero tetap melengkung */
+#page-home .hero-banner{ border-radius:20px !important; }
+
+/* Semua blok selain hero: tanpa lengkung */
+#page-home .stat-carousel,
+#page-home .stat-viewport,
+#page-home .stat-slide,
+#page-home .stats-row .stat-card,
+#page-home .quick-actions,
+#page-home .quick-actions .quick-btn,
+#page-home .slide-banner-wrap,
+#page-home .slide-item,
+#page-home .slide-item-bg,
+#page-home .slide-item-overlay,
+#page-home .card,
+#page-home .txn-list-glass,
+#page-home .rt-card,
+#page-home .home-tagihan-wrap,
+#page-home .ht-summary-bar,
+#page-home .ht-card,
+#page-home .ht-tab,
+#page-home #homeRiwayatChipBar > *,
+#page-home #kasHealthWidget,
+#page-home #prediksiKasWidget,
+#page-home #reviewPinjamanPanel,
+#page-home #reviewPinjamanPanel > *,
+#page-home #reviewPinjamanList > *,
+#page-home .iklan-glass-card,
+#page-home .search-bar,
+#page-home .progress-wrap,
+#page-home .progress-bar{
+  border-radius:0 !important;
+}
+
+/* Tepi kiri & kanan simetris: gradien hijau halus (lapisan gambar di atas warna dasar) */
+#page-home .stat-carousel,
+#page-home .slide-banner-wrap,
+#page-home .slide-item,
+#page-home .card,
+#page-home .txn-list-glass,
+#page-home .ht-card,
+#page-home .ht-summary-bar,
+#page-home #kasHealthWidget,
+#page-home #prediksiKasWidget,
+#page-home .iklan-glass-card{
+  background-image:var(--edge-g) !important;
+  background-repeat:no-repeat !important;
+  background-size:100% 100% !important;
+}
+/* Aksi Cepat: tanpa judul/kolom/kotak, 1 baris grid, geser ke kiri */
+#page-home .quick-actions,
+#page-home .quick-actions[data-qa-count]{
+  display:grid !important;
+  grid-auto-flow:column !important;
+  grid-template-columns:none !important;
+  grid-template-rows:auto !important;
+  grid-auto-columns:calc(100% / 3) !important;
+  gap:6px 0 !important;
+  padding:10px 8px !important;
+  background:transparent !important; background-image:none !important;
+  border:none !important; box-shadow:none !important;
+  overflow-x:auto !important; overflow-y:hidden !important;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain;
+  scrollbar-width:none;
+}
+#page-home .quick-actions::-webkit-scrollbar{ display:none; }
+#page-home .quick-actions::before{ content:none !important; display:none !important; }
+#page-home .quick-actions .quick-btn,
+#page-home .quick-actions .quick-btn.qa-wide{
+  grid-row:auto !important; grid-column:auto !important;
+  scroll-snap-align:start;
+  flex-direction:column !important; margin:0 !important; padding:4px 2px !important;
+  background:transparent !important; box-shadow:none !important;
+  align-items:center; justify-content:center;
+}
+#page-home .quick-actions .quick-btn .q-label{ display:block !important; }
+html.renco-dark #page-home .quick-actions .quick-btn .q-label{ color:#f5d77e !important; }
+/* Hapus latar/kartu di balik ikon: hanya ikon + keterangan */
+#page-home .quick-actions .quick-btn,
+#page-home .quick-actions .quick-btn:active{ background:transparent !important; border:none !important; box-shadow:none !important; }
+#page-home .quick-actions .quick-btn:active .q-icon,
+#page-home .quick-actions .quick-btn.qbtn-selected .q-icon,
+#page-home .quick-actions .quick-btn .q-icon::before,
+#page-home .quick-actions .quick-btn .q-icon::after,
+#page-home .quick-actions .quick-btn::before,
+#page-home .quick-actions .quick-btn::after{
+  background:transparent !important; background-image:none !important;
+  border:none !important; box-shadow:none !important; outline:none !important;
+}
+#page-home .quick-actions .quick-btn .q-icon,
+#page-home .quick-actions .quick-btn.qa-wide .q-icon{
+  background:transparent !important; background-image:none !important;
+  border:none !important; box-shadow:none !important; border-radius:0 !important;
+}
+#page-home .quick-actions .quick-btn .q-icon,
+#page-home .quick-actions .quick-btn.qa-wide .q-icon{ width:76px !important; height:76px !important; }
+#page-home .quick-actions .quick-btn .q-icon svg,
+#page-home .quick-actions .quick-btn.qa-wide .q-icon svg{ width:48px !important; height:48px !important; }
+#page-home .quick-actions .quick-btn .q-label{ font-size:12.5px !important; margin-top:2px; }
+
+/* Aksi Cepat: pastikan tidak ada kotak/kartu (menimpa tema putih bersih) */
+html body #app #page-home .quick-actions,
+html:not(.renco-dark) body #app #page-home .quick-actions{
+  background:transparent !important; background-image:none !important;
+  border:none !important; box-shadow:none !important; border-radius:0 !important;
+}
+html body #app #page-home .quick-actions .quick-btn,
+html body #app #page-home .quick-actions .quick-btn .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn .q-icon{
+  background:transparent !important; background-image:none !important;
+  border:none !important; box-shadow:none !important; border-radius:0 !important;
+}
+/* Ketukan pertama: tidak ada bingkai/kotak kuning */
+html body #app #page-home .quick-actions .quick-btn,
+html body #app #page-home .quick-actions .quick-btn .q-icon,
+html body #app #page-home .quick-actions .quick-btn .q-label,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn .q-label,
+html body #app #page-home .quick-actions .quick-btn:active,
+html body #app #page-home .quick-actions .quick-btn:active .q-icon,
+html body #app #page-home .quick-actions .quick-btn:active .q-label,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:active,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:active .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:active .q-label,
+html body #app #page-home .quick-actions .quick-btn:focus,
+html body #app #page-home .quick-actions .quick-btn:focus .q-icon,
+html body #app #page-home .quick-actions .quick-btn:focus .q-label,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:focus,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:focus .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:focus .q-label,
+html body #app #page-home .quick-actions .quick-btn:focus-visible,
+html body #app #page-home .quick-actions .quick-btn:focus-visible .q-icon,
+html body #app #page-home .quick-actions .quick-btn:focus-visible .q-label,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:focus-visible,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:focus-visible .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:focus-visible .q-label,
+html body #app #page-home .quick-actions .quick-btn:hover,
+html body #app #page-home .quick-actions .quick-btn:hover .q-icon,
+html body #app #page-home .quick-actions .quick-btn:hover .q-label,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:hover,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:hover .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:hover .q-label,
+html body #app #page-home .quick-actions .quick-btn.rc-gold,
+html body #app #page-home .quick-actions .quick-btn.rc-gold .q-icon,
+html body #app #page-home .quick-actions .quick-btn.rc-gold .q-label,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn.rc-gold,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn.rc-gold .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn.rc-gold .q-label,
+html body #app #page-home .quick-actions .quick-btn.qbtn-selected,
+html body #app #page-home .quick-actions .quick-btn.qbtn-selected .q-icon,
+html body #app #page-home .quick-actions .quick-btn.qbtn-selected .q-label,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn.qbtn-selected,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn.qbtn-selected .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn.qbtn-selected .q-label{
+  background:transparent !important; background-image:none !important;
+  border:none !important; box-shadow:none !important; outline:none !important;
+  border-radius:0 !important; -webkit-tap-highlight-color:transparent;
+}
+#page-home .quick-actions .quick-btn.rc-gold .q-label,
+#page-home .quick-actions .quick-btn:active .q-label{ color:inherit !important; }
+/* Saat diketuk: ikon membesar + latar kotak kuning */
+html body #app #page-home .quick-actions .quick-btn:active .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn:active .q-icon,
+html body #app #page-home .quick-actions .quick-btn.qbtn-selected .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn.qbtn-selected .q-icon,
+html body #app #page-home .quick-actions .quick-btn.rc-gold .q-icon,
+html:not(.renco-dark) body #app #page-home .quick-actions .quick-btn.rc-gold .q-icon{
+  background:linear-gradient(135deg,#f4a922,#ffd166) !important; background-image:linear-gradient(135deg,#f4a922,#ffd166) !important;
+  border:1px solid #f4a922 !important; border-radius:17px !important;
+  box-shadow:0 0 0 3px rgba(244,169,34,.28),0 6px 16px rgba(244,169,34,.45) !important;
+}
+
+
+/* Transaksi Terkini: tanpa kartu/gradien latar — seperti Aksi Cepat */
+html body #app #page-home .card.txn-list-glass,
+html:not(.renco-dark) body #app #page-home .card.txn-list-glass,
+html.renco-dark body #app #page-home .card.txn-list-glass{
+  background:transparent !important; background-image:none !important;
+  border:none !important; box-shadow:none !important; border-radius:0 !important;
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+}
+html body #app #page-home #homeTransaksiList .txn-wrap,
+html body #app #page-home #homeTransaksiList .rp-txn-item{ background:transparent !important; box-shadow:none !important; }
+</style>
+
+<script id="nonaktif-notif-module">
+/* ═══ Pemberitahuan Akun Nonaktif (3 bulan tanpa transaksi) → WhatsApp & Email terdaftar ═══
+   Catatan teknis: aplikasi ini berjalan di sisi browser tanpa server pengirim pesan, jadi
+   pengiriman dilakukan lewat WhatsApp & aplikasi Email milik admin (pesan sudah terisi
+   otomatis, tinggal ketuk "Kirim"). Antrean & status terkirim tersimpan di data anggota. */
+(function(){
+  var KONTAK_EMAIL = 'koperasirenco@gmail.com', KONTAK_WA = '087855712922';
+  function esc(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function normHp(hp){ var d=String(hp||'').replace(/\D/g,''); if(!d) return ''; return d.charAt(0)==='0' ? '62'+d.slice(1) : (d.slice(0,2)==='62'?d:'62'+d); }
+  function pesan(a){
+    var sejak = a && a.nonaktifAlasan ? a.nonaktifAlasan : 'Tidak ada transaksi selama 3 (tiga) bulan.';
+    var _f=function(n){ var v=Math.round(Number(n)||0); return (v<0?'-':'')+'Rp '+Math.abs(v).toLocaleString('id-ID'); };
+    var sim=0,pin=0,bj=0;
+    try{
+      sim = typeof totalSimpananKK==='function' ? totalSimpananKK(a.id) : 0;
+      pin = typeof totalPinjamanAktifKK==='function' ? totalPinjamanAktifKK(a.id) : 0;
+      bj  = ((window.DB&&DB.tabunganBerjangka)||[]).filter(function(t){ return t.kkId===a.id && t.status==='aktif'; }).reduce(function(x,y){ return x+(y.jumlah||0); },0);
+    }catch(e){}
+    var bersih = sim + bj - pin;
+    var isi = 'Yth. Bapak/Ibu ' + (a.nama||'Anggota') + ',\n\n'
+      + 'Assalamu\'alaikum warahmatullahi wabarakatuh.\n\n'
+      + 'Sebelumnya, kami memohon maaf apabila pesan ini mengganggu waktu Bapak/Ibu.\n\n'
+      + 'Dengan hormat, kami menyampaikan bahwa status keanggotaan Bapak/Ibu pada Koperasi RENCO telah dinonaktifkan oleh sistem secara otomatis karena tidak terdapat aktivitas transaksi selama 3 (tiga) bulan berturut-turut.\n'
+      + 'Keterangan: ' + String(sejak).replace(/\.$/,'') + '.\n\n'
+      + 'Adapun rincian tabungan Bapak/Ibu pada Koperasi RENCO saat ini adalah sebagai berikut:\n'
+      + 'Jumlah Tabungan         : ' + _f(sim) + '\n'
+      + 'Posisi Tabungan Bersih  : ' + _f(bersih) + '\n'
+      + '(Posisi bersih sudah termasuk tabungan berjangka dan dikurangi sisa pinjaman, apabila ada.)\n\n'
+      + 'Apabila Bapak/Ibu berkenan mengaktifkan kembali keanggotaan, kami mohon untuk menghubungi Admin/Pengurus Koperasi melalui:\n'
+      + 'Email    : ' + KONTAK_EMAIL + '\n'
+      + 'WhatsApp : ' + KONTAK_WA + '\n\n'
+      + 'Atas perhatian dan kerja samanya, kami ucapkan terima kasih.\n\n'
+      + 'Hormat kami,\nPengurus Koperasi RENCO';
+    return { subjek:'Pemberitahuan Status Keanggotaan Koperasi RENCO', isi:isi };
+  }
+  function antrean(){
+    return ((window.DB && DB.nasabah) || []).filter(function(a){
+      return a.status==='Tidak Aktif' && a.statusOtomatis && !(a.notifNonaktif && a.notifNonaktif.status==='selesai');
+    });
+  }
+  function tandai(id, kanal){
+    var a=(DB.nasabah||[]).find(function(x){return x.id===id;}); if(!a) return;
+    if(!a.notifNonaktif) a.notifNonaktif={status:'menunggu',tanggal:new Date().toISOString(),wa:false,email:false};
+    a.notifNonaktif[kanal]=true;
+    var n=a.notifNonaktif, perluWa=!!normHp(a.hp), perluEm=!!(a.email&&a.email.indexOf('@')>0);
+    if ((!perluWa||n.wa) && (!perluEm||n.email)) { n.status='selesai'; n.selesaiTanggal=new Date().toISOString(); }
+    try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
+  }
+  window.nonaktifKirimWA=function(id){
+    var a=(DB.nasabah||[]).find(function(x){return x.id===id;}); var hp=a&&normHp(a.hp); if(!hp) return;
+    window.open('https://wa.me/'+hp+'?text='+encodeURIComponent(pesan(a).isi),'_blank');
+    tandai(id,'wa'); window.openNonaktifNotif(true); window._nonaktifBanner();
+  };
+  window.nonaktifKirimEmail=function(id){
+    var a=(DB.nasabah||[]).find(function(x){return x.id===id;}); if(!a||!a.email) return;
+    var m=pesan(a);
+    window.open('mailto:'+encodeURIComponent(a.email.trim())+'?subject='+encodeURIComponent(m.subjek)+'&body='+encodeURIComponent(m.isi),'_blank');
+    tandai(id,'email'); window.openNonaktifNotif(true); window._nonaktifBanner();
+  };
+  window.openNonaktifNotif=function(refresh){
+    var ov=document.getElementById('nonaktifNotifOv');
+    if(!ov){
+      ov=document.createElement('div'); ov.id='nonaktifNotifOv';
+      ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(6,20,12,.55);display:flex;align-items:flex-end;justify-content:center';
+      ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
+      document.body.appendChild(ov);
+    }
+    var list=antrean();
+    var rows=list.length ? list.map(function(a){
+      var hp=normHp(a.hp), em=(a.email&&a.email.indexOf('@')>0)?a.email.trim():'', n=a.notifNonaktif||{};
+      function btn(ok,done,label,fn,bg){
+        if(!ok) return '<span style="flex:1;text-align:center;font-size:11px;color:#9ca3af;padding:9px 0;border:1px dashed #d1d5db">'+label+' — tidak terdaftar</span>';
+        return '<button onclick="'+fn+'(\''+esc(a.id)+'\')" style="flex:1;padding:9px 0;border:none;background:'+(done?'#e5e7eb':bg)+';color:'+(done?'#374151':'#fff')+';font-weight:700;font-size:12px;font-family:inherit;cursor:pointer">'+(done?'✓ Terkirim · Kirim ulang':label)+'</button>';
+      }
+      return '<div style="padding:12px 0;border-bottom:1px solid rgba(0,0,0,.07)">'
+        +'<div style="font-weight:800;font-size:13px;color:#14281d">'+esc(a.nama)+'</div>'
+        +'<div style="font-size:10.5px;color:#6b7280;margin:2px 0 8px">'+esc(a.nonaktifAlasan||'')+'</div>'
+        +'<div style="display:flex;gap:8px">'+btn(!!hp,n.wa,'WhatsApp','nonaktifKirimWA','#25D366')+btn(!!em,n.email,'Email','nonaktifKirimEmail','#1a472a')+'</div></div>';
+    }).join('') : '<div style="padding:26px 0;text-align:center;color:#6b7280;font-size:12.5px">Semua pemberitahuan sudah terkirim.</div>';
+    ov.innerHTML='<div style="width:100%;max-width:480px;max-height:82vh;overflow:auto;background:#fff;padding:18px 18px 26px;box-shadow:0 -10px 40px rgba(0,0,0,.3)">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div style="font-weight:800;font-size:15px;color:#14281d">Pemberitahuan Akun Nonaktif</div><button onclick="document.getElementById(\'nonaktifNotifOv\').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#6b7280">×</button></div>'
+      +'<div style="font-size:11.5px;color:#4b5563;line-height:1.5;margin-bottom:6px">Anggota di bawah ini dinonaktifkan otomatis (3 bulan tanpa transaksi). Ketuk tombol untuk mengirim pemberitahuan formal ke WhatsApp dan email terdaftar; pesan sudah terisi otomatis.</div>'
+      +rows+'</div>';
+  };
+  window._nonaktifBtnUpdate=function(){
+    var bar=document.getElementById('nonaktifNotifBar'); if(!bar) return;
+    var n=antrean().length, b=document.getElementById('nonaktifNotifBadge');
+    if(b){ b.textContent=n; b.style.display=n?'inline-block':'none'; }
+  };
+  window._nonaktifBanner=function(){
+    try{ window._nonaktifBtnUpdate(); }catch(e){}
+    var wrap=document.getElementById('_nonaktifAdminBanner');
+    var show=false; // banner beranda ditiadakan — pemberitahuan hanya lewat tombol di menu Nasabah
+    if(!show){ if(wrap) wrap.style.display='none'; return; }
+    if(!wrap){
+      wrap=document.createElement('div'); wrap.id='_nonaktifAdminBanner'; wrap.style.cssText='padding:0 16px;margin:0 0 6px';
+      var hero=document.querySelector('#page-home .hero-banner'); if(!hero||!hero.parentNode) return;
+      hero.parentNode.insertBefore(wrap,hero);
+    }
+    wrap.style.display='';
+    wrap.innerHTML='<button onclick="openNonaktifNotif()" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid rgba(220,38,38,.3);background:rgba(220,38,38,.07);cursor:pointer;font-family:inherit">'
+      +'<span style="font-size:20px">⏸️</span><span style="flex:1"><span style="display:block;font-size:12.5px;font-weight:800;color:#b91c1c">'+antrean().length+' akun nonaktif perlu diberi tahu</span><span style="display:block;font-size:11px;color:#4b5563;margin-top:2px">Ketuk untuk kirim pemberitahuan via WhatsApp &amp; Email</span></span><span style="color:#b91c1c;font-weight:800">›</span></button>';
+  };
+  var _rn=window.renderNasabah;
+  if(typeof _rn==='function'){ window.renderNasabah=function(){ var r=_rn.apply(this,arguments); try{window._nonaktifBtnUpdate();}catch(e){} return r; }; }
+  setInterval(function(){ try{ if(document.getElementById('page-home')&&document.getElementById('page-home').classList.contains('active')) window._nonaktifBanner(); else window._nonaktifBtnUpdate(); }catch(e){} }, 3000);
+  var _rh=window.renderHome;
+  if(typeof _rh==='function'){ window.renderHome=function(){ var r=_rh.apply(this,arguments); try{window._nonaktifBanner();}catch(e){} return r; }; }
+})();
+</script>
+<style id="home-txn-noicon">/* Transaksi Terkini (beranda): tanpa ikon transaksi */
+html body #app #page-home #homeTransaksiList .rp-txn-icon{ display:none !important; }
+html body #app #page-home #homeTransaksiList .rp-txn-item{ gap:0 !important; }
+</style>
 </body></html>
