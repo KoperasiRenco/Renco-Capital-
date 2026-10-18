@@ -68497,35 +68497,341 @@ html.renco-dark .lpn2-actions .p{color:#1a2a1f}
   setInterval(function(){ try{ sync(); }catch(e){} }, 2000);
 })();
 </script>
-<!-- ═══ Latar menu Nasabah: gambar dimuat HANYA saat menu Nasabah aktif (hemat data) ═══ -->
-<style id="nasabahBgCSS">
-#page-nasabah.nsb-bg-on{
-  background-image:linear-gradient(rgba(244,250,246,.62),rgba(244,250,246,.62)), var(--nsb-bg-url);
-  background-size:cover; background-position:center top; background-repeat:no-repeat;
-  background-attachment:fixed;
+<!-- ═══ Aksi Cepat: animasi lompat-memantul saat digeser ke kiri / kanan ═══ -->
+<style id="qaSwipeCSS">
+@keyframes qaHop{
+  0%   { transform:translateY(0) rotate(0) scale(1);   box-shadow:0 0 0 0 rgba(212,170,40,.5); }
+  30%  { transform:translateY(-11px) rotate(calc(var(--qa-dir,1) * 14deg)) scale(1.12); }
+  60%  { transform:translateY(2px) rotate(calc(var(--qa-dir,1) * -6deg)) scale(.96); box-shadow:0 0 0 9px rgba(212,170,40,0); }
+  80%  { transform:translateY(-2px) rotate(calc(var(--qa-dir,1) * 2deg)) scale(1.02); }
+  100% { transform:translateY(0) rotate(0) scale(1);   box-shadow:0 0 0 9px rgba(212,170,40,0); }
+}
+#page-home .quick-actions.qa-wave .quick-btn .q-icon{
+  animation:qaHop .65s cubic-bezier(.3,.7,.4,1) both;
+  animation-delay:calc(var(--qa-i,0) * 60ms);
+}
+@media (prefers-reduced-motion:reduce){
+  #page-home .quick-actions.qa-wave .quick-btn .q-icon{ animation:none !important; }
 }
 </style>
 <script>
 (function(){
-  var page = document.getElementById('page-nasabah');
-  if (!page) return;
-  var URL_BG = 'assets/bg-nasabah.jpg', state = 0; /* 0=belum, 1=memuat, 2=siap */
-  function apply(){
-    page.style.setProperty('--nsb-bg-url', 'url("' + URL_BG + '")');
-    page.classList.add('nsb-bg-on');
+  var box = document.querySelector('#page-home .quick-actions');
+  if (!box) return;
+  var x0 = 0, y0 = 0, down = false, timer = null;
+
+  function wave(dir){ /* dir: 1 = kanan, -1 = kiri */
+    var btns = Array.prototype.filter.call(box.querySelectorAll('.quick-btn'), function(b){
+      return b.style.display !== 'none';
+    });
+    if (dir < 0) btns.reverse(); /* geser kiri: urutan dari kanan ke kiri */
+    btns.forEach(function(b, i){ b.style.setProperty('--qa-i', i); });
+    box.style.setProperty('--qa-dir', dir);
+    box.classList.remove('qa-wave');
+    void box.offsetWidth; /* restart animasi */
+    box.classList.add('qa-wave');
+    clearTimeout(timer);
+    timer = setTimeout(function(){ box.classList.remove('qa-wave'); }, 1400);
   }
-  function check(){
-    if (!page.classList.contains('active')) return;
-    if (state === 2){ apply(); return; }
-    if (state === 1) return;
-    state = 1;
-    var img = new Image();
-    img.onload = function(){ state = 2; apply(); };
-    img.onerror = function(){ state = 0; };
-    img.src = URL_BG; /* diunduh sekali, selanjutnya dari cache browser */
+  function start(x, y){ x0 = x; y0 = y; down = true; }
+  function end(x, y){
+    if (!down) return; down = false;
+    var dx = x - x0, dy = y - y0;
+    if (Math.abs(dx) > 40 && Math.abs(dy) < Math.abs(dx) * 0.7) wave(dx > 0 ? 1 : -1);
   }
-  new MutationObserver(check).observe(page, { attributes:true, attributeFilter:['class'] });
-  check();
+  box.addEventListener('touchstart', function(e){ var t = e.touches[0]; start(t.clientX, t.clientY); }, { passive:true });
+  box.addEventListener('touchend',   function(e){ var t = e.changedTouches[0]; end(t.clientX, t.clientY); }, { passive:true });
+  box.addEventListener('touchcancel', function(){ down = false; }, { passive:true });
+  box.addEventListener('mousedown', function(e){ start(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', function(e){ end(e.clientX, e.clientY); });
 })();
 </script>
+<!-- ═══ Popup Transfer RencoPay Berhasil: tampilan compact + efek suara ═══ -->
+<style id="tfOkCSS">
+#tfOkOverlay{display:none;position:fixed;inset:0;z-index:99992;background:rgba(0,0,0,.5);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;
+  animation:tfOkFade .2s ease-out}
+#tfOkOverlay .tfok-card{width:100%;max-width:290px;background:#fff;border-radius:22px;padding:20px 16px 14px;text-align:center;
+  box-shadow:0 18px 44px rgba(6,20,12,.35);animation:tfOkPop .38s cubic-bezier(.2,1.2,.4,1) both;font-family:inherit}
+#tfOkOverlay .tfok-ico{width:58px;height:58px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(150deg,#22c55e,#16a34a);box-shadow:0 0 0 0 rgba(34,197,94,.5);animation:tfOkRing .9s ease-out .25s 1 both}
+#tfOkOverlay .tfok-ico path{stroke-dasharray:28;stroke-dashoffset:28;animation:tfOkDraw .4s ease-out .25s forwards}
+#tfOkOverlay .tfok-t{font-size:14px;font-weight:800;color:#1c3025}
+#tfOkOverlay .tfok-amt{font-size:22px;font-weight:800;color:#166534;margin:4px 0 2px;letter-spacing:.2px}
+#tfOkOverlay .tfok-to{font-size:11.5px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tfOkOverlay .tfok-saldo{margin-top:10px;padding:8px 12px;border-radius:12px;background:rgba(26,71,42,.07);display:flex;justify-content:space-between;
+  font-size:11px;color:#1a472a}
+#tfOkOverlay .tfok-saldo b{color:#7a5c00}
+#tfOkOverlay .tfok-act{display:flex;gap:8px;margin-top:12px}
+#tfOkOverlay .tfok-act button{flex:1;border:none;border-radius:12px;padding:9px 2px 7px;background:#f3f6f4;color:#1a472a;font:inherit;
+  font-size:10px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;-webkit-tap-highlight-color:transparent}
+#tfOkOverlay .tfok-act button:active{transform:scale(.94)}
+#tfOkOverlay .tfok-act .tfok-wa{background:rgba(37,211,102,.14);color:#128c4a}
+#tfOkOverlay .tfok-close{margin-top:10px;width:100%;border:none;border-radius:12px;padding:10px;background:linear-gradient(135deg,#1a472a,#2d6a4f);
+  color:#fff;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+@keyframes tfOkFade{from{opacity:0}to{opacity:1}}
+@keyframes tfOkPop{from{opacity:0;transform:scale(.8) translateY(10px)}to{opacity:1;transform:none}}
+@keyframes tfOkDraw{to{stroke-dashoffset:0}}
+@keyframes tfOkRing{0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)}100%{box-shadow:0 0 0 18px rgba(34,197,94,0)}}
+@media (prefers-reduced-motion:reduce){#tfOkOverlay,#tfOkOverlay *{animation:none!important}#tfOkOverlay .tfok-ico path{stroke-dashoffset:0}}
+</style>
+<script>
+(function(){
+
+  function esc(t){ return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function money(n){ try{ return (typeof fmt === 'function') ? fmt(n) : 'Rp ' + Number(n||0).toLocaleString('id-ID'); }catch(e){ return 'Rp ' + n; } }
+
+  /* Efek suara: nada naik ceria (sintesis WebAudio, tanpa file audio) */
+  function playSuccess(){
+    try{
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      var ctx = window._tfOkCtx || (window._tfOkCtx = new AC());
+      if (ctx.state === 'suspended') ctx.resume();
+      var t0 = ctx.currentTime + 0.02;
+      [[784,0],[988,.1],[1319,.2],[1568,.32]].forEach(function(n, i){
+        var o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = i === 3 ? 'triangle' : 'sine';
+        o.frequency.setValueAtTime(n[0], t0 + n[1]);
+        g.gain.setValueAtTime(0.0001, t0 + n[1]);
+        g.gain.exponentialRampToValueAtTime(0.2, t0 + n[1] + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + n[1] + (i === 3 ? 0.6 : 0.28));
+        o.connect(g); g.connect(ctx.destination);
+        o.start(t0 + n[1]); o.stop(t0 + n[1] + 0.65);
+      });
+    }catch(e){}
+    try{ if (navigator.vibrate) navigator.vibrate([40, 30, 40]); }catch(e){}
+  }
+
+  function showCompact(d){
+    var ov = document.getElementById('tfOkOverlay');
+    if (!ov){
+      ov = document.createElement('div'); ov.id = 'tfOkOverlay';
+      ov.addEventListener('click', function(e){ if (e.target === ov) closeCompact(); });
+      document.body.appendChild(ov);
+    }
+    var ico = function(name, size){ try{ return window._ico ? window._ico(name, size) : ''; }catch(e){ return ''; } };
+    ov.innerHTML =
+      '<div class="tfok-card" onclick="event.stopPropagation()">' +
+        '<div class="tfok-ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
+        '<div class="tfok-t">Transfer Berhasil</div>' +
+        '<div class="tfok-amt">' + esc(money(d.jumlah)) + '</div>' +
+        '<div class="tfok-to">ke ' + esc(d.toNama || '-') + '</div>' +
+        (d.saldoSesudah != null ? '<div class="tfok-saldo"><span>Sisa saldo RencoPay</span><b>' + esc(money(d.saldoSesudah)) + '</b></div>' : '') +
+        '<div class="tfok-act">' +
+          '<button type="button" onclick="_downloadTxnSuksesPDF(window._lastTxnSuksesData)">' + ico('download', 18) + 'PDF</button>' +
+          '<button type="button" class="tfok-wa" onclick="_kirimTxnSuksesWA(window._lastTxnSuksesData)">' + ico('whatsapp', 18) + 'WhatsApp</button>' +
+          '<button type="button" onclick="_shareBuktiGambarWA(window._lastTxnSuksesData)"><span style="font-size:17px;line-height:18px">🧾</span>Bukti</button>' +
+        '</div>' +
+        '<button type="button" class="tfok-close" onclick="_closeTxnSuksesSheet()">Tutup</button>' +
+      '</div>';
+    window._lastTxnSuksesData = d;
+    ov.style.display = 'flex';
+    playSuccess();
+  }
+  function closeCompact(){ var ov = document.getElementById('tfOkOverlay'); if (ov) ov.style.display = 'none'; }
+
+  /* Pasang pembungkus begitu fungsi aslinya tersedia (dan pasang ulang bila ditimpa) */
+  function install(){
+    var o = window._showTxnSuksesSheet;
+    if (typeof o === 'function' && !o._tfOk){
+      var w = function(d){
+        if (d && d.jenisTxn === 'transfer' && !d.isLalu) return showCompact(d);
+        return o.apply(this, arguments);
+      };
+      w._tfOk = true; window._showTxnSuksesSheet = w;
+    }
+    var c = window._closeTxnSuksesSheet;
+    if (typeof c === 'function' && !c._tfOk){
+      var wc = function(){
+        closeCompact();
+        return c.apply(this, arguments);
+      };
+      wc._tfOk = true; window._closeTxnSuksesSheet = wc;
+    }
+  }
+  install();
+  setInterval(install, 1500);
+})();
+</script>
+<!-- ═══ Menu Hiburan: isi konten dibungkus panel tab layar penuh (sama seperti menu Keuangan) ═══ -->
+<style id="forumPanelCSS">
+#forumPanelOverlay{display:none;position:fixed;inset:0;z-index:490;background:#f4f6f8;flex-direction:column}
+#forumPanelOverlay.open{display:flex}
+#forumPanelHeader{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+  padding:calc(14px + env(safe-area-inset-top,0px)) 16px 12px;
+  background:linear-gradient(135deg,var(--forest),var(--forest-mid))}
+#forumPanelHeader .fp-left{display:flex;align-items:center;gap:10px;min-width:0}
+#forumPanelIcon{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.92);display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;box-shadow:0 0 0 2px rgba(244,169,34,.35)}
+#forumPanelIcon svg{width:22px;height:22px}
+#forumPanelTitle{font-size:15px;font-weight:800;color:#fff;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#forumPanelClose{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.2);border:none;color:#fff;font-size:18px;
+  font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;flex-shrink:0;
+  -webkit-tap-highlight-color:transparent}
+#forumPanelContent{flex:1;overflow-y:auto;overflow-x:hidden;background:#f4f6f8;-webkit-overflow-scrolling:touch;padding-bottom:80px}
+</style>
+<script>
+(function(){
+  var SEC = ['Diskusi','Polling','Games','Arisan','Berita','Kalender','Nasehat','Edukasi'];
+  var overlay = null, content = null, cur = null, curTab = null, navEntering = false;
+
+  function cap(t){ return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; }
+  function build(){
+    if (overlay) return;
+    overlay = document.createElement('div'); overlay.id = 'forumPanelOverlay';
+    overlay.innerHTML =
+      '<div id="forumPanelHeader"><div class="fp-left"><div id="forumPanelIcon"></div><span id="forumPanelTitle"></span></div>' +
+      '<button type="button" id="forumPanelClose" aria-label="Tutup">\u2715</button></div>' +
+      '<div id="forumPanelContent"></div>';
+    document.body.appendChild(overlay);
+    content = overlay.querySelector('#forumPanelContent');
+    overlay.querySelector('#forumPanelClose').addEventListener('click', closePanel);
+  }
+  function restore(sec){
+    if (!sec) return;
+    if (sec._fpPh && sec._fpPh.parentNode){ sec._fpPh.parentNode.insertBefore(sec, sec._fpPh); sec._fpPh.parentNode.removeChild(sec._fpPh); }
+    sec._fpPh = null; sec.style.display = 'none';
+  }
+  function place(tab){
+    var sec = document.getElementById('forumSeksi' + cap(tab));
+    if (!sec) return false;
+    if (cur && cur !== sec) restore(cur);
+    if (sec.parentNode !== content){
+      var ph = document.createComment('forum-seksi'); sec.parentNode.insertBefore(ph, sec); sec._fpPh = ph; content.appendChild(sec);
+    }
+    sec.style.display = ''; cur = sec; curTab = tab;
+    // judul & ikon dari tombol menu
+    var btn = document.getElementById('forumTab' + cap(tab));
+    var lbl = btn && btn.querySelector('.fgb-label'), ico = btn && btn.querySelector('.fgb-icon');
+    document.getElementById('forumPanelTitle').textContent = lbl ? lbl.textContent.trim() : cap(tab);
+    document.getElementById('forumPanelIcon').innerHTML = ico ? ico.innerHTML : '';
+    content.scrollTop = 0;
+    return true;
+  }
+  function openPanel(tab){
+    build();
+    var was = overlay.classList.contains('open');
+    if (!place(tab)) return;
+    overlay.classList.add('open');
+    if (!was){ try{ history.pushState(null, '', ''); }catch(e){} }
+  }
+  function closePanel(){
+    if (!overlay || !overlay.classList.contains('open')) return;
+    overlay.classList.remove('open');
+    restore(cur); cur = null; curTab = null;
+  }
+  function hideInline(){
+    SEC.forEach(function(n){
+      var el = document.getElementById('forumSeksi' + n);
+      if (el && (!content || el.parentNode !== content)) el.style.display = 'none';
+    });
+  }
+  // tombol back / swipe-back menutup panel (pola sama dengan panel Keuangan)
+  window.addEventListener('popstate', function(){
+    if (overlay && overlay.classList.contains('open')){ closePanel(); try{ history.pushState(null, '', ''); }catch(e){} }
+  });
+
+  function install(){
+    var f = window.forumTab;
+    if (typeof f === 'function' && !f._fpOk){
+      var wf = function(tab){
+        var r = f.apply(this, arguments);
+        try{
+          if (navEntering){ hideInline(); }            // masuk menu Hiburan: tampilkan grid saja
+          else openPanel(tab);                          // ketuk menu / panggilan program: buka panel
+        }catch(e){}
+        return r;
+      };
+      wf._fpOk = true; window.forumTab = wf;
+    }
+    var n = window.navTo;
+    if (typeof n === 'function' && !n._fpOk){
+      var wn = function(page){
+        closePanel();
+        navEntering = (page === 'forum');
+        try{ return n.apply(this, arguments); }
+        finally{ navEntering = false; }
+      };
+      wn._fpOk = true; window.navTo = wn;
+    }
+  }
+  install();
+  setInterval(install, 1500);
+  hideInline();
+})();
+</script>
+<style id="rpLightReadable">
+/* ═══ RencoPay — mode terang: teks bertema gelap (emas/hijau muda/putih) dibuat terbaca ═══ */
+html:not(.renco-dark) body #app #page-rencoPay{--gld-light:#8a5a00;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah, html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card, html:not(.renco-dark) body #app #page-rencoPay > div:first-child{--gld-light:#f5d77e;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#f5d77e"]{color:#8a5a00 !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#e8c97e"]{color:#8a5a00 !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#ffd166"]{color:#8a5a00 !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#c4dccb"]{color:#4f6558 !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#a9c9b4"]{color:#4f6558 !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#eef7f0"]{color:#14281c !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#9ca3af"]{color:#66756d !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#ff8a8a"]{color:#c0392b !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#ff9a9a"]{color:#c0392b !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#ff6b6b"]{color:#c0392b !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#4ade80"]{color:#15803d !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#86e3ab"]{color:#15803d !important;}
+html:not(.renco-dark) body #app #page-rencoPay [style*="color:#fbbf6d"]{color:#b45309 !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#f5d77e"]{color:#f5d77e !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#f5d77e"]{color:#f5d77e !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#f5d77e"]{color:#f5d77e !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#e8c97e"]{color:#e8c97e !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#e8c97e"]{color:#e8c97e !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#e8c97e"]{color:#e8c97e !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#ffd166"]{color:#ffd166 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#ffd166"]{color:#ffd166 !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#ffd166"]{color:#ffd166 !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#c4dccb"]{color:#c4dccb !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#c4dccb"]{color:#c4dccb !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#c4dccb"]{color:#c4dccb !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#a9c9b4"]{color:#a9c9b4 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#a9c9b4"]{color:#a9c9b4 !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#a9c9b4"]{color:#a9c9b4 !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#eef7f0"]{color:#eef7f0 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#eef7f0"]{color:#eef7f0 !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#eef7f0"]{color:#eef7f0 !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#9ca3af"]{color:#9ca3af !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#9ca3af"]{color:#9ca3af !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#9ca3af"]{color:#9ca3af !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#ff8a8a"]{color:#ff8a8a !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#ff8a8a"]{color:#ff8a8a !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#ff8a8a"]{color:#ff8a8a !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#ff9a9a"]{color:#ff9a9a !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#ff9a9a"]{color:#ff9a9a !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#ff9a9a"]{color:#ff9a9a !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#ff6b6b"]{color:#ff6b6b !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#ff6b6b"]{color:#ff6b6b !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#ff6b6b"]{color:#ff6b6b !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#4ade80"]{color:#4ade80 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#4ade80"]{color:#4ade80 !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#4ade80"]{color:#4ade80 !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#86e3ab"]{color:#86e3ab !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#86e3ab"]{color:#86e3ab !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#86e3ab"]{color:#86e3ab !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpKartuSaldoNasabah [style*="color:#fbbf6d"]{color:#fbbf6d !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-balance-card [style*="color:#fbbf6d"]{color:#fbbf6d !important;}
+html:not(.renco-dark) body #app #page-rencoPay > div:first-child [style*="color:#fbbf6d"]{color:#fbbf6d !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-saldo{background:linear-gradient(135deg,#fff4d6,#fffaf0) !important;border-color:rgba(176,122,0,.45) !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-saldo-lbl{color:#8a5a00 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-saldo-sub{color:#4f6558 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-saldo-amt{color:#8a5a00 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-icobtn{color:#8a5a00 !important;background:rgba(212,170,40,.16) !important;border-color:rgba(176,122,0,.5) !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-linkbtn{color:#8a5a00 !important;background:rgba(212,170,40,.10) !important;border-color:rgba(176,122,0,.5) !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-note{color:#4f6558 !important;background:#f3f7f4 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-chip{color:#7a5200 !important;background:rgba(212,170,40,.16) !important;border-color:rgba(176,122,0,.5) !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-panel{color:#14281c !important;background:#f7f9f8 !important;border-color:rgba(176,122,0,.4) !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-panel strong{color:#7a5200 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .tf-prev-row{color:#4f6558 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-txn-name{color:#14281c !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-txn-sub{color:#5f7568 !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-txn-amt.kredit{color:#15803d !important;}
+html:not(.renco-dark) body #app #page-rencoPay .rp-txn-amt.debit{color:#c0392b !important;}
+html:not(.renco-dark) body #app #page-rencoPay #tfNext1[disabled]{opacity:.72 !important;}
+html:not(.renco-dark) body #app #page-rencoPay #rpOfflinePanel [style*="background:rgba(255,255,255,.05)"],html:not(.renco-dark) body #app #page-rencoPay #rpOfflinePanel [style*="background:rgba(255,255,255,.04)"]{background:#f3f7f4 !important;}
+</style>
 </body></html>
