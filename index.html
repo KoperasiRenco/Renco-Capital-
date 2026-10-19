@@ -67154,7 +67154,7 @@ body.rp-theme #page-forum .forum-grid-btn.fgb-current .fgb-label{color:#ffd166}
   function standalone(){ return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true; }
   function show(){ var b=document.getElementById('loginInstallBtn'); if(b) b.style.display=standalone()?'none':'flex'; }
   window.addEventListener('rc-install-ready',show);
-  window.addEventListener('appinstalled',function(){ window.__rcInstallEvt=null; var b=document.getElementById('loginInstallBtn'); if(b) b.style.display='none'; });
+  window.addEventListener('appinstalled',function(){ if(window.__rpInstalling) return; /* yang terpasang RencoPay, bukan Koperasi */ window.__rcInstallEvt=null; var b=document.getElementById('loginInstallBtn'); if(b) b.style.display='none'; });
   window.rcInstallApp=function(){
     var ev=window.__rcInstallEvt;
     if(ev){
@@ -67279,15 +67279,26 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
     try{ ev.prompt(); ev.userChoice.then(function(c){ document.getElementById('rpInstallSheet').style.display='none'; if(c&&c.outcome==='accepted') markRpInstalled(); }).catch(function(){}); }catch(e){ manual(); }
   }
 
-  /* Dipanggil dari tombol "Install RencoPay" */
-  window.rcInstallRencoPay=function(){
-    if(rpMode){ doPrompt(); return; }
-    var base0=location.href.split('#')[0].split('?')[0];
-    var link0=base0+'?app=rencopay&install=1';
+  /* Dipanggil dari tombol "Install RencoPay".
+     Fungsinya sama seperti "Instal aplikasi / Tambahkan ke layar utama" di browser, tetapi untuk aplikasi RencoPay
+     (manifest-rencopay.json), bukan aplikasi Koperasi. */
+  function setRpManifest(on){
+    try{
+      var href=on?'manifest-rencopay.json':'manifest.json';
+      document.querySelectorAll('link[rel="manifest"]').forEach(function(l){ l.parentNode.removeChild(l); });
+      var l=document.createElement('link'); l.rel='manifest'; l.href=href; document.head.appendChild(l);
+      var at=document.querySelector('link[rel="apple-touch-icon"]');
+      if(at) at.href=on?'assets/rencopay-192.png':'assets/apple-touch-icon.png';
+      var t=document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if(on){ if(!t){ t=document.createElement('meta'); t.name='apple-mobile-web-app-title'; document.head.appendChild(t); } t.content='RencoPay'; }
+      else if(t){ t.parentNode.removeChild(t); }
+    }catch(e){}
+  }
+  function fallbackOpen(){
+    var base=location.href.split('#')[0].split('?')[0];
+    var link0=base+'?app=rencopay&install=1';
     if(standalone()){
-      /* Sedang di dalam aplikasi Koperasi yang sudah ter-install: dialog install tidak bisa muncul dari sini,
-         jadi RencoPay harus dibuka lewat browser (Chrome/Safari). */
-      sheet('Anda sedang di dalam aplikasi Koperasi. Untuk memasang RencoPay, buka link ini di browser (Chrome/Safari), lalu ketuk Install.',
+      sheet('Browser tidak mengizinkan dialog install dari dalam aplikasi Koperasi. Buka link ini di browser (Chrome/Safari), lalu ketuk Install.',
         'Salin Link',function(){
           var done=function(){ var g=document.getElementById('rpInstallSheetGo'); if(g) g.textContent='Link tersalin ✓'; };
           try{ navigator.clipboard.writeText(link0).then(done,function(){ prompt('Salin link ini:',link0); }); }
@@ -67295,9 +67306,37 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
         });
       return;
     }
-    /* Buka versi RencoPay (manifest terpisah) lalu tawarkan install di sana */
-    var base=location.href.split('#')[0].split('?')[0];
-    location.href=base+'?app=rencopay&install=1';
+    location.href=link0;
+  }
+  window.rcInstallRencoPay=function(){
+    if(rpMode){ doPrompt(); return; }
+    var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    if(ios){
+      /* iOS tidak punya dialog install: arahkan ke Bagikan → Tambahkan ke Layar Utama, dengan ikon & nama RencoPay */
+      setRpManifest(true);
+      manual();
+      return;
+    }
+    /* Android/Chrome/Edge: pakai manifest RencoPay lalu langsung tampilkan dialog install bawaan browser */
+    var oldEvt=window.__rcInstallEvt, done=false, timer=null;
+    window.__rpInstalling=true; window.__rcInstallEvt=null;
+    function finish(){ done=true; clearTimeout(timer); window.removeEventListener('rc-install-ready',onReady); setRpManifest(false); window.__rcInstallEvt=oldEvt; window.__rpInstalling=false; }
+    function onReady(){
+      if(done) return;
+      var ev=window.__rcInstallEvt;
+      if(!ev) return;
+      done=true; clearTimeout(timer); window.removeEventListener('rc-install-ready',onReady);
+      try{
+        ev.prompt();
+        ev.userChoice.then(function(c){
+          if(c&&c.outcome==='accepted') markRpInstalled();
+          setRpManifest(false); window.__rcInstallEvt=oldEvt; setTimeout(function(){ window.__rpInstalling=false; },1500);
+        }).catch(function(){ setRpManifest(false); window.__rcInstallEvt=oldEvt; window.__rpInstalling=false; });
+      }catch(e){ finish(); fallbackOpen(); }
+    }
+    window.addEventListener('rc-install-ready',onReady);
+    setRpManifest(true);
+    timer=setTimeout(function(){ if(done) return; finish(); fallbackOpen(); },3000);
   };
 
   if(rpMode){
