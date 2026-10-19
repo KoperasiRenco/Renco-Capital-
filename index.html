@@ -26,7 +26,27 @@
      CSS. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,600;1,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&family=Amiri:wght@400;700&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,600;1,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&family=Amiri:wght@400;700&display=swap"></noscript>
-<link rel="manifest" href="manifest.json">
+<script>
+/* Mode RencoPay mandiri: dibuka dari ikon "RencoPay" (?app=rencopay) → memakai manifest sendiri supaya bisa di-install sebagai aplikasi terpisah.
+   Sistem, akun & data tetap SAMA dengan aplikasi Koperasi (satu file, satu database). */
+(function(){
+  var q=''; try{ q=location.search; }catch(e){}
+  var rp=/[?&]app=rencopay\b/.test(q);
+  window._rencoPayOnly = rp;
+  document.write('<link rel="manifest" href="'+(rp?'manifest-rencopay.json':'manifest.json')+'">');
+  if(rp){
+    document.title='RencoPay';
+    document.addEventListener('DOMContentLoaded',function(){
+      try{
+        var a=document.querySelector('link[rel="apple-touch-icon"]'); if(a) a.href='assets/rencopay-192.png';
+        document.querySelectorAll('link[rel="icon"]').forEach(function(l){ l.href='assets/rencopay-192.png'; });
+        var m=document.createElement('meta'); m.name='apple-mobile-web-app-title'; m.content='RencoPay'; document.head.appendChild(m);
+        document.documentElement.classList.add('rp-only');
+      }catch(e){}
+    });
+  }
+})();
+</script>
 <link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
@@ -6002,6 +6022,14 @@ body {
 //  RENCO AUTH SYSTEM v2 — Admin & User Nasabah
 // ═══════════════════════════════════════════════════════════
 var AUTH_KEY = 'renco_auth_sess';
+/* Koperasi mulai beroperasi Juni 2026: bulan sebelumnya TIDAK ada kewajiban iuran wajib.
+   Awal hitungan kewajiban = bulan yang lebih akhir antara (bulan bergabung) dan Juni 2026. */
+var RENCO_MULAI_OPERASI = new Date(2026, 5, 1);
+function _rencoAwalKewajiban(d) {
+  var x = new Date(d); x.setDate(1); x.setHours(0,0,0,0);
+  return x < RENCO_MULAI_OPERASI ? new Date(RENCO_MULAI_OPERASI) : x;
+}
+window._rencoAwalKewajiban = _rencoAwalKewajiban;
 var USERS_KEY = 'renco_users_v2'; // legacy key — fallback saja
 var AUTH = { loggedIn: false, user: null };
 
@@ -11107,6 +11135,9 @@ window.deletePengurus = function(id) {
 .sc-body-shadow{ display:none; }
 .sc-body-hi{ display:none; fill:none; stroke:rgba(255,246,170,.75); stroke-width:.8; stroke-linecap:round; }
 .sc-glow{ display:none; }
+/* Tanpa bayangan/cahaya di bawah kurva */
+.sc-area, .sc-body-shadow, .sc-body-hi, .sc-glow{ display:none !important; }
+#splashCurve, #splashCurve *{ filter:none !important; }
 @keyframes scGlow{ 0%,100%{ transform:scale(.7); opacity:.9; } 50%{ transform:scale(1.7); opacity:.15; } }
 .sc-pct{ font:700 10px/1 system-ui,-apple-system,sans-serif; fill:rgba(255,255,255,.72); letter-spacing:.3px; }
 .splash-caption{ margin-top:6px; }
@@ -11194,8 +11225,15 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
   // Ini memastikan splash tetap terlihat selama app BENAR-BENAR menunggu
   // data terbaru dari cloud, bukan langsung tampil dengan data lokal lama.
   window._splashRealProgress = false;
+  window._splashMaxPct = 0;
   window._splashSetProgress = function(pct, caption) {
     window._splashRealProgress = true;
+    // FIX: progres hanya boleh MAJU. Pemanggilan loadDB() ganda (sync/refresh/auth)
+    // sebelumnya memanggil ulang 20/45/90 sehingga persentase turun kembali ke 90%
+    // setelah mencapai 100%. Setelah splash masuk tahap selesai, abaikan semua update.
+    if (window._splashFinishing) return;
+    if (pct < window._splashMaxPct) return;
+    window._splashMaxPct = pct;
     var fill = document.querySelector('#splash .splash-fill');
     var cap = document.getElementById('splashCaption');
     if (fill) fill.style.width = Math.max(6, Math.min(100, pct)) + '%';
@@ -11241,7 +11279,7 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
     arrow.parentNode.insertBefore(g, arrow);
   } catch (e) {}
   var cur = 0, target = 6, t0 = performance.now();
-  window._splashCurveTarget = function(p){ target = Math.max(0, Math.min(100, p)); };
+  window._splashCurveTarget = function(p){ p = Math.max(0, Math.min(100, p)); if (p < target && window._splashRealProgress) return; target = p; };
   window._splashCurveFull = function(){ return cur >= 99.5; };
   /* Selesaikan splash: kurva dipastikan PENUH (100%), lalu logo ditampilkan jelas beberapa detik, baru lanjut ke login/app. */
   window._splashFinish = function(cb){
@@ -16024,6 +16062,7 @@ function _checkEskalasi() {
       if (isNaN(tglGabung)) return;
       tglGabung.setDate(1); // mulai dari awal bulan bergabung
       tglGabung.setHours(0,0,0,0);
+      tglGabung = _rencoAwalKewajiban(tglGabung); // tidak ada kewajiban sebelum Juni 2026
 
       // Kumpulkan bulan-bulan yang sudah dibayar iuran wajib
       var bulanBayar = new Set();
@@ -16240,6 +16279,7 @@ function hitungSkorKepercayaan(kkId) {
   var skorKonsistensi = 100;
   if (!isNaN(tglGabung)) {
     tglGabung.setDate(1); tglGabung.setHours(0,0,0,0);
+    tglGabung = _rencoAwalKewajiban(tglGabung);
     var monthsSinceJoin = Math.max(1, (today.getFullYear()-tglGabung.getFullYear())*12 + (today.getMonth()-tglGabung.getMonth()));
     var bulanTunggakIuran = (a.iuranBulanTunggak || []).length;
     var monthsPaid = Math.max(0, monthsSinceJoin - bulanTunggakIuran);
@@ -19219,6 +19259,7 @@ function renderNasabahIuranWajib(targetKkId) {
   var tglGabung = new Date(nasabah.tanggal||nasabah.createdAt);
   if (isNaN(tglGabung)) tglGabung = new Date();
   tglGabung.setDate(1); tglGabung.setHours(0,0,0,0);
+  tglGabung = _rencoAwalKewajiban(tglGabung); // tidak ada kewajiban sebelum Juni 2026
 
   // ── Kumpulkan status bayar & pending ──
   var bulanBayar = {}, bulanPending = {};
@@ -19532,7 +19573,7 @@ function renderAdminIuranWajib() {
     var tg = new Date(a.tanggal||a.createdAt);
     if (!isNaN(tg) && tg < tglPaling) tglPaling = tg;
   });
-  tglPaling = new Date(tglPaling.getFullYear(), tglPaling.getMonth(), 1);
+  tglPaling = _rencoAwalKewajiban(new Date(tglPaling.getFullYear(), tglPaling.getMonth(), 1));
 
   // Bangun daftar bulan (terlama → terbaru)
   var bulanList = [];
@@ -19925,6 +19966,7 @@ window._ajukanIuranMulti = function() {
   var today = new Date(); today.setHours(0,0,0,0);
   var tglGabung = new Date(((DB.nasabah||[]).find(function(a){return a.id===kkId;})||{}).tanggal||new Date());
   tglGabung.setDate(1); tglGabung.setHours(0,0,0,0);
+  tglGabung = _rencoAwalKewajiban(tglGabung);
   var sel = [];
   var cursor = new Date(tglGabung);
   var batas = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -20726,6 +20768,8 @@ function checkKasLimit(kkId, jumlahBaru) {
 let currentPage = 'home';
 
 function navTo(page) {
+  // Mode RencoPay mandiri (aplikasi terpisah): halaman koperasi lain tidak dibuka dari sini
+  if (window._rencoPayOnly && page !== 'rencoPay') page = 'rencoPay';
   // Mode offline RencoPay (login dari cache): kunci navigasi hanya ke RencoPay,
   // karena menu lain butuh data cloud yang tidak dimuat di mode ini.
   if (window._rencoOfflineMode && page !== 'rencoPay') {
@@ -28301,7 +28345,7 @@ function keuPanelOpen(tab, cardEl) {
 
   // Header selalu pakai tema hijau-gold
   header.style.background = 'linear-gradient(135deg,var(--forest),var(--forest-mid))';
-  panel.style.background  = 'white';
+  panel.style.background  = document.documentElement.classList.contains('renco-dark') ? '#000' : 'white';
   iconWrap.innerHTML = item.emoji || item.svg || '';
   titleEl.textContent = item.label;
 
@@ -36493,6 +36537,7 @@ function _populateBulanIuran(kkId) {
   var tglGabung = nasabah ? new Date(nasabah.tanggal||nasabah.createdAt) : new Date(today.getFullYear(), today.getMonth(), 1);
   if (isNaN(tglGabung)) tglGabung = new Date(today.getFullYear(), today.getMonth(), 1);
   tglGabung.setDate(1); tglGabung.setHours(0,0,0,0);
+  tglGabung = _rencoAwalKewajiban(tglGabung); // tidak ada kewajiban sebelum Juni 2026
 
   var options = [];
   var cursor = new Date(tglGabung);
@@ -39977,7 +40022,7 @@ function _pdfGenRekapIuranSemua(jsPDFCls) {
     var tg = new Date(a.tanggal || a.createdAt);
     if (!isNaN(tg) && tg < tglPaling) tglPaling = tg;
   });
-  tglPaling = new Date(tglPaling.getFullYear(), tglPaling.getMonth(), 1);
+  tglPaling = _rencoAwalKewajiban(new Date(tglPaling.getFullYear(), tglPaling.getMonth(), 1));
   var bulanList = [];
   var cur = new Date(tglPaling);
   var batasAtas = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -67128,7 +67173,140 @@ body.rp-theme #page-forum .forum-grid-btn.fgb-current .fgb-label{color:#ffd166}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',show); else show();
 })();
 </script>
-<!-- ═══ Perbaikan Mode Malam: elemen yang masih putih (beranda & semua menu) ═══ -->
+<!-- ═══ RencoPay sebagai aplikasi mandiri (PWA terpisah, sistem sama) ═══ -->
+<style id="rp-standalone-css">
+/* Di aplikasi RencoPay mandiri: tombol kembali ke Koperasi disembunyikan */
+html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
+#rpInstallFab{ position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 92px); z-index:700; display:none; align-items:center;
+  filter:drop-shadow(0 8px 18px rgba(0,0,0,.55)); animation:rpFabIn .5s cubic-bezier(.2,.9,.3,1.2) both, rpFabFloat 3.2s ease-in-out .6s infinite; }
+#rpInstallFab .rf-main{ position:relative; overflow:hidden; display:flex; align-items:center; gap:10px; border:none; cursor:pointer; font-family:inherit;
+  padding:11px 16px 11px 12px; border-radius:999px; color:#1a1200; font-weight:800; font-size:15px; letter-spacing:.2px;
+  background:linear-gradient(135deg,#d4a017 0%,#f4c942 55%,#ffe58a 100%); box-shadow:0 0 0 2px rgba(255,236,150,.55) inset;
+  -webkit-tap-highlight-color:transparent; transition:transform .15s ease; }
+#rpInstallFab .rf-main:active{ transform:scale(.93); }
+#rpInstallFab .rf-ico{ width:36px; height:36px; border-radius:50%; background:#0b0b0b; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+#rpInstallFab .rf-ico svg{ animation:rpFabArrow 1.6s ease-in-out infinite; }
+#rpInstallFab .rf-txt{ display:flex; flex-direction:column; align-items:flex-start; line-height:1.1; }
+#rpInstallFab .rf-txt small{ font-size:10.5px; font-weight:700; opacity:.72; }
+#rpInstallFab .rf-main::after{ content:''; position:absolute; top:0; bottom:0; width:40%; left:-60%;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.65),transparent); transform:skewX(-18deg); animation:rpFabShine 3.4s ease-in-out 1s infinite; }
+#rpInstallFab .rf-close{ position:absolute; top:-9px; right:-6px; width:24px; height:24px; border-radius:50%; border:1.5px solid rgba(244,201,66,.7);
+  background:#0b0b0b; color:#f4d67a; font-size:12px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; font-family:inherit; }
+#rpInstallFab .rf-close:active{ transform:scale(.85); }
+#rpInstallFab.rf-out{ animation:rpFabOut .28s ease forwards; }
+@keyframes rpFabIn{ from{ opacity:0; transform:translateY(24px) scale(.8); } to{ opacity:1; transform:none; } }
+@keyframes rpFabOut{ to{ opacity:0; transform:translateX(40px) scale(.8); } }
+@keyframes rpFabFloat{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-5px); } }
+@keyframes rpFabArrow{ 0%,100%{ transform:translateY(-2px); } 50%{ transform:translateY(2px); } }
+@keyframes rpFabShine{ 0%{ left:-60%; } 45%,100%{ left:130%; } }
+@media (prefers-reduced-motion:reduce){ #rpInstallFab, #rpInstallFab .rf-ico svg, #rpInstallFab .rf-main::after{ animation:none; } }
+#rpInstallSheet{ position:fixed; inset:0; z-index:100000; display:none; align-items:center; justify-content:center; padding:24px;
+  background:rgba(0,0,0,.82); }
+#rpInstallSheet .box{ width:100%; max-width:340px; text-align:center; background:#0b0b0b; border:1px solid rgba(244,201,66,.45);
+  border-radius:20px; padding:24px 20px; color:#eef5ef; font-family:inherit; }
+#rpInstallSheet img{ width:84px; height:84px; border-radius:20px; }
+#rpInstallSheet h3{ margin:12px 0 6px; font-size:18px; color:#f4d67a; }
+#rpInstallSheet p{ margin:0 0 16px; font-size:13px; line-height:1.5; color:#b9c9bd; }
+#rpInstallSheet button{ width:100%; padding:12px; border-radius:12px; border:none; font-weight:800; font-size:14px; font-family:inherit; cursor:pointer; }
+#rpInstallSheet .go{ background:linear-gradient(135deg,#d4a017,#f4c942); color:#1a1200; }
+#rpInstallSheet .no{ margin-top:8px; background:transparent; color:#b9c9bd; }
+</style>
+<div id="rpInstallFab">
+  <button class="rf-main" type="button" onclick="rcInstallRencoPay()" aria-label="Install RencoPay">
+    <span class="rf-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" stroke="#f4c942" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <span class="rf-txt"><span>Install RencoPay</span><small>Jadikan aplikasi sendiri</small></span>
+  </button>
+  <button class="rf-close" type="button" onclick="rcDismissRpFab(event)" aria-label="Tutup">✕</button>
+</div>
+<div id="rpInstallSheet"><div class="box">
+  <img src="assets/rencopay-192.png" alt="RencoPay">
+  <h3>Install RencoPay</h3>
+  <p id="rpInstallSheetMsg">Pasang RencoPay sebagai aplikasi sendiri di layar utama. Akun dan data sama dengan aplikasi Koperasi.</p>
+  <button class="go" id="rpInstallSheetGo" type="button">Install Sekarang</button>
+  <button class="no" type="button" onclick="document.getElementById('rpInstallSheet').style.display='none'">Nanti saja</button>
+</div></div>
+<script>
+(function(){
+  function standalone(){ return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true; }
+  var rpMode = !!window._rencoPayOnly;
+
+  /* Tombol mengambang install RencoPay: hanya di browser (bukan di aplikasi ter-install), layar login & menu RencoPay.
+     Bisa ditutup (ingat 3 hari). */
+  var DISMISS_KEY='rpInstallFabDismissed', DISMISS_MS=3*24*3600*1000, _closedNow=false;
+  function dismissed(){
+    if(_closedNow) return true;
+    try{ var t=parseInt(localStorage.getItem(DISMISS_KEY)||'0',10); return t && (Date.now()-t)<DISMISS_MS; }catch(e){ return false; }
+  }
+  window.rcDismissRpFab=function(ev){
+    if(ev){ ev.stopPropagation(); }
+    _closedNow=true;
+    try{ localStorage.setItem(DISMISS_KEY,String(Date.now())); }catch(e){}
+    var f=document.getElementById('rpInstallFab'); if(!f) return;
+    f.classList.add('rf-out'); setTimeout(function(){ f.style.display='none'; f.classList.remove('rf-out'); },280);
+  };
+  var _fabShown=false, _wasOnLogin=false;
+  function sync(){
+    var f=document.getElementById('rpInstallFab'); if(!f) return;
+    var login=document.getElementById('loginScreen');
+    var onLogin=login && login.classList.contains('active');
+    var inRp=(typeof currentPage!=='undefined' && currentPage==='rencoPay');
+    /* Setiap kali pengguna selesai login (layar login → tertutup), tombol muncul kembali meski sebelumnya ditutup */
+    if(_wasOnLogin && !onLogin){ _closedNow=false; try{ localStorage.removeItem(DISMISS_KEY); }catch(e){} }
+    _wasOnLogin=!!onLogin;
+    var show=!standalone() && !rpMode && !dismissed() && (onLogin||inRp);
+    if(show && !_fabShown){ f.style.display='flex'; _fabShown=true; }
+    else if(!show && _fabShown && !f.classList.contains('rf-out')){ f.style.display='none'; _fabShown=false; }
+  }
+  setInterval(sync,800); sync();
+
+  function sheet(msg,goLabel,goFn){
+    var s=document.getElementById('rpInstallSheet'); if(!s) return;
+    if(msg) document.getElementById('rpInstallSheetMsg').textContent=msg;
+    var g=document.getElementById('rpInstallSheetGo'); g.textContent=goLabel||'Install Sekarang'; g.onclick=goFn;
+    s.style.display='flex';
+  }
+  function manual(){
+    var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    sheet(ios
+      ? 'Di Safari: ketuk tombol Bagikan, lalu pilih "Tambahkan ke Layar Utama".'
+      : 'Buka menu browser (⋮), lalu pilih "Instal aplikasi" atau "Tambahkan ke layar utama".',
+      'Mengerti',function(){ document.getElementById('rpInstallSheet').style.display='none'; });
+  }
+  function doPrompt(){
+    var ev=window.__rcInstallEvt;
+    if(!ev){ manual(); return; }
+    window.__rcInstallEvt=null;
+    try{ ev.prompt(); ev.userChoice.then(function(){ document.getElementById('rpInstallSheet').style.display='none'; }).catch(function(){}); }catch(e){ manual(); }
+  }
+
+  /* Dipanggil dari tombol "Install RencoPay" */
+  window.rcInstallRencoPay=function(){
+    if(rpMode){ doPrompt(); return; }
+    /* Buka versi RencoPay (manifest terpisah) lalu tawarkan install di sana */
+    var base=location.href.split('#')[0].split('?')[0];
+    location.href=base+'?app=rencopay&install=1';
+  };
+
+  if(rpMode){
+    /* Setelah aplikasi tampil, selalu masuk ke RencoPay */
+    var tries=0, t=setInterval(function(){
+      tries++;
+      var app=document.getElementById('app');
+      if(app && app.classList.contains('visible') && typeof navTo==='function' && typeof currentPage!=='undefined' && currentPage!=='rencoPay'){
+        try{ navTo('rencoPay'); }catch(e){}
+      }
+      if(tries>120) clearInterval(t);
+    },500);
+    /* ?install=1 → tawarkan dialog install (butuh ketukan pengguna) */
+    if(/[?&]install=1\b/.test(location.search) && !standalone()){
+      var offer=function(){ sheet('Pasang RencoPay sebagai aplikasi sendiri di layar utama. Akun dan data sama dengan aplikasi Koperasi.','Install Sekarang',doPrompt); };
+      if(window.__rcInstallEvt) setTimeout(offer,1500);
+      else { window.addEventListener('rc-install-ready',function(){ setTimeout(offer,300); }); setTimeout(function(){ if(!window.__rcInstallEvt) manual(); },6000); }
+    }
+  }
+})();
+</script>
+<!-- ═══ Perbaikan Mode Malam: elemen yang masih putih (beranda & semua menu) ═══
 <style id="renco-dark-fix">
 html.renco-dark{
   --rdf-bg:#101c15; --rdf-bg2:#16261c; --rdf-line:rgba(244,214,122,.18);
@@ -68243,6 +68421,17 @@ html.renco-dark body #app #page-home .card.txn-list-glass{
 }
 html body #app #page-home #homeTransaksiList .txn-wrap,
 html body #app #page-home #homeTransaksiList .rp-txn-item{ background:transparent !important; box-shadow:none !important; }
+/* ── Panel menu Keuangan/Aset: penutup putih di atas banner → hitam saat mode malam ── */
+html.renco-dark #keuPanelCard,
+html.renco-dark #keuPanelOverlay,
+html.renco-dark #keuanganContent,
+html.renco-dark #page-keuangan #keuanganContent,
+html.renco-dark body #app #page-keuangan #keuPanelCard,
+html.renco-dark body #app #page-keuangan #keuanganContent,
+html.renco-dark body #app #page-keuangan #keuanganContent > :not(.keu-hero):not(.card):not(.stats-row){
+  background:#000 !important; background-image:none !important;
+}
+html.renco-dark #keuanganContent > .hero-banner:first-child{ margin-top:12px; }
 </style>
 
 <script id="nonaktif-notif-module">
@@ -68411,6 +68600,10 @@ html:not(.renco-dark) body .keu-hero .keu-hero-pill-val{color:#14281c !important
 html:not(.renco-dark) body .keu-hero .keu-hero-pill-val[style*="ffd700" i]{color:#8a6100 !important}
 html:not(.renco-dark) body .keu-hero .keu-hero-pill-val[style*="ff8a8a" i]{color:#c62828 !important}
 html:not(.renco-dark) body .keu-hero .keu-hero-pill-lbl{color:#5f7568 !important;opacity:1 !important}
+</style>
+<style id="home-riwayat-tab-font">
+/* Tab Koperasi & RencoPay pada Transaksi Terkini: font diperbesar */
+#page-home #homeRiwayatChipBar .hrw-chip{ font-size:14px !important; padding:10px 0 !important; letter-spacing:.2px; }
 </style>
 <style id="home-txn-noicon">/* Transaksi Terkini (beranda): tanpa ikon transaksi */
 html body #app #page-home #homeTransaksiList .rp-txn-icon{ display:none !important; }
@@ -68798,7 +68991,7 @@ html.renco-dark .lpn2-actions .p{color:#1a2a1f}
       wajibMonths.push({i:mi,paid:paid.length>0,amt:sumBy(paid),last:lastOf(paid)});
     }
     var wajibPaidNow=wajibMonths[m].paid;
-    var tunggakBln=nonAktif?0:wajibMonths.filter(function(x){return x.i<m&&!x.paid&&!(typeof _bulanNonAktif==='function'&&_bulanNonAktif(kk,y,x.i));}).length;
+    var tunggakBln=nonAktif?0:wajibMonths.filter(function(x){return x.i<m&&!x.paid&&new Date(y,x.i,1)>=RENCO_MULAI_OPERASI&&!(typeof _bulanNonAktif==='function'&&_bulanNonAktif(kk,y,x.i));}).length;
 
     /* pengingat jatuh tempo */
     var rem=[];
@@ -68807,11 +69000,23 @@ html.renco-dark .lpn2-actions .p{color:#1a2a1f}
       var dueM=-1;
       for(var qi=0;qi<=m;qi++){
         if(wajibMonths[qi].paid) continue;
+        if(new Date(y,qi,1)<RENCO_MULAI_OPERASI) continue; /* sebelum Juni 2026 belum ada kewajiban */
         if(typeof _bulanNonAktif==='function' && _bulanNonAktif(kk,y,qi)) continue;
         dueM=qi; break;
       }
-      var due=(dueM>=0)?new Date(y,dueM,dueDay):new Date(y,m+1,dueDay);
-      rem.push({ic:'💳',t:'Iuran Wajib '+MF[due.getMonth()],s:rp(wajibNom),d:due,paid:false}); }
+      /* semua s/d bulan ini sudah lunas: cari bulan berikutnya yang BELUM dibayar (iuran bisa dibayar di muka);
+         jika semua sampai Desember sudah lunas, tidak ada pengingat iuran wajib */
+      if(dueM<0){
+        for(var qj=m+1;qj<12;qj++){
+          if(wajibMonths[qj].paid) continue;
+          if(typeof _bulanNonAktif==='function' && _bulanNonAktif(kk,y,qj)) continue;
+          dueM=qj; break;
+        }
+      }
+      if(dueM>=0){
+        var due=new Date(y,dueM,dueDay);
+        rem.push({ic:'💳',t:'Iuran Wajib '+MF[due.getMonth()],s:rp(wajibNom),d:due,paid:false});
+      } }
     pinAktif.forEach(function(p){ var paid=Array.isArray(p.cicilan)?p.cicilan.length:0,tn=p.tenor||12; if(paid<tn&&p.tanggal){ rem.push({ic:'🏦',t:'Cicilan Pinjaman · '+esc(p.tujuan||'Koperasi'),s:'Angsuran ke-'+(paid+1)+' dari '+tn,d:addM(new Date(p.tanggal),paid+1)}); }});
     pemAktif.concat(syrAktif).forEach(function(p){ var tn=p.tenor||12,paid=p.angsuranDibayar||0,st=p.tanggalCair||p.tanggalMulai||p.tanggal; if(paid<tn&&st){ rem.push({ic:'📘',t:'Angsuran '+(PEM_L[p.jenis||p.akad||'']||'Pembiayaan')+' · '+esc(p.tujuan||'Renco Capital'),s:'Angsuran ke-'+(paid+1)+' dari '+tn,d:addM(new Date(st),paid+1)}); }});
     tbAktif.forEach(function(t){ if(t.tanggalJatuhTempo){ rem.push({ic:'🌙',t:'Berjangka Syariah jatuh tempo',s:rp(t.jumlah)+' · '+(t.tenorBulan||'-')+' bln',d:new Date(t.tanggalJatuhTempo)}); }});
@@ -68995,6 +69200,8 @@ html:has(#page-home.active), body:has(#page-home.active){ overscroll-behavior-y:
   opacity:0;
 }
 #page-home .hero-stick.is-stuck::before{ opacity:1; }
+/* Mode malam: penutup celah di atas banner ikut hitam */
+html.renco-dark #page-home .hero-stick::before{ background:#000 !important; }
 </style>
 <script>
 (function(){
