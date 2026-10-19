@@ -11122,6 +11122,8 @@ window.deletePengurus = function(id) {
   background:radial-gradient(closest-side, rgba(254,203,7,.30) 0%, rgba(254,203,7,.11) 45%, rgba(254,203,7,0) 72%);
   filter:blur(6px); pointer-events:none; animation:spGlow 3.2s ease-in-out infinite; }
 .sp-logo-wrap{ position:relative; width:100%; }
+.sp-logo{ transition:opacity .6s ease; }
+#splash.sp-done .sp-logo{ opacity:.9; }
 .sp-logo{ display:block; width:100%; height:auto; opacity:var(--sp-logo-opasitas,.3); pointer-events:none; user-select:none; -webkit-user-drag:none;
   filter:none; }
 .sp-shine{ position:absolute; inset:0; pointer-events:none;
@@ -11240,6 +11242,21 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
   } catch (e) {}
   var cur = 0, target = 6, t0 = performance.now();
   window._splashCurveTarget = function(p){ target = Math.max(0, Math.min(100, p)); };
+  window._splashCurveFull = function(){ return cur >= 99.5; };
+  /* Selesaikan splash: kurva dipastikan PENUH (100%), lalu logo ditampilkan jelas beberapa detik, baru lanjut ke login/app. */
+  window._splashFinish = function(cb){
+    if (window._splashFinishing) return;
+    window._splashFinishing = true;
+    window._splashRealProgress = true;
+    target = 100;
+    var t0f = performance.now();
+    (function wait(){
+      if (window._splashCurveFull() || performance.now() - t0f > 4000) {
+        var sp = document.getElementById('splash'); if (sp) sp.classList.add('sp-done');
+        setTimeout(cb, 2200);
+      } else setTimeout(wait, 50);
+    })();
+  };
   function draw(){
     var sp = document.getElementById('splash');
     if (!sp || !sp.isConnected || sp.style.display === 'none') return;
@@ -44897,6 +44914,13 @@ window._rencoEnsureDBLoaded = window._rencoEnsureDBLoaded || function() {
 /* ── Fallback: paksa hide splash jika window.load tidak terpicu (misal script CDN gagal load di APK) ── */
 (function() {
   function _forceSplashHide() {
+    if (window._splashFinishing) return;
+    var sp0 = document.getElementById('splash');
+    if (!sp0 || sp0.style.display === 'none') return;
+    if (window._splashFinish) { window._splashFinish(_forceSplashHideNow); return; }
+    _forceSplashHideNow();
+  }
+  function _forceSplashHideNow() {
     var splash = document.getElementById('splash');
     var loginScreen = document.getElementById('loginScreen');
     var appEl = document.getElementById('app');
@@ -45012,7 +45036,7 @@ window.addEventListener('load', ()=>{
       }
       applyDarkModePreference();
       renderLoginWatermark();
-      setTimeout(function() {
+      (window._splashFinish || function(f){ setTimeout(f, 300); })(function() {
         if (typeof initSelects === 'function') initSelects();
 
         // Sembunyikan splash BARU SETELAH data & tampilan benar-benar siap
@@ -45045,7 +45069,7 @@ window.addEventListener('load', ()=>{
             if (el) el.focus();
           }, 300);
         }
-      }, 60);
+      });
     }
 
     // Tunggu loadDB() selesai (proses fetch cloud, bisa lebih lama dari
