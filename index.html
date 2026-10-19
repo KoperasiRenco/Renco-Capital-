@@ -67253,7 +67253,7 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
     /* Setiap kali pengguna selesai login (layar login → tertutup), tombol muncul kembali meski sebelumnya ditutup */
     if(_wasOnLogin && !onLogin){ _closedNow=false; try{ localStorage.removeItem(DISMISS_KEY); }catch(e){} }
     _wasOnLogin=!!onLogin;
-    var show=!standalone() && !rpMode && !dismissed() && (onLogin||inRp);
+    var show=!rpMode && !dismissed() && (onLogin||inRp); /* tetap tampil di aplikasi Koperasi yang sudah ter-install; hanya disembunyikan di aplikasi RencoPay sendiri */
     if(show && !_fabShown){ f.style.display='flex'; _fabShown=true; }
     else if(!show && _fabShown && !f.classList.contains('rf-out')){ f.style.display='none'; _fabShown=false; }
   }
@@ -67282,6 +67282,19 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
   /* Dipanggil dari tombol "Install RencoPay" */
   window.rcInstallRencoPay=function(){
     if(rpMode){ doPrompt(); return; }
+    var base0=location.href.split('#')[0].split('?')[0];
+    var link0=base0+'?app=rencopay&install=1';
+    if(standalone()){
+      /* Sedang di dalam aplikasi Koperasi yang sudah ter-install: dialog install tidak bisa muncul dari sini,
+         jadi RencoPay harus dibuka lewat browser (Chrome/Safari). */
+      sheet('Anda sedang di dalam aplikasi Koperasi. Untuk memasang RencoPay, buka link ini di browser (Chrome/Safari), lalu ketuk Install.',
+        'Salin Link',function(){
+          var done=function(){ var g=document.getElementById('rpInstallSheetGo'); if(g) g.textContent='Link tersalin ✓'; };
+          try{ navigator.clipboard.writeText(link0).then(done,function(){ prompt('Salin link ini:',link0); }); }
+          catch(e){ prompt('Salin link ini:',link0); }
+        });
+      return;
+    }
     /* Buka versi RencoPay (manifest terpisah) lalu tawarkan install di sana */
     var base=location.href.split('#')[0].split('?')[0];
     location.href=base+'?app=rencopay&install=1';
