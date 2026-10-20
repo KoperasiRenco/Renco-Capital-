@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="rc-build" content="20261020-rpinstall-v3">
+<meta name="rc-build" content="20261020-pwhash-v1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a472a">
 <meta name="mobile-web-app-capable" content="yes">
@@ -51,6 +51,126 @@
 <link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<script id="rcpw-module">
+/* ═══ RCPW — hash password (PBKDF2-HMAC-SHA256, sinkron, tanpa dependensi) ═══
+   Dipakai agar DB.users tidak lagi menyimpan password polos. Field per user:
+   pwSalt, pwHash (base64), pwIter. Data lama (field "password" polos) tetap bisa
+   login lalu otomatis dimigrasi ke hash saat login berhasil. */
+(function(){
+'use strict';
+var K=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+var IV=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+var W=new Uint32Array(64);
+function compress(st,blk,out){ // st: 8 words, blk: Uint32Array(16) -> out: 8 words
+  var i,a,b,c,d,e,f,g,h,t1,t2,s0,s1;
+  for(i=0;i<16;i++) W[i]=blk[i];
+  for(i=16;i<64;i++){
+    s0=((W[i-15]>>>7)|(W[i-15]<<25))^((W[i-15]>>>18)|(W[i-15]<<14))^(W[i-15]>>>3);
+    s1=((W[i-2]>>>17)|(W[i-2]<<15))^((W[i-2]>>>19)|(W[i-2]<<13))^(W[i-2]>>>10);
+    W[i]=(W[i-16]+s0+W[i-7]+s1)|0;
+  }
+  a=st[0];b=st[1];c=st[2];d=st[3];e=st[4];f=st[5];g=st[6];h=st[7];
+  for(i=0;i<64;i++){
+    s1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7));
+    t1=(h+s1+((e&f)^(~e&g))+K[i]+W[i])|0;
+    s0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10));
+    t2=(s0+((a&b)^(a&c)^(b&c)))|0;
+    h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;
+  }
+  out[0]=(st[0]+a)|0;out[1]=(st[1]+b)|0;out[2]=(st[2]+c)|0;out[3]=(st[3]+d)|0;
+  out[4]=(st[4]+e)|0;out[5]=(st[5]+f)|0;out[6]=(st[6]+g)|0;out[7]=(st[7]+h)|0;
+}
+function utf8(s){ s=unescape(encodeURIComponent(String(s))); var u=new Uint8Array(s.length); for(var i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+function words(bytes,off){ var w=new Uint32Array(16); for(var i=0;i<16;i++){ var j=off+i*4; w[i]=((bytes[j]<<24)|(bytes[j+1]<<16)|(bytes[j+2]<<8)|bytes[j+3])|0; } return w; }
+function sha256(bytes){ // generik
+  var n=bytes.length, tot=((n+9+63)>>6)<<6, p=new Uint8Array(tot); p.set(bytes); p[n]=0x80;
+  var bits=n*8; p[tot-4]=(bits>>>24)&255; p[tot-3]=(bits>>>16)&255; p[tot-2]=(bits>>>8)&255; p[tot-1]=bits&255;
+  var st=IV.slice(), nx=new Array(8);
+  for(var o=0;o<tot;o+=64){ compress(st,words(p,o),nx); st=nx.slice(); }
+  return st;
+}
+function wordsToBytes(st){ var o=new Uint8Array(32); for(var i=0;i<8;i++){ o[i*4]=(st[i]>>>24)&255; o[i*4+1]=(st[i]>>>16)&255; o[i*4+2]=(st[i]>>>8)&255; o[i*4+3]=st[i]&255; } return o; }
+function pbkdf2(pw,salt,iter){
+  var key=utf8(pw); if(key.length>64) key=wordsToBytes(sha256(key));
+  var ip=new Uint8Array(64), op=new Uint8Array(64), i;
+  for(i=0;i<64;i++){ var kb=i<key.length?key[i]:0; ip[i]=kb^0x36; op[i]=kb^0x5c; }
+  var is=new Array(8), os=new Array(8);
+  compress(IV,words(ip,0),is); compress(IV,words(op,0),os);
+  // U1 = HMAC(P, salt || 00000001)
+  var m=new Uint8Array(salt.length+4); m.set(salt); m[salt.length+3]=1;
+  var inner=ihash(is,m,64);
+  var u=ohash(os,inner), t=u.slice(), blk=new Uint32Array(16), tmp=new Array(8), j;
+  for(var n=1;n<iter;n++){
+    for(j=0;j<8;j++) blk[j]=u[j]; blk[8]=0x80000000|0; for(j=9;j<15;j++) blk[j]=0; blk[15]=768;
+    compress(is,blk,tmp);
+    for(j=0;j<8;j++) blk[j]=tmp[j]; blk[8]=0x80000000|0; for(j=9;j<15;j++) blk[j]=0; blk[15]=768;
+    compress(os,blk,u);
+    for(j=0;j<8;j++) t[j]^=u[j];
+  }
+  return wordsToBytes(t);
+}
+function ihash(is,msg,prefixLen){ // hash lanjutan dari state is (sudah memproses prefixLen byte)
+  var n=msg.length, tot=((n+9+63)>>6)<<6, p=new Uint8Array(tot); p.set(msg); p[n]=0x80;
+  var bits=(n+prefixLen)*8; p[tot-4]=(bits>>>24)&255; p[tot-3]=(bits>>>16)&255; p[tot-2]=(bits>>>8)&255; p[tot-1]=bits&255;
+  var st=is.slice(), nx=new Array(8);
+  for(var o=0;o<tot;o+=64){ compress(st,words(p,o),nx); st=nx.slice(); }
+  return st;
+}
+function ohash(os,innerWords){ var blk=new Uint32Array(16),j; for(j=0;j<8;j++) blk[j]=innerWords[j]; blk[8]=0x80000000|0; blk[15]=768; var out=new Array(8); compress(os,blk,out); return out; }
+
+function b64(u){ var s=''; for(var i=0;i<u.length;i++) s+=String.fromCharCode(u[i]); return btoa(s); }
+function unb64(s){ var b=atob(s), u=new Uint8Array(b.length); for(var i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+function rnd(n){ var a=new Uint8Array(n); try{ (window.crypto||window.msCrypto).getRandomValues(a); }catch(e){ for(var i=0;i<n;i++) a[i]=Math.floor(Math.random()*256); } return a; }
+
+var ITER=60000;
+var DEFAULT_ADMIN={"s":"cmVuY29EZWZhdWx0QWRtMDE=","i":60000,"h":"Gtf7i35DtGtxlATqGt1pltDPgtGeq5P9f0PZ1FPNVq0="};
+
+function derive(pw,saltB64,iter){ return b64(pbkdf2(String(pw).trim(),unb64(saltB64),iter||ITER)); }
+function pack(pw){ var s=b64(rnd(16)); return {pwSalt:s,pwIter:ITER,pwHash:derive(pw,s,ITER)}; }
+function eq(a,b){ if(a.length!==b.length) return false; var r=0; for(var i=0;i<a.length;i++) r|=a.charCodeAt(i)^b.charCodeAt(i); return r===0; }
+
+var RC={
+  ITER:ITER,
+  derive:derive, pack:pack,
+  isHashed:function(u){ return !!(u&&u.pwHash&&u.pwSalt); },
+  /* cocokkan password; mendukung data lama (password polos) */
+  verify:function(u,pw){
+    if(!u||pw==null) return false;
+    pw=String(pw);
+    if(u.pwHash&&u.pwSalt) return eq(derive(pw,u.pwSalt,u.pwIter),String(u.pwHash));
+    if(u.password!=null) return String(u.password)===pw || String(u.password).trim()===pw.trim();
+    return false;
+  },
+  /* set password baru: simpan hash, buang password polos */
+  set:function(u,pw){ var p=pack(pw); u.pwSalt=p.pwSalt; u.pwIter=p.pwIter; u.pwHash=p.pwHash; delete u.password; delete u.mustChangePw; return u; },
+  /* ubah objek {password:...} baru menjadi bentuk ber-hash */
+  make:function(u){ if(u&&u.password!=null&&u.password!==''){ var pw=u.password; delete u.password; RC.set(u,pw); } return u; },
+  /* migrasi akun lama setelah login sukses; true bila ada perubahan */
+  migrate:function(u,pw){ if(u&&!(u.pwHash&&u.pwSalt)&&u.password!=null){ RC.set(u,pw); return true; } return false; },
+  /* kunci tanda tangan QR offline: hash bila ada, selain itu password polos */
+  macKey:function(u,pw){ return (u&&u.pwHash)?String(u.pwHash):String(pw); },
+
+  /* ── password admin utama (disimpan per perangkat) ── */
+  adminOK:function(pw){
+    pw=String(pw==null?'':pw);
+    try{
+      var h=JSON.parse(localStorage.getItem('renco_admin_pwh')||'null');
+      if(h&&h.h&&h.s) return eq(derive(pw,h.s,h.i),h.h);
+      var old=localStorage.getItem('renco_admin_pw');
+      if(old!=null){ if(old===pw){ RC.adminSet(pw); return true; } return false; }
+    }catch(e){}
+    return eq(derive(pw,DEFAULT_ADMIN.s,DEFAULT_ADMIN.i),DEFAULT_ADMIN.h);
+  },
+  adminSet:function(pw){ var p=pack(pw); try{ localStorage.setItem('renco_admin_pwh',JSON.stringify({s:p.pwSalt,i:p.pwIter,h:p.pwHash})); localStorage.removeItem('renco_admin_pw'); }catch(e){} },
+  adminIsDefault:function(){ try{ return !localStorage.getItem('renco_admin_pwh')&&localStorage.getItem('renco_admin_pw')==null; }catch(e){ return false; } },
+  /* password sementara untuk reset oleh admin */
+  temp:function(){ var al='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r=rnd(6), s='RC-'; for(var i=0;i<6;i++) s+=al.charAt(r[i]%al.length); return s; }
+};
+window.RCPW=RC;
+window.__rcpw_selftest=function(){ return b64(pbkdf2('password',utf8('salt'),2)); };
+})();
+
+</script>
 <script id="tagihan-cloud-shim">
 /* ═══ TAGIHAN CLOUD-ONLY ═══
    Data tagihan/transaksi RencoPay ('rencopay_tagihan_automate') TIDAK lagi disimpan di localStorage.
@@ -1249,11 +1369,11 @@ document.addEventListener('DOMContentLoaded', function() {
     var cache;
     try { cache = JSON.parse(raw); } catch(e) { return { ok: false, reason: 'corrupt' }; }
     var uname = String(u || '').trim().toLowerCase();
-    var isAdminCache = (uname === 'admin' && p === 'renco2024');
+    var isAdminCache = (uname === 'admin' && RCPW.adminOK(p));
     var found = isAdminCache
       ? { username: 'admin', nama: 'Administrator', role: 'admin' }
       : (cache.users || []).find(function(x) {
-          return x.username && x.username.toLowerCase() === uname && x.password === p && x.aktif;
+          return x.username && x.username.toLowerCase() === uname && RCPW.verify(x, p) && x.aktif;
         });
     if (!found) return { ok: false, reason: 'invalid' };
     window.DB = window.DB || {};
@@ -6120,7 +6240,7 @@ function isNasabah() { return AUTH.loggedIn && AUTH.user && AUTH.user.role === '
 
 function authLogin(username, password) {
   var u = username.trim().toLowerCase();
-  if (u === 'admin' && password === 'renco2024') {
+  if (u === 'admin' && RCPW.adminOK(password)) {
     AUTH = { loggedIn: true, user: { username: 'admin', nama: 'Administrator', role: 'admin' } };
     authSave();
     _catatLoginLog('admin', 'Administrator', 'admin');
@@ -6136,7 +6256,7 @@ function authLogin(username, password) {
     return true;
   }
   var users = usersLoad();
-  var found = users.find(function(x){ return x.username.toLowerCase() === u && x.password === password && x.aktif; });
+  var found = users.find(function(x){ return x.username.toLowerCase() === u && RCPW.verify(x, password) && x.aktif; });
   if (found) {
     var role = found.role || 'nasabah';
     AUTH = { loggedIn: true, user: { id: found.id, username: found.username, nama: found.nama, role: role, nasabahId: found.nasabahId, aksesMenu: found.aksesMenu } };
@@ -6716,7 +6836,7 @@ function handleLogin(targetPage) {
     return;
   }
   if (!u || !p) {
-    err.textContent = '&#x26A0;&#xFE0F; Username dan password wajib diisi';
+    err.textContent = '&#x26A0;&#xFE0F; Username (atau No. HP/Email) dan password wajib diisi';
     err.style.display = 'block';
     if (!u) _loginShakeField('user');
     if (!p) _loginShakeField('pass');
@@ -6796,7 +6916,7 @@ function handleLogin(targetPage) {
         if (authLogin(u, p)) {
           _handleLoginSuccess();
         } else {
-          err.textContent = '&#x274C; Username atau password salah';
+          err.textContent = '&#x274C; Username/No. HP/Email atau password salah';
           err.style.display = 'block';
           btn.disabled = false; btn.textContent = 'Masuk';
           document.getElementById('loginPassword').value = '';
@@ -6825,7 +6945,7 @@ function handleLogin(targetPage) {
           if (authLogin(u, p)) {
             _handleLoginSuccess();
           } else {
-            err.textContent = '&#x274C; Username atau password salah';
+            err.textContent = '&#x274C; Username/No. HP/Email atau password salah';
             err.style.display = 'block';
             btn.disabled = false; btn.textContent = 'Masuk';
             document.getElementById('loginPassword').value = '';
@@ -7064,13 +7184,14 @@ function _confirmDaftarAkunLogin() {
 
   if (!window.DB) window.DB = {};
   if (!Array.isArray(window.DB.pendaftaranAnggota)) window.DB.pendaftaranAnggota = [];
+  var _pk = d.password ? RCPW.pack(d.password) : {};
   window.DB.pendaftaranAnggota.push({
     id: (typeof uid === 'function') ? uid() : ('pd' + Date.now()),
     nama: d.nama,
     noHp: d.noHp,
     alamat: d.alamat,
     username: d.username,
-    password: d.password,
+    pwSalt: _pk.pwSalt, pwIter: _pk.pwIter, pwHash: _pk.pwHash,
     catatan: d.catatan,
     status: 'baru',
     createdAt: (typeof nowISO === 'function') ? nowISO() : new Date().toISOString()
@@ -8791,10 +8912,9 @@ window.submitAdminChangePassword = function() {
   if (!cur||!nw||!conf){ showErr('⚠️ Semua kolom wajib diisi'); return; }
   if (nw.length < 6){ showErr('⚠️ Password baru minimal 6 karakter'); return; }
   if (nw !== conf){ showErr('⚠️ Konfirmasi password tidak cocok'); return; }
-  var stored = localStorage.getItem('renco_admin_pw') || 'renco2024';
-  if (cur !== stored){ showErr('❌ Password saat ini salah'); return; }
-  if (nw === stored){ showErr('⚠️ Password baru tidak boleh sama dengan yang lama'); return; }
-  localStorage.setItem('renco_admin_pw', nw);
+  if (!RCPW.adminOK(cur)){ showErr('❌ Password saat ini salah'); return; }
+  if (cur === nw || RCPW.adminOK(nw)){ showErr('⚠️ Password baru tidak boleh sama dengan yang lama'); return; }
+  RCPW.adminSet(nw);
   document.getElementById('adminChangePwPanel').style.display = 'none';
   if (typeof showToast === 'function') showToast('✅ Password admin berhasil diubah');
 };
@@ -8830,10 +8950,10 @@ window.submitNasabahChangePassword = function() {
   var users = usersLoad();
   var me = users.find(function(x){ return x.id === AUTH.user.id; });
   if (!me) { showErr('⚠️ Data akun tidak ditemukan'); return; }
-  if (cur !== me.password){ showErr('❌ Password saat ini salah'); return; }
-  if (nw === me.password){ showErr('⚠️ Password baru tidak boleh sama dengan yang lama'); return; }
+  if (!RCPW.verify(me, cur)){ showErr('❌ Password saat ini salah'); return; }
+  if (RCPW.verify(me, nw)){ showErr('⚠️ Password baru tidak boleh sama dengan yang lama'); return; }
 
-  me.password = nw;
+  RCPW.set(me, nw);
   usersSave(users);
 
   var panel = document.getElementById('nasabahChangePwPanel');
@@ -8850,14 +8970,14 @@ window.submitNasabahChangePassword = function() {
   var _orig = window.authLogin;
   window.authLogin = function(username, password) {
     var u = (username||'').toLowerCase().trim();
-    var adminPw = localStorage.getItem('renco_admin_pw') || 'renco2024';
-    if (u === 'admin' && password === adminPw) {
+    if (u === 'admin' && RCPW.adminOK(password)) {
       AUTH.loggedIn = true;
       AUTH.user = { username:'admin', nama:'Administrator', role:'admin' };
       if (typeof authSave === 'function') authSave();
       if (typeof _catatLoginLog === 'function') _catatLoginLog('admin', 'Administrator', 'admin');
       if (typeof historyLog === 'function') setTimeout(function(){ historyLog('Login', 'Admin (utama) masuk'); }, 500);
       if (typeof auditLog === 'function') auditLog('Login Berhasil', 'Admin utama (admin) masuk ke sistem', 'login');
+      if (RCPW.adminIsDefault()) setTimeout(function(){ if (typeof showToast === 'function') showToast('⚠️ Password admin masih bawaan. Segera ganti lewat menu Admin.', 6500); }, 2500);
       return true;
     }
     if (typeof usersLoad === 'function') {
@@ -8870,7 +8990,7 @@ window.submitNasabahChangePassword = function() {
       // dianggap AKTIF; hanya aktif:false eksplisit yang dianggap nonaktif.
       var found = users.find(function(x){
         return x.username && x.username.toLowerCase().trim() === u
-          && (x.password||'').trim() === pTrim
+          && RCPW.verify(x, pTrim)
           && x.aktif !== false;
       });
       // ── DIAGNOSTIK (console saja — TIDAK PERNAH mencetak password asli) ──
@@ -8883,7 +9003,7 @@ window.submitNasabahChangePassword = function() {
           console.warn('[RENCO][login-debug] Username "' + u + '" TIDAK DITEMUKAN sama sekali di DB.users (total user: ' + users.length + '). Cek apakah akun benar2 tersimpan (lihat Kelola Admin) & sudah sinkron ke perangkat ini.');
         } else {
           byUsername.forEach(function(x){
-            var pwMatch = x.password === password || (x.password||'').trim() === (password||'').trim();
+            var pwMatch = RCPW.verify(x, password);
             console.warn('[RENCO][login-debug] Username "' + u + '" DITEMUKAN (id: ' + x.id + ', role: ' + x.role + ') — password cocok: ' + pwMatch + ', status aktif: ' + !!x.aktif + '.' + (byUsername.length > 1 ? ' (PERINGATAN: ada ' + byUsername.length + ' entri dengan username sama!)' : ''));
           });
         }
@@ -8892,6 +9012,8 @@ window.submitNasabahChangePassword = function() {
         // Role diambil dari data user itu sendiri — mendukung akun Admin ke-2/ke-3
         // (role:'admin') selain akun nasabah biasa (role:'nasabah').
         var role = found.role || 'nasabah';
+        // Migrasi otomatis: akun lama (password polos) diubah ke hash saat login berhasil
+        try { if (RCPW.migrate(found, pTrim) && typeof saveDB === 'function') saveDB(); } catch(e) {}
         AUTH.loggedIn = true;
         AUTH.user = { id:found.id, username:found.username, nama:found.nama, role:role, nasabahId:found.nasabahId, aksesMenu:found.aksesMenu };
         if (typeof authSave === 'function') authSave();
@@ -9076,6 +9198,7 @@ function renderUserManagement() {
           '<div style="display:flex;gap:4px;flex-shrink:0">' +
             (u.aktif ? '<button onclick="loginAsUser(\'' + u.id + '\')" title="Login sebagai user ini" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(99,102,241,0.35);background:rgba(99,102,241,0.08);color:#4f46e5;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">&#x1F575;&#xFE0F;</button>' : '') +
             '<button onclick="editUser(\'' + u.id + '\')" title="Edit" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(45,106,79,0.3);background:rgba(45,106,79,0.07);color:#2d6a4f;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">&#x270F;&#xFE0F;</button>' +
+            '<button onclick="resetPasswordUser(\'' + u.id + '\')" title="Reset password" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(45,106,79,0.3);background:rgba(45,106,79,0.07);color:#2d6a4f;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">&#x1F511;</button>' +
             '<button onclick="toggleUserAktif(\'' + u.id + '\')" title="' + (u.aktif ? 'Nonaktifkan' : 'Aktifkan') + '" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(244,169,34,0.4);background:rgba(244,169,34,0.1);color:#b07a00;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">' + (u.aktif ? '&#x1F512;' : '&#x1F513;') + '</button>' +
             '<button onclick="deleteUser(\'' + u.id + '\')" title="Hapus" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(220,38,38,0.25);background:rgba(220,38,38,0.07);color:#dc2626;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">&#x1F5D1;</button>' +
           '</div>' +
@@ -9112,7 +9235,7 @@ function renderPendaftaranAnggotaList() {
   listEl.innerHTML = list.map(function(d){
     var tgl = '-';
     try { tgl = new Date(d.createdAt).toLocaleDateString('id-ID', {day:'2-digit',month:'short',year:'numeric'}); } catch(e) {}
-    var punyaAkunSendiri = !!(d.username && d.password);
+    var punyaAkunSendiri = !!(d.username && (d.pwHash || d.password));
     return '<div style="background:#fffbea;border:1px solid rgba(244,169,34,0.3);border-radius:10px;padding:9px 11px;margin-bottom:6px">' +
       '<div style="font-size:12px;font-weight:800;color:#1c3025">' + d.nama + '</div>' +
       '<div style="font-size:10.5px;color:#6b7280;margin-top:2px">' + d.noHp + (d.alamat ? ' &middot; ' + d.alamat : '') + '</div>' +
@@ -9152,7 +9275,7 @@ function _pendaftaranTogglePass(id) {
   var el = document.getElementById('pdPass_' + id);
   if (!d || !el) return;
   var shown = el.getAttribute('data-shown') === '1';
-  el.textContent = shown ? '••••••' : (d.password || '');
+  el.textContent = shown ? '••••••' : (d.password || '(tersimpan aman, tidak bisa dilihat)');
   el.setAttribute('data-shown', shown ? '0' : '1');
 }
 
@@ -9165,7 +9288,7 @@ function _pendaftaranTogglePass(id) {
 function _pendaftaranAnggotaKonfirmasi(id) {
   var d = (window.DB && DB.pendaftaranAnggota || []).find(function(x){ return x.id === id; });
   if (!d) return;
-  if (!d.username || !d.password) {
+  if (!d.username || !(d.pwHash || d.password)) {
     showToast('&#x26A0;&#xFE0F; Pendaftaran ini tidak menyertakan username/password, buat user secara manual lewat "Buat User Baru"');
     return;
   }
@@ -9210,6 +9333,7 @@ function _pendaftaranAnggotaKonfirmasi(id) {
   DB.users.push({
     id: 'usr_' + Date.now(),
     username: d.username, password: d.password,
+    pwSalt: d.pwSalt, pwIter: d.pwIter, pwHash: d.pwHash,
     nasabahId: nasabahBaru.id,
     aksesMenu: (typeof UM_MENUS !== 'undefined') ? UM_MENUS.map(function(m){ return m.id; }) : ['home'],
     aktif: true, role: 'nasabah', nama: d.nama,
@@ -9391,10 +9515,10 @@ window.saveUserForm = function() {
 
   if (id) {
     var u = users.find(function(x){ return x.id === id; });
-    if (u) { u.username = username; if (password) u.password = password; u.nasabahId = nasabahId; u.aksesMenu = aksesMenu; u.nama = nb ? nb.nama : username; }
+    if (u) { u.username = username; if (password) RCPW.set(u, password); u.nasabahId = nasabahId; u.aksesMenu = aksesMenu; u.nama = nb ? nb.nama : username; }
     showToast('&#x2705; User berhasil diperbarui');
   } else {
-    users.push({ id: 'usr_' + Date.now(), username: username, password: password, nasabahId: nasabahId, aksesMenu: aksesMenu, aktif: true, role: 'nasabah', nama: nb ? nb.nama : username, createdAt: new Date().toISOString() });
+    users.push(RCPW.make({ id: 'usr_' + Date.now(), username: username, password: password, nasabahId: nasabahId, aksesMenu: aksesMenu, aktif: true, role: 'nasabah', nama: nb ? nb.nama : username, createdAt: new Date().toISOString() }));
     showToast('&#x2705; User berhasil dibuat!');
   }
   usersSave(users);
@@ -9444,6 +9568,7 @@ function renderAdminManagement() {
           '</div>' +
           '<div style="display:flex;gap:4px;flex-shrink:0">' +
             '<button onclick="editAdmin(\'' + u.id + '\')" title="Edit" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(45,106,79,0.3);background:rgba(45,106,79,0.07);color:#2d6a4f;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">&#x270F;&#xFE0F;</button>' +
+            '<button onclick="resetPasswordUser(\'' + u.id + '\')" title="Reset password" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(45,106,79,0.3);background:rgba(45,106,79,0.07);color:#2d6a4f;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">&#x1F511;</button>' +
             '<button onclick="toggleAdminAktif(\'' + u.id + '\')" title="' + (u.aktif ? 'Nonaktifkan' : 'Aktifkan') + '" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(244,169,34,0.4);background:rgba(244,169,34,0.1);color:#b07a00;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">' + (u.aktif ? '&#x1F512;' : '&#x1F513;') + '</button>' +
             '<button onclick="deleteAdmin(\'' + u.id + '\')" title="Hapus" style="width:26px;height:26px;border-radius:7px;border:1.5px solid rgba(220,38,38,0.25);background:rgba(220,38,38,0.07);color:#dc2626;font-size:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">&#x1F5D1;</button>' +
           '</div>' +
@@ -9526,10 +9651,10 @@ window.saveAdminForm = async function() {
   var newId = id || ('adm_' + Date.now());
   if (id) {
     var u = users.find(function(x){ return x.id === id; });
-    if (u) { u.username = username; if (password) u.password = password; u.nama = nama; }
+    if (u) { u.username = username; if (password) RCPW.set(u, password); u.nama = nama; }
     if (typeof auditLog === 'function') auditLog('Edit Admin', 'Akun admin diperbarui: ' + nama + ' (@' + username + ')', 'user-mgmt');
   } else {
-    users.push({ id: newId, username: username, password: password, aktif: true, role: 'admin', nama: nama, createdAt: new Date().toISOString() });
+    users.push(RCPW.make({ id: newId, username: username, password: password, aktif: true, role: 'admin', nama: nama, createdAt: new Date().toISOString() }));
     if (typeof auditLog === 'function') auditLog('Tambah Admin', 'Akun admin baru dibuat: ' + nama + ' (@' + username + ')', 'user-mgmt');
   }
   usersSave(users);
@@ -10354,7 +10479,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div class="login-error" id="loginError"></div>
     <div class="login-field">
-      <label>Username</label>
+      <label>Username / No. HP / Email</label>
       <input type="text" id="loginUsername" autocomplete="username" onkeydown="_loginFieldKeydown(event,'user')">
     </div>
     <div class="login-field">
@@ -10368,12 +10493,21 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="login-capslock" id="loginCapsWarning">⚠️ Caps Lock aktif</div>
     </div>
     <button class="login-btn" id="loginBtn" onclick="handleLogin()">Masuk</button>
-    <button class="login-btn-secondary" id="loginRencoPayQuickBtn" onclick="_rencoPayQuickLoginClick()" style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;background:linear-gradient(135deg,#1a472a,#2d6a4f);border:1.5px solid rgba(244,201,66,0.4);color:#f5d77e">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="#f5d77e" stroke-width="1.8"/><path d="M2 10h20" stroke="#f5d77e" stroke-width="1.6"/><rect x="5" y="14" width="4" height="2" rx="1" fill="#f5d77e" opacity="0.85"/><rect x="11" y="14" width="3" height="2" rx="1" fill="#f5d77e" opacity="0.55"/></svg>
-      RencoPay
+    <div class="ql-row" id="qlLoginRow" style="display:none">
+      <div class="ql-sep"><span>atau masuk cepat</span></div>
+      <div class="ql-who" id="qlWho"></div>
+      <div class="ql-btns">
+        <button type="button" class="ql-btn" id="qlPinBtn" onclick="_qlOpenPin()">🔢 PIN</button>
+        <button type="button" class="ql-btn" id="qlBioBtn" onclick="_qlBio()" style="display:none">👆 Sidik Jari / Face ID</button>
+      </div>
+      <div class="ql-link" onclick="_qlForget()">Bukan Anda? Hapus dari perangkat ini</div>
+    </div>
+    <button type="button" class="login-btn-secondary" id="loginQuickAccessBtn" onclick="_loginQuickAccess()" title="Masuk cepat dengan PIN / sidik jari">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      <span>Akses Cepat</span><small id="loginQuickAccessSub"></small>
     </button>
     <div class="login-trust">🔒 Koneksi Terenkripsi &amp; Aman</div>
-    <div class="login-daftar-toggle" id="daftarAkunToggle" onclick="_showDaftarAkunBtn()">
+    <div class="login-daftar-toggle" id="daftarAkunToggle" onclick="_openDaftarAkunLogin()">
       Belum punya akun? <span>Daftar</span>
     </div>
     <button class="login-btn-secondary" id="daftarAkunBtn" onclick="_openDaftarAkunLogin()" style="display:none">Daftar Akun Baru</button>
@@ -10980,7 +11114,6 @@ window.deletePengurus = function(id) {
         <div style="font-size:10.5px;font-weight:700;color:#b07a00;margin-bottom:5px">&#x1F451; Akun Admin Default</div>
         <div style="font-size:10.5px;color:#6b7280;line-height:1.7">
           Username: <code style="background:#fff;padding:1px 6px;border-radius:5px">admin</code><br>
-          Password: <code style="background:#fff;padding:1px 6px;border-radius:5px">renco2024</code><br>
           <span style="font-size:9.5px;color:#9ca3af">&#x26A0;&#xFE0F; Ganti password setelah login pertama</span>
         </div>
       </div>
@@ -35440,7 +35573,7 @@ function saveTransferSukarela() { return tfSubmitTransfer(); }
   }
   window._rencoReapplyOffline=reapply;
   function refreshCache(){try{var c=ls(CK,{});c.dompetNasabah=(window.DB&&window.DB.dompetNasabah)||{};c.saldoOfflineLog=(window.DB&&window.DB.saldoOfflineLog)||{};ss(CK,c);}catch(e){}}
-  function pwOK(u,p){var us=((window.DB&&window.DB.users)||[]).concat(ls(CK,{}).users||[]);var f=us.find(function(x){return x.username&&String(x.username).toLowerCase()===String(u).toLowerCase();});return !!f&&f.password===p;}
+  function pwOK(u,p){var us=((window.DB&&window.DB.users)||[]).concat(ls(CK,{}).users||[]);var f=us.find(function(x){return x.username&&String(x.username).toLowerCase()===String(u).toLowerCase();});return !!f&&RCPW.verify(f,p);}
 
   // ── UI: sheet konfirmasi bertema gelap + re-entry password ──
   function askConfirm(d,ok){
@@ -35492,7 +35625,7 @@ function saveTransferSukarela() { return tfSubmitTransfer(); }
     askConfirm({nama:nP,hp:_tfState.toHp,jumlah:jumlah,sisa:pouchInfo(id).avail-jumlah,pouch:true,ket:ket},async function(pw){
       var q={offlineTxnId:uid('offtx_'),transferId:'tf'+Date.now()+Math.random().toString(36).slice(2,7),myKkId:id,toKkId:toId,jumlah:jumlah,ket:ket,toHp:_tfState.toHp,namaPenerima:nP,namaPengirim:nS,ttdData:ttd,deviceId:devId(),createdAt:new Date().toISOString(),tanggal:(typeof nowISO==='function')?nowISO():new Date().toISOString().slice(0,10),status:'pending',attempts:0,rk:newRk(),vid:pv.vid};
       q.sum=sum(q);
-      try{q.mac=await mac(pw,macBody(q));}catch(e){q.mac='';}
+      try{q.mac=await mac(window._rcMacKeyFor(id,pw),macBody(q));}catch(e){q.mac='';}
       var all=Q();all.push(q);saveQ(all);refreshCache();
       _busy=false;afterChange();
       toast('📴 Transfer dicatat — dikirim otomatis saat online kembali');
@@ -35783,8 +35916,8 @@ function saveTransferSukarela() { return tfSubmitTransfer(); }
       var pg=(DB.nasabah||[]).find(function(a){return a.id===o.from;}),pn=(DB.nasabah||[]).find(function(a){return a.id===o.to;});
       if(!pg||(pg.status||'Aktif')==='Tidak Aktif'){fail('Rekening pengirim tidak ditemukan atau tidak aktif.');return;}
       var t0=Date.parse(o.tgl);if(!isNaN(t0)&&Date.now()-t0>CFG.MAX_UMUR_JAM*36e5){fail('QR kedaluwarsa (lebih dari '+CFG.MAX_UMUR_JAM+' jam).');return;}
-      var body=[o.txn,o.tf,o.from,o.to,o.jml,o.tgl].concat(o.vid?[o.vid]:[]).join('|'),okSig=false,us=((window.DB&&window.DB.users)||[]).filter(function(u){return u.nasabahId===o.from&&u.password;});
-      for(var i=0;i<us.length&&!okSig;i++){if(o.mac&&(await mac(us[i].password,body))===o.mac)okSig=true;}
+      var body=[o.txn,o.tf,o.from,o.to,o.jml,o.tgl].concat(o.vid?[o.vid]:[]).join('|'),okSig=false,us=((window.DB&&window.DB.users)||[]).filter(function(u){return u.nasabahId===o.from&&(u.password||u.pwHash);});
+      for(var i=0;i<us.length&&!okSig;i++){if(o.mac&&(await mac(us[i].pwHash||us[i].password,body))===o.mac)okSig=true;}
       if(!okSig){fail('Tanda tangan QR tidak cocok — QR ditolak.');return;}
       var _lq={myKkId:o.from,toKkId:o.to,jumlah:o.jml,ket:o.ket,tanggal:o.tgl,transferId:o.tf,offlineTxnId:o.txn,vid:o.vid,deviceId:'qr-'+devId(),namaPenerima:pn?pn.nama:o.to,namaPengirim:pg.nama,toHp:pn?(pn.hp||''):'',ttdData:null};
       if(o.vid){var vr=voucherCheck(o.from,o.vid,o.jml,o.txn,Date.parse(o.tgl));if(vr){fail(vr);return;}voucherLegs(_lq,'synced',{viaQr:true});}
@@ -69615,25 +69748,126 @@ body.rp-theme #page-home #homeTxnTitle span{
 }
 </style>
 <style id="login-compact">
-/* Kartu login lebih ringkas: jarak, logo, kolom, dan tombol dirapatkan.
-   Isi, urutan, dan fungsi tidak berubah — hanya ukuran dan spasi. */
-#loginScreen .login-card{ max-width:340px; padding:20px 22px 14px; border-radius:18px; }
-#loginScreen .login-card .login-logo{ margin-bottom:10px !important; }
-#loginScreen .login-card .login-logo img{ width:min(56vw,210px) !important; }
-#loginScreen .login-error{ padding:7px 10px; margin-bottom:10px; font-size:11.5px; }
-#loginScreen .login-field{ margin-bottom:11px; }
-#loginScreen .login-field label{ font-size:13px; margin-bottom:2px; }
-#loginScreen .login-field input{ padding:8px 0 7px; font-size:17px; }
-#loginScreen .login-pw-wrap input{ padding-right:34px; }
-#loginScreen .login-capslock{ margin-top:3px; font-size:10px; }
-#loginScreen .login-btn{ padding:11px; margin-top:4px; font-size:14px; border-radius:11px; }
-#loginScreen #loginRencoPayQuickBtn{ margin-top:8px !important; padding:9px 12px !important; font-size:12.5px; border-radius:11px; }
-#loginScreen .login-trust{ margin-top:10px; font-size:10px; }
-#loginScreen .login-daftar-toggle{ margin-top:8px; font-size:13px; }
-#loginScreen .login-daftar-toggle span{ font-size:17px; }
-#loginScreen .login-btn-secondary#daftarAkunBtn{ margin-top:8px; padding:9px; }
-#loginScreen .login-footer{ margin-top:10px; font-size:9.5px; line-height:1.4; }
+/* Kartu login v3: rapat, rapi, interaktif. Isi, urutan & fungsi tidak berubah. */
+#loginScreen .login-card{ max-width:332px; padding:18px 20px 12px; border-radius:20px;
+  background:linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.04));
+  border:1px solid rgba(255,255,255,.16); box-shadow:0 20px 56px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.18); }
+#loginScreen .login-card.lc-shake{ animation:cardEnter .65s cubic-bezier(.16,1,.3,1) forwards, lcShake .45s cubic-bezier(.36,.07,.19,.97); }
+@keyframes lcShake{ 10%,90%{translate:-1px 0} 20%,80%{translate:3px 0} 30%,50%,70%{translate:-6px 0} 40%,60%{translate:6px 0} }
+#loginScreen .login-card.lc-ready{ opacity:1 !important; }
+#loginScreen .login-card .login-logo{ margin-bottom:12px !important; }
+#loginScreen .login-card .login-logo img{ width:min(50vw,180px) !important; }
+#loginScreen .login-error{ padding:7px 10px; margin-bottom:10px; font-size:11.5px; border-radius:10px; }
+/* Kolom: kotak dengan ikon di kiri + label melayang */
+#loginScreen .login-field{ position:relative; margin-bottom:10px; text-align:left; }
+#loginScreen .login-field::before{ content:''; position:absolute; left:13px; top:15px; width:17px; height:17px; z-index:2; pointer-events:none;
+  background:rgba(244,249,241,.55); transition:background .2s;
+  -webkit-mask:var(--lf-ic) center/contain no-repeat; mask:var(--lf-ic) center/contain no-repeat; }
+#loginScreen .login-field:has(#loginUsername){ --lf-ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21c0-4 3.6-7 8-7s8 3 8 7'/%3E%3C/svg%3E"); }
+#loginScreen .login-field:has(#loginPassword){ --lf-ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='10' width='16' height='11' rx='2.5'/%3E%3Cpath d='M8 10V7a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E"); }
+#loginScreen .login-field:focus-within::before, #loginScreen .login-field.lf-filled::before{ background:#f4c842; }
+#loginScreen .login-field label{ position:absolute; left:42px; top:14px; margin:0; z-index:2; pointer-events:none;
+  font-size:13.5px; font-weight:500; color:rgba(244,249,241,.62); letter-spacing:.1px; text-transform:none;
+  transition:transform .18s ease, font-size .18s ease, color .18s ease, top .18s ease; transform-origin:left top;
+  max-width:calc(100% - 80px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#loginScreen .login-field:focus-within label, #loginScreen .login-field.lf-filled label{ top:5px; font-size:10px; font-weight:700; color:#f4c842; max-width:calc(100% - 50px); }
+#loginScreen .login-field input{ width:100%; box-sizing:border-box; height:46px; padding:17px 14px 4px 42px; font-size:15.5px; line-height:1.2;
+  border:1.5px solid rgba(255,255,255,.18); border-radius:13px; background:rgba(0,0,0,.18); color:#f4f9f1;
+  transition:border-color .2s, box-shadow .2s, background .2s; }
+#loginScreen .login-field input:hover{ border-color:rgba(255,255,255,.32); }
+#loginScreen .login-field input:focus{ border-color:#f4c842; background:rgba(0,0,0,.28); box-shadow:0 0 0 3px rgba(244,200,66,.18), 0 0 18px rgba(244,200,66,.14); outline:none; }
+#loginScreen .login-field input:-webkit-autofill{ -webkit-text-fill-color:#f4f9f1; caret-color:#f4f9f1; transition:background-color 9999s ease-out 0s; }
+#loginScreen .login-field.shake input, #loginScreen .login-field.lf-bad input{ border-color:rgba(255,138,138,.8) !important; }
+#loginScreen .login-pw-wrap{ position:relative; }
+#loginScreen .login-pw-wrap input{ padding-right:44px; }
+#loginScreen .login-pw-toggle{ right:6px; width:34px; height:34px; border-radius:10px; }
+#loginScreen .login-capslock{ margin:3px 0 0 4px; font-size:10px; }
+/* Tombol Masuk */
+#loginScreen .login-btn{ height:44px; padding:0 14px; margin-top:4px; font-size:14.5px; border-radius:13px; display:flex; align-items:center; justify-content:center; gap:8px; }
+#loginScreen .login-btn:not(:disabled):hover{ transform:translateY(-1px); }
+#loginScreen .login-btn:disabled{ opacity:.85; cursor:progress; }
+#loginScreen .login-btn:disabled::before{ content:''; width:15px; height:15px; border-radius:50%; border:2.2px solid rgba(42,26,0,.25); border-top-color:#2a1a00; animation:lcSpin .7s linear infinite; flex:none; }
+@keyframes lcSpin{ to{ transform:rotate(360deg); } }
+/* Masuk cepat & RencoPay */
+#loginScreen .ql-row{ margin-top:8px; }
+#loginScreen #qlLoginRow{ display:none !important; }
+#loginScreen #loginQuickAccessBtn{ margin-top:8px; height:40px; padding:0 12px; border-radius:12px; display:flex; align-items:center; justify-content:center; gap:7px; font-size:13px;
+  background:rgba(244,200,66,.10); border:1.5px solid rgba(244,200,66,.45); color:#f5d77e; transition:transform .15s, background .2s, box-shadow .2s; }
+#loginScreen #loginQuickAccessBtn svg{ transition:transform .25s; }
+#loginScreen #loginQuickAccessBtn:hover{ background:rgba(244,200,66,.2); box-shadow:0 4px 16px rgba(244,200,66,.22); transform:translateY(-1px); }
+#loginScreen #loginQuickAccessBtn:hover svg{ transform:rotate(-12deg) scale(1.15); }
+#loginScreen #loginQuickAccessBtn:active{ transform:scale(.97); }
+#loginScreen #loginQuickAccessBtn small{ font-size:10.5px; font-weight:600; opacity:.75; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#loginScreen #loginQuickAccessBtn small:not(:empty)::before{ content:'· '; }
+#loginScreen #loginQuickAccessBtn.qa-off{ border-style:dashed; opacity:.8; }
+/* Baris bawah: tepercaya + daftar, satu baris ringkas */
+#loginScreen .login-trust{ margin-top:9px; font-size:10px; }
+#loginScreen .login-daftar-toggle{ margin-top:6px; font-size:12.5px; padding:4px; border-radius:8px; transition:background .2s; }
+#loginScreen .login-daftar-toggle:hover{ background:rgba(255,255,255,.07); }
+#loginScreen .login-daftar-toggle span{ font-size:13px; text-decoration-color:#f4c842; transition:color .2s; }
+#loginScreen .login-daftar-toggle:hover span{ color:#f4c842; }
+#loginScreen .login-btn-secondary#daftarAkunBtn{ margin-top:6px; height:38px; padding:0 10px; border-radius:12px; }
+#loginScreen .login-footer{ margin-top:8px; font-size:9.5px; line-height:1.4; }
+@media (max-height:640px){ #loginScreen .login-card .login-logo img{ width:130px !important; } #loginScreen .login-field input{ height:42px; } #loginScreen .login-field::before{ top:13px; } #loginScreen .login-field label{ top:12px; } }
+@media (prefers-reduced-motion:reduce){ #loginScreen .login-card.lc-shake, #loginScreen .login-btn:disabled::before{ animation:none; } #loginScreen .login-field label{ transition:none; } }
 </style>
+<script id="login-quick-access">
+(function(){
+  function $(i){ return document.getElementById(i); }
+  function refresh(){
+    var b=$('loginQuickAccessBtn'), who=$('qlWho'), row=$('qlLoginRow'), sub=$('loginQuickAccessSub'); if(!b) return;
+    var on=!!(row && row.style.display!=='none');
+    b.classList.toggle('qa-off',!on);
+    if(sub){ var n=who&&who.querySelector('b'); sub.textContent=on&&n?n.textContent:''; }
+  }
+  window._loginQuickAccess=function(){
+    var row=$('qlLoginRow'), on=!!(row && row.style.display!=='none'), err=$('loginError');
+    if(!on){
+      if(err){ err.textContent='\u26A1 Akses Cepat belum aktif di perangkat ini. Masuk dengan password, lalu aktifkan di menu Profil.'; err.style.display='block'; }
+      return;
+    }
+    var bio=$('qlBioBtn');
+    if(bio && bio.style.display!=='none' && typeof window._qlBio==='function') window._qlBio();
+    else if(typeof window._qlOpenPin==='function') window._qlOpenPin();
+  };
+  document.addEventListener('DOMContentLoaded',function(){
+    var row=$('qlLoginRow'); if(row && window.MutationObserver) new MutationObserver(refresh).observe(row,{attributes:true,childList:true,subtree:true});
+    refresh(); setTimeout(refresh,800);
+  });
+})();
+</script>
+<script id="login-interactive-v3">
+(function(){
+  function $(i){ return document.getElementById(i); }
+  function sync(inp){ var f=inp.closest('.login-field'); if(!f) return; var v=!!inp.value; f.classList.toggle('lf-filled',v); if(v) f.classList.remove('lf-bad'); }
+  function bind(){
+    var u=$('loginUsername'), p=$('loginPassword'), card=document.querySelector('#loginScreen .login-card'), err=$('loginError');
+    if(!u||!p||!card||card.dataset.v3) return; card.dataset.v3='1'; setTimeout(function(){ card.classList.add('lc-ready'); },1000);
+    [u,p].forEach(function(i){
+      ['input','change','blur','animationstart'].forEach(function(ev){ i.addEventListener(ev,function(){ sync(i); }); });
+      sync(i);
+    });
+    // deteksi isian otomatis browser / login cepat yang mengisi lewat kode
+    var n=0, iv=setInterval(function(){ sync(u); sync(p); if(++n>40) clearInterval(iv); },250);
+    // getar kartu + tandai kolom saat muncul pesan error
+    if(err && window.MutationObserver){
+      new MutationObserver(function(){
+        if(err.style.display==='block'){
+          card.classList.remove('lc-shake'); void card.offsetWidth; card.classList.add('lc-shake');
+          setTimeout(function(){ card.classList.remove('lc-shake'); },500);
+          if(/salah|tidak cocok|wajib/i.test(err.textContent)){ [u,p].forEach(function(i){ if(!i.value||/salah|tidak cocok/i.test(err.textContent)) i.closest('.login-field').classList.add('lf-bad'); }); }
+        }
+      }).observe(err,{attributes:true,attributeFilter:['style'],childList:true,characterData:true,subtree:true});
+    }
+    // getar kartu sebentar bila Masuk diketuk saat kolom kosong
+    // (pesan & fokus tetap ditangani handleLogin)
+    // fokus otomatis ke username di layar non-sentuh
+    if(!('ontouchstart' in window) && !u.value){ setTimeout(function(){ try{ u.focus({preventScroll:true}); }catch(e){} },350); }
+  }
+  document.addEventListener('DOMContentLoaded',bind);
+  var t=setInterval(function(){ if(document.querySelector('#loginScreen .login-card')){ bind(); clearInterval(t); } },300);
+})();
+</script>
 <style id="tap-anim-keuangan-hiburan">
 /* Ketukan & animasi menu Keuangan dan Hiburan, disamakan dengan Aksi Cepat:
    ketukan 1 = ikon menyala emas + berdenyut (belum membuka), ketukan 2 = membuka. */
@@ -70914,4 +71148,458 @@ html.renco-dark .gn-sk{background:linear-gradient(90deg,#1a261f 25%,#22332a 50%,
   }, TTL);
 })();
 </script>
+<script id="rc-mac-helper">
+/* Kunci tanda tangan QR offline: hash password (bila akun sudah ber-hash) atau password polos (akun lama). */
+window._rcMacKeyFor=function(kkId,pw){
+  try{ var us=((window.DB&&DB.users)||[]).filter(function(u){ return u.nasabahId===kkId; });
+    for(var i=0;i<us.length;i++){ if(RCPW.verify(us[i],pw)) return RCPW.macKey(us[i],pw); } }catch(e){}
+  return pw;
+};
+</script>
+<!-- ═══ RESET PASSWORD OLEH ADMIN + WAJIB GANTI PASSWORD SEMENTARA ═══
+     Admin tidak bisa melihat password siapa pun (tersimpan sebagai hash).
+     Jika anggota lupa: admin menekan 🔑 Reset → muncul password sementara
+     SEKALI → dikirim ke anggota → anggota wajib membuat password baru saat login. -->
+<style id="pwResetStyle">
+.pw-ov{position:fixed;inset:0;z-index:100003;background:rgba(3,17,10,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px}
+.pw-card{width:100%;max-width:340px;background:#fff;color:#1c3025;border-radius:22px;padding:22px 20px 18px;box-sizing:border-box;max-height:92vh;overflow:auto;font-family:inherit}
+.pw-ttl{font-size:16px;font-weight:800;margin-bottom:4px}
+.pw-sub{font-size:12px;color:#5b6b61;line-height:1.5;margin-bottom:12px}
+.pw-tmp{font-family:monospace;font-size:26px;font-weight:800;letter-spacing:2px;text-align:center;background:#f1f7f3;border:1.5px dashed #2d6a4f;border-radius:14px;padding:14px 8px;margin:6px 0 10px;user-select:all}
+.pw-warn{font-size:11px;color:#b07a00;background:rgba(244,169,34,.1);border-radius:10px;padding:8px 10px;margin-bottom:12px;line-height:1.45}
+.pw-lbl{display:block;font-size:10.5px;font-weight:700;color:#4b5d52;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 5px}
+.pw-inp{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1.5px solid #cfd8d2;font-family:inherit;font-size:15px;color:#1c3025;background:#f7faf8;outline:none}
+.pw-inp:focus{border-color:#2d6a4f;box-shadow:0 0 0 3px rgba(45,106,79,.15)}
+.pw-err{min-height:16px;font-size:12px;font-weight:700;color:#c0392b;margin-top:8px}
+.pw-row{display:flex;gap:8px;margin-top:10px}
+.pw-b{flex:1;padding:12px 8px;border-radius:13px;border:none;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.pw-b.pri{background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#f5d77e}
+.pw-b.wa{background:#25d366;color:#fff}
+.pw-b.sec{background:#fff;border:1.5px solid #cfd8d2;color:#3b4d43}
+</style>
+<script id="pw-reset-module">
+(function(){
+'use strict';
+function $(i){ return document.getElementById(i); }
+function toast(m){ try{ if(typeof showToast==='function') showToast(m,3200); }catch(e){} }
+function users(){ return (typeof usersLoad==='function')?usersLoad():[]; }
+function audit(a,d){ try{ if(typeof auditLog==='function') auditLog(a,d,'user-mgmt'); }catch(e){} }
+function kill(id){ var o=$(id); if(o&&o.parentNode) o.parentNode.removeChild(o); }
+function txt(el,t){ el.textContent=t; return el; }
+
+/* ── Admin: reset password ── */
+window.resetPasswordUser=function(userId){
+  if(typeof isAdmin==='function' && !isAdmin()){ toast('⚠️ Hanya admin yang bisa mereset password'); return; }
+  var arr=users(), u=arr.find(function(x){ return x.id===userId; });
+  if(!u){ toast('⚠️ User tidak ditemukan'); return; }
+  if(!confirm('Reset password untuk "'+(u.nama||u.username)+'"?\n\nPassword sementara dibuat otomatis dan hanya ditampilkan SEKALI. Pengguna wajib membuat password baru saat login berikutnya.')) return;
+  var tmp=RCPW.temp();
+  RCPW.set(u,tmp); u.mustChangePw=true;
+  usersSave(arr);
+  audit('Reset Password','Admin mereset password akun '+(u.nama||u.username)+' (@'+u.username+')');
+  showTemp(u,tmp);
+};
+function showTemp(u,tmp){
+  kill('pwTmpOv');
+  var nb=null; try{ nb=(DB.nasabah||[]).find(function(n){ return n.id===u.nasabahId; }); }catch(e){}
+  var hp=nb&&nb.hp?String(nb.hp).replace(/[^\d]/g,''):'';
+  if(hp){ if(hp.charAt(0)==='0') hp='62'+hp.slice(1); else if(hp.slice(0,2)!=='62') hp='62'+hp; }
+  var ov=document.createElement('div'); ov.className='pw-ov'; ov.id='pwTmpOv';
+  var c=document.createElement('div'); c.className='pw-card'; ov.appendChild(c);
+  var t=document.createElement('div'); t.className='pw-ttl'; t.textContent='🔑 Password sementara'; c.appendChild(t);
+  var s=document.createElement('div'); s.className='pw-sub'; s.textContent='Untuk '+(u.nama||u.username)+' (@'+u.username+')'; c.appendChild(s);
+  var p=document.createElement('div'); p.className='pw-tmp'; p.textContent=tmp; c.appendChild(p);
+  var w=document.createElement('div'); w.className='pw-warn'; w.textContent='Password ini hanya tampil sekali dan tidak bisa dilihat lagi. Sampaikan ke anggota; ia akan diminta membuat password baru saat masuk.'; c.appendChild(w);
+  var r=document.createElement('div'); r.className='pw-row'; c.appendChild(r);
+  var cp=document.createElement('button'); cp.type='button'; cp.className='pw-b sec'; cp.textContent='Salin';
+  cp.onclick=function(){ try{ navigator.clipboard.writeText(tmp).then(function(){ toast('Password sementara disalin'); }); }catch(e){ toast('Tekan & tahan teks untuk menyalin'); } };
+  r.appendChild(cp);
+  if(hp){
+    var wa=document.createElement('button'); wa.type='button'; wa.className='pw-b wa'; wa.textContent='💬 WhatsApp';
+    wa.onclick=function(){ var m='Halo '+(u.nama||u.username)+', password sementara akun Koperasi RENCO Anda: *'+tmp+'*\nSilakan masuk, lalu buat password baru. Jangan bagikan ke siapa pun.'; window.open('https://wa.me/'+hp+'?text='+encodeURIComponent(m),'_blank'); };
+    r.appendChild(wa);
+  }
+  var r2=document.createElement('div'); r2.className='pw-row'; c.appendChild(r2);
+  var cl=document.createElement('button'); cl.type='button'; cl.className='pw-b pri'; cl.textContent='Selesai';
+  cl.onclick=function(){ kill('pwTmpOv'); try{ if(typeof renderUserManagement==='function') renderUserManagement(); if(typeof renderAdminManagement==='function') renderAdminManagement(); }catch(e){} };
+  r2.appendChild(cl);
+  document.body.appendChild(ov);
+}
+
+/* ── Pengguna: wajib ganti password sementara ── */
+function checkMust(){
+  try{
+    if(!window.AUTH||!AUTH.loggedIn||!AUTH.user||!AUTH.user.id||$('pwForceOv')) return;
+    var me=users().find(function(x){ return x.id===AUTH.user.id; });
+    if(me&&me.mustChangePw) showForce(me.id);
+  }catch(e){}
+}
+function showForce(userId){
+  var ov=document.createElement('div'); ov.className='pw-ov'; ov.id='pwForceOv';
+  ov.innerHTML='<div class="pw-card"><div class="pw-ttl">🔐 Buat password baru</div>'+
+    '<div class="pw-sub">Anda masuk memakai password sementara dari admin. Buat password baru yang hanya Anda yang tahu.</div>'+
+    '<label class="pw-lbl">Password baru (min. 6 karakter)</label><input class="pw-inp" id="pwFNew" type="password" autocomplete="new-password">'+
+    '<label class="pw-lbl">Ulangi password baru</label><input class="pw-inp" id="pwFNew2" type="password" autocomplete="new-password">'+
+    '<div class="pw-err" id="pwFErr"></div>'+
+    '<div class="pw-row"><button type="button" class="pw-b sec" id="pwFOut">Keluar</button><button type="button" class="pw-b pri" id="pwFSave">Simpan</button></div></div>';
+  document.body.appendChild(ov);
+  $('pwFOut').onclick=function(){ kill('pwForceOv'); try{ if(typeof authLogout==='function') authLogout(); }catch(e){} };
+  $('pwFSave').onclick=function(){
+    var a=$('pwFNew').value, b=$('pwFNew2').value, er=$('pwFErr');
+    if(a.trim().length<6){ er.textContent='Password minimal 6 karakter.'; return; }
+    if(a!==b){ er.textContent='Kedua password tidak sama.'; return; }
+    var arr=users(), me=arr.find(function(x){ return x.id===userId; });
+    if(!me){ er.textContent='Akun tidak ditemukan.'; return; }
+    if(RCPW.verify(me,a)){ er.textContent='Password baru tidak boleh sama dengan password sementara.'; return; }
+    RCPW.set(me,a); usersSave(arr);
+    try{ if(typeof auditLog==='function') auditLog('Ganti Password',(me.nama||me.username)+' mengganti password sementara','akun'); }catch(e){}
+    kill('pwForceOv'); toast('✅ Password baru tersimpan');
+  };
+  setTimeout(function(){ var f=$('pwFNew'); if(f) f.focus(); },200);
+}
+var _h=window.hideLoginScreen;
+if(typeof _h==='function') window.hideLoginScreen=function(){ var r=_h.apply(this,arguments); setTimeout(checkMust,900); return r; };
+setTimeout(checkMust,2500);
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     OPSI LOGIN ALTERNATIF
+     1) Masuk dengan No. HP / Email (selain username)
+     2) Login Cepat PIN 6 digit (per perangkat)
+     3) Login Cepat Biometrik — sidik jari / Face ID (per perangkat)
+     Password TIDAK disimpan polos: dienkripsi AES-GCM di perangkat
+     (kunci dari PIN via PBKDF2, atau kunci non-extractable di IndexedDB
+     yang dibuka biometrik). Akun Admin tidak mendapat login cepat.
+════════════════════════════════════════════════════════════ -->
+<style id="qlStyle">
+.ql-row{margin-top:14px;text-align:center}
+.ql-sep{display:flex;align-items:center;gap:10px;font-size:10.5px;font-weight:600;color:rgba(244,249,241,.55);letter-spacing:.3px;margin:2px 0 10px}
+.ql-sep:before,.ql-sep:after{content:"";flex:1;height:1px;background:rgba(255,255,255,.18)}
+.ql-who{font-size:12px;color:rgba(244,249,241,.85);margin-bottom:8px}
+.ql-who b{color:#f5d77e}
+.ql-btns{display:flex;gap:8px}
+.ql-btn{flex:1;padding:12px 8px;border-radius:13px;background:rgba(255,255,255,.08);border:1.5px solid rgba(244,249,241,.35);color:#f4f9f1;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s,transform .2s}
+.ql-btn:active{transform:scale(.97);background:rgba(255,255,255,.16)}
+.ql-link{font-size:11px;color:rgba(244,249,241,.55);margin-top:10px;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.ql-ov{position:fixed;inset:0;z-index:100002;background:rgba(3,17,10,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px}
+.ql-ov.show{display:flex}
+.ql-card{width:100%;max-width:340px;border-radius:22px;padding:22px 20px 18px;text-align:center;box-sizing:border-box;max-height:92vh;overflow:auto}
+.ql-card.dark{background:linear-gradient(170deg,#0b2a19,#0e3a22);border:1.5px solid rgba(244,201,66,.35);color:#f4f9f1}
+.ql-card.light{background:#fff;color:#1c3025;text-align:left}
+.ql-ttl{font-size:16px;font-weight:800;margin-bottom:4px}
+.ql-sub{font-size:12px;opacity:.75;margin-bottom:14px;line-height:1.45}
+.ql-dots{display:flex;justify-content:center;gap:12px;margin:14px 0 6px}
+.ql-dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(244,201,66,.8);transition:background .15s}
+.ql-dot.on{background:#f4c842}
+.ql-err{min-height:18px;font-size:11.5px;font-weight:700;color:#ffcf6b;margin:4px 0 8px}
+.ql-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;justify-items:center}
+.ql-key{width:68px;height:56px;border-radius:16px;border:1.5px solid rgba(244,249,241,.28);background:rgba(255,255,255,.07);color:#f4f9f1;font-family:inherit;font-size:22px;font-weight:700;cursor:pointer}
+.ql-key:active{background:rgba(255,255,255,.2)}
+.ql-key.sm{font-size:12px;font-weight:700;border-color:transparent;background:transparent}
+.ql-shake{animation:loginShake .42s cubic-bezier(.36,.07,.19,.97)}
+.ql-lbl{display:block;font-size:10.5px;font-weight:700;color:#4b5d52;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 5px}
+.ql-inp{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1.5px solid #cfd8d2;font-family:inherit;font-size:15px;color:#1c3025;background:#f7faf8;outline:none}
+.ql-inp:focus{border-color:#2d6a4f;box-shadow:0 0 0 3px rgba(45,106,79,.15)}
+.ql-chk{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;margin-top:14px;line-height:1.4}
+.ql-chk input{margin-top:2px;width:17px;height:17px}
+.ql-lerr{min-height:16px;font-size:12px;font-weight:700;color:#c0392b;margin-top:10px}
+.ql-act{display:flex;gap:8px;margin-top:12px}
+.ql-pri{flex:1.4;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#f5d77e;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
+.ql-sec{flex:1;padding:13px;border-radius:13px;border:1.5px solid #cfd8d2;background:#fff;color:#3b4d43;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.ql-off{width:100%;margin-top:8px;padding:11px;border-radius:13px;border:1.5px solid #e3b4ae;background:#fff;color:#b03a2e;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.ql-prof{margin-top:14px;padding:12px 14px;border-radius:14px;border:1.5px solid rgba(45,106,79,.25);background:rgba(45,106,79,.06)}
+.ql-prof b{font-size:13px}
+.ql-prof small{display:block;font-size:11px;color:#6b7280;margin:3px 0 9px}
+.ql-prof button{padding:9px 14px;border-radius:11px;border:none;background:#2d6a4f;color:#fff;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+</style>
+<script id="ql-login-options">
+(function(){
+'use strict';
+var LS='rc_quicklogin_v1', ASKED='rc_ql_asked_v1', IDBN='rc_ql_db', STORE='k', MAXFAIL=5;
+var enc=new TextEncoder(), dec=new TextDecoder();
+function $(i){ return document.getElementById(i); }
+function toast(m){ try{ if(typeof showToast==='function') showToast(m, 3200); }catch(e){} }
+function b64(buf){ var b=new Uint8Array(buf), s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+function unb64(s){ var b=atob(s), u=new Uint8Array(b.length); for(var i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+function rd(){ try{ return JSON.parse(localStorage.getItem(LS)||'null'); }catch(e){ return null; } }
+function wr(o){ try{ localStorage.setItem(LS, JSON.stringify(o)); }catch(e){} }
+var CRYPTO_OK = !!(window.crypto && crypto.subtle && window.isSecureContext && window.indexedDB);
+
+/* ── IndexedDB (kunci non-extractable untuk biometrik) ── */
+function idb(){ return new Promise(function(res,rej){ var r=indexedDB.open(IDBN,1); r.onupgradeneeded=function(){ r.result.createObjectStore(STORE); }; r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
+function idbPut(k,v){ return idb().then(function(db){ return new Promise(function(res,rej){ var t=db.transaction(STORE,'readwrite'); t.objectStore(STORE).put(v,k); t.oncomplete=function(){ res(); }; t.onerror=function(){ rej(t.error); }; }); }); }
+function idbGet(k){ return idb().then(function(db){ return new Promise(function(res,rej){ var q=db.transaction(STORE,'readonly').objectStore(STORE).get(k); q.onsuccess=function(){ res(q.result); }; q.onerror=function(){ rej(q.error); }; }); }); }
+function idbDel(k){ return idb().then(function(db){ return new Promise(function(res){ var t=db.transaction(STORE,'readwrite'); t.objectStore(STORE).delete(k); t.oncomplete=function(){ res(); }; t.onerror=function(){ res(); }; }); }).catch(function(){}); }
+
+/* ── Kripto ── */
+function pinKey(pin,salt){
+  return crypto.subtle.importKey('raw',enc.encode(pin),'PBKDF2',false,['deriveKey']).then(function(m){
+    return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:150000,hash:'SHA-256'},m,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  });
+}
+function encWith(key,text){ var iv=crypto.getRandomValues(new Uint8Array(12)); return crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,enc.encode(text)).then(function(c){ return {iv:b64(iv),ct:b64(c)}; }); }
+function decWith(key,o){ return crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(o.iv)},key,unb64(o.ct)).then(function(p){ return dec.decode(p); }); }
+
+/* ── WebAuthn (biometrik platform) ── */
+function bioAvailable(){
+  if(!CRYPTO_OK || !window.PublicKeyCredential || !PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+  return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(function(){ return false; });
+}
+function bioCreate(u){
+  return navigator.credentials.create({publicKey:{
+    challenge:crypto.getRandomValues(new Uint8Array(32)),
+    rp:{name:'Koperasi Renco'},
+    user:{id:crypto.getRandomValues(new Uint8Array(16)),name:u.username,displayName:u.nama||u.username},
+    pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+    authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},
+    timeout:60000, attestation:'none'
+  }}).then(function(c){ return b64(c.rawId); });
+}
+function bioAssert(credId){
+  return navigator.credentials.get({publicKey:{
+    challenge:crypto.getRandomValues(new Uint8Array(32)),
+    allowCredentials:[{type:'public-key',id:unb64(credId),transports:['internal']}],
+    userVerification:'required', timeout:60000
+  }});
+}
+
+/* ══ 1) LOGIN DENGAN NO. HP / EMAIL ══
+   Dibungkus di authLogin: jika isian cocok dengan No. HP / Email seorang
+   nasabah yang punya akun, coba login ke akun-akun itu dengan password
+   yang diketik. Username biasa tetap jalan seperti semula. */
+function normHp(s){ var d=String(s||'').replace(/[^\d]/g,''); if(!d) return ''; if(d.charAt(0)==='0') d='62'+d.slice(1); else if(d.slice(0,2)!=='62') d='62'+d; return d; }
+function candidatesFor(idf){
+  var id=String(idf||'').trim(), out=[];
+  try{
+    var isMail=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(id), isHp=/^\+?[\d][\d\s\-]{7,}$/.test(id);
+    if(!isMail && !isHp) return out;
+    var nas=(window.DB && Array.isArray(DB.nasabah))?DB.nasabah:[], users=(typeof usersLoad==='function')?usersLoad():[];
+    var ids=nas.filter(function(n){
+      return isMail ? (n.email && String(n.email).trim().toLowerCase()===id.toLowerCase()) : (n.hp && normHp(n.hp)===normHp(id));
+    }).map(function(n){ return n.id; });
+    if(!ids.length) return out;
+    out=users.filter(function(u){ return u && u.username && u.nasabahId && ids.indexOf(u.nasabahId)>-1 && u.aktif!==false; });
+  }catch(e){}
+  return out;
+}
+var _al=window.authLogin;
+if(typeof _al==='function'){
+  window.authLogin=function(username,password){
+    var c=candidatesFor(username);
+    for(var i=0;i<c.length;i++){ if(_al.call(this,c[i].username,password)) return true; }
+    return _al.apply(this,arguments);
+  };
+}
+
+/* ══ 2) & 3) LOGIN CEPAT (PIN / BIOMETRIK) ══ */
+function isAdminUser(u){ return !u || u.role==='admin' || String(u.username||'').toLowerCase()==='admin'; }
+
+function qlClear(){ try{ localStorage.removeItem(LS); }catch(e){} idbDel('bio'); refreshRow(); }
+
+function refreshRow(){
+  var row=$('qlLoginRow'); if(!row) return;
+  var d=rd();
+  if(!d || !d.pin){ row.style.display='none'; return; }
+  var who=$('qlWho'); if(who){ who.textContent=''; who.appendChild(document.createTextNode('Masuk sebagai ')); var b=document.createElement('b'); b.textContent=d.nama||d.username; who.appendChild(b); }
+  row.style.display='block';
+  var bb=$('qlBioBtn'); if(bb){ bb.style.display='none'; if(d.bio) bioAvailable().then(function(ok){ if(ok) bb.style.display=''; }); }
+}
+
+/* Jalankan login normal memakai kredensial hasil dekripsi */
+function doLogin(username,password){
+  var u=$('loginUsername'), p=$('loginPassword'), err=$('loginError');
+  if(!u||!p||typeof handleLogin!=='function') return;
+  u.value=username; p.value=password;
+  handleLogin();
+  var tries=0, iv=setInterval(function(){
+    tries++;
+    var ls=$('loginScreen'), btn=$('loginBtn');
+    var hidden=!ls || ls.style.display==='none';
+    if(hidden){ clearInterval(iv); try{ p.value=''; u.value=''; }catch(e){} return; }
+    if(tries>3 && btn && !btn.disabled){   // login gagal (tombol aktif lagi)
+      clearInterval(iv);
+      p.value='';
+      qlClear();
+      if(err){ err.textContent='🔑 Password akun berubah atau tidak cocok. Masuk dengan password, lalu aktifkan ulang Login Cepat.'; err.style.display='block'; }
+    }
+    if(tries>80){ clearInterval(iv); p.value=''; }
+  },500);
+}
+
+/* ── Layar PIN ── */
+var pinBuf='', pinBusy=false;
+function ensurePinUI(){
+  if($('qlPinOv')) return;
+  var ov=document.createElement('div'); ov.className='ql-ov'; ov.id='qlPinOv';
+  var keys=''; for(var i=1;i<=9;i++) keys+='<button type="button" class="ql-key" data-k="'+i+'">'+i+'</button>';
+  ov.innerHTML='<div class="ql-card dark" id="qlPinCard"><div class="ql-ttl">Masukkan PIN</div><div class="ql-sub" id="qlPinWho"></div>'+
+    '<div class="ql-dots" id="qlDots"></div><div class="ql-err" id="qlPinErr"></div>'+
+    '<div class="ql-pad">'+keys+'<button type="button" class="ql-key sm" data-k="x">Batal</button><button type="button" class="ql-key" data-k="0">0</button><button type="button" class="ql-key sm" data-k="b">⌫ Hapus</button></div></div>';
+  document.body.appendChild(ov);
+  var dots=''; for(var j=0;j<6;j++) dots+='<span class="ql-dot"></span>'; $('qlDots').innerHTML=dots;
+  ov.addEventListener('click',function(e){ var b=e.target.closest&&e.target.closest('.ql-key'); if(!b) return; pinKeyPress(b.getAttribute('data-k')); });
+  document.addEventListener('keydown',function(e){
+    if(!ov.classList.contains('show')) return;
+    if(/^\d$/.test(e.key)) pinKeyPress(e.key); else if(e.key==='Backspace') pinKeyPress('b'); else if(e.key==='Escape') pinKeyPress('x');
+  });
+}
+function paintDots(){ var ds=document.querySelectorAll('#qlDots .ql-dot'); for(var i=0;i<ds.length;i++) ds[i].classList.toggle('on', i<pinBuf.length); }
+function pinKeyPress(k){
+  if(pinBusy) return;
+  if(k==='x'){ closePin(); return; }
+  if(k==='b'){ pinBuf=pinBuf.slice(0,-1); paintDots(); return; }
+  if(pinBuf.length>=6) return;
+  pinBuf+=k; paintDots();
+  if(pinBuf.length===6) pinSubmit();
+}
+function closePin(){ var ov=$('qlPinOv'); if(ov) ov.classList.remove('show'); pinBuf=''; pinBusy=false; paintDots(); }
+window._qlOpenPin=function(){
+  var d=rd(); if(!d||!d.pin){ refreshRow(); return; }
+  ensurePinUI(); pinBuf=''; pinBusy=false; paintDots();
+  $('qlPinErr').textContent=''; $('qlPinWho').textContent=d.nama||d.username;
+  $('qlPinOv').classList.add('show');
+};
+function pinFail(msg){
+  var c=$('qlPinCard'), e=$('qlPinErr'); if(e) e.textContent=msg;
+  if(c){ c.classList.remove('ql-shake'); void c.offsetWidth; c.classList.add('ql-shake'); }
+  pinBuf=''; pinBusy=false; paintDots();
+}
+function pinSubmit(){
+  var d=rd(); if(!d||!d.pin){ closePin(); refreshRow(); return; }
+  pinBusy=true; $('qlPinErr').textContent='Memeriksa…';
+  var pin=pinBuf;
+  pinKey(pin,unb64(d.pin.salt)).then(function(k){ return decWith(k,d.pin); }).then(function(pw){
+    d.fails=0; wr(d); closePin(); doLogin(d.username,pw);
+  }).catch(function(){
+    d.fails=(d.fails||0)+1;
+    if(d.fails>=MAXFAIL){ qlClear(); closePin(); var er=$('loginError'); if(er){ er.textContent='🔒 PIN salah '+MAXFAIL+'x. Login Cepat dinonaktifkan — masuk dengan password.'; er.style.display='block'; } return; }
+    wr(d); pinFail('PIN salah. Sisa percobaan: '+(MAXFAIL-d.fails));
+  });
+}
+
+/* ── Biometrik ── */
+window._qlBio=function(){
+  var d=rd(); if(!d||!d.bio) return;
+  var er=$('loginError');
+  function msg(t){ if(er){ er.textContent=t; er.style.display='block'; } }
+  bioAssert(d.bio.credId).then(function(){ return idbGet('bio'); }).then(function(key){
+    if(!key) throw new Error('nokey');
+    return decWith(key,d.bio);
+  }).then(function(pw){ doLogin(d.username,pw); }).catch(function(e){
+    var n=e&&e.name;
+    /* dibatalkan / sidik jari tidak dikenali / waktu habis → tawarkan PIN, biometrik tetap aktif */
+    if(n==='NotAllowedError'||n==='AbortError'||n==='TimeoutError'){ msg('Sidik jari / Face ID tidak berhasil. Masukkan PIN Anda.'); if(typeof window._qlOpenPin==='function') window._qlOpenPin(); return; }
+    /* salah konfigurasi sementara (mis. domain/HTTPS) → jangan hapus biometrik */
+    if(n==='SecurityError'||n==='NotSupportedError'){ msg('Biometrik tidak didukung di halaman ini. Gunakan PIN.'); if(typeof window._qlOpenPin==='function') window._qlOpenPin(); return; }
+    /* kredensial / kunci hilang → nonaktifkan biometrik saja, PIN tetap */
+    delete d.bio; wr(d); idbDel('bio'); refreshRow();
+    msg('⚠️ Biometrik perlu diaktifkan ulang (Profil → Login Cepat). Gunakan PIN.');
+    if(typeof window._qlOpenPin==='function') window._qlOpenPin();
+  });
+};
+window._qlForget=function(){
+  if(!confirm('Hapus Login Cepat dari perangkat ini? Anda tetap bisa masuk dengan username & password.')) return;
+  qlClear();
+};
+
+/* ── Pengaturan (setelah login) ── */
+function ensureSetupUI(){
+  if($('qlSetOv')) return;
+  var ov=document.createElement('div'); ov.className='ql-ov'; ov.id='qlSetOv';
+  ov.innerHTML='<div class="ql-card light"><div class="ql-ttl">⚡ Login Cepat</div><div class="ql-sub" id="qlSetSub"></div>'+
+    '<label class="ql-lbl">Password akun Anda</label><input class="ql-inp" id="qlSetPw" type="password" autocomplete="current-password">'+
+    '<label class="ql-lbl">PIN baru (6 angka)</label><input class="ql-inp" id="qlSetPin" type="password" inputmode="numeric" maxlength="6" autocomplete="off">'+
+    '<label class="ql-lbl">Ulangi PIN</label><input class="ql-inp" id="qlSetPin2" type="password" inputmode="numeric" maxlength="6" autocomplete="off">'+
+    '<label class="ql-chk" id="qlBioWrap" style="display:none"><input type="checkbox" id="qlSetBio"><span>Aktifkan juga <b>sidik jari / Face ID</b> perangkat ini</span></label>'+
+    '<div class="ql-lerr" id="qlSetErr"></div>'+
+    '<div class="ql-act"><button type="button" class="ql-sec" id="qlSetCancel">Nanti saja</button><button type="button" class="ql-pri" id="qlSetSave">Aktifkan</button></div>'+
+    '<button type="button" class="ql-off" id="qlSetOff" style="display:none">Nonaktifkan Login Cepat di perangkat ini</button></div>';
+  document.body.appendChild(ov);
+  ['qlSetPin','qlSetPin2'].forEach(function(id){ $(id).addEventListener('input',function(){ this.value=this.value.replace(/\D/g,'').slice(0,6); }); });
+  $('qlSetCancel').onclick=function(){ ov.classList.remove('show'); };
+  $('qlSetSave').onclick=saveSetup;
+  $('qlSetOff').onclick=function(){ qlClear(); ov.classList.remove('show'); toast('Login Cepat dinonaktifkan di perangkat ini'); try{ if(typeof renderUserProfile==='function') renderUserProfile(); }catch(e){} };
+}
+window._qlOpenSetup=function(){
+  if(!window.AUTH || !AUTH.loggedIn || isAdminUser(AUTH.user)){ toast('Login Cepat tidak tersedia untuk akun ini'); return; }
+  if(!CRYPTO_OK){ toast('Login Cepat butuh koneksi aman (HTTPS) & browser modern'); return; }
+  ensureSetupUI();
+  var d=rd(), on=!!(d&&d.pin&&d.username===AUTH.user.username);
+  $('qlSetSub').textContent= on ? 'Login Cepat aktif di perangkat ini. Isi lagi untuk mengganti PIN.' : 'Masuk lebih cepat di perangkat ini tanpa mengetik password. Password Anda disimpan terenkripsi di perangkat, bukan sebagai teks biasa.';
+  ['qlSetPw','qlSetPin','qlSetPin2'].forEach(function(id){ $(id).value=''; });
+  $('qlSetErr').textContent=''; $('qlSetOff').style.display=on?'block':'none';
+  $('qlSetSave').textContent=on?'Simpan':'Aktifkan'; $('qlSetBio').checked=false;
+  bioAvailable().then(function(ok){ $('qlBioWrap').style.display=ok?'flex':'none'; });
+  $('qlSetOv').classList.add('show');
+  try{ localStorage.setItem(ASKED,'1'); }catch(e){}
+};
+function saveSetup(){
+  var err=$('qlSetErr'), pw=($('qlSetPw').value||'').trim(), p1=$('qlSetPin').value, p2=$('qlSetPin2').value, wantBio=$('qlSetBio').checked;
+  function bad(m){ err.textContent=m; }
+  if(!pw) return bad('Isi password akun Anda.');
+  var me=null; try{ me=usersLoad().find(function(x){ return AUTH.user.id ? x.id===AUTH.user.id : x.username===AUTH.user.username; }); }catch(e){}
+  if(!me || !RCPW.verify(me,pw)) return bad('Password salah.');
+  if(!/^\d{6}$/.test(p1)) return bad('PIN harus 6 angka.');
+  if(p1!==p2) return bad('Kedua PIN tidak sama.');
+  if(/^(\d)\1{5}$/.test(p1) || p1==='123456' || p1==='654321') return bad('PIN terlalu mudah ditebak.');
+  var btn=$('qlSetSave'); btn.disabled=true; btn.textContent='Menyimpan…'; err.textContent='';
+  var salt=crypto.getRandomValues(new Uint8Array(16)), data={v:1,userId:me.id,username:me.username,nama:me.nama||me.username,fails:0};
+  /* Biometrik diminta LEBIH DULU, langsung di dalam ketukan tombol (iOS/Safari menolak bila sudah lewat proses async) */
+  var bioP=wantBio?bioCreate(me):null; if(bioP) bioP.catch(function(){});
+  pinKey(p1,salt).then(function(k){ return encWith(k,pw); }).then(function(e){
+    data.pin={salt:b64(salt),iv:e.iv,ct:e.ct};
+    if(!wantBio) return null;
+    return bioP.then(function(credId){
+      return crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']).then(function(key){
+        return idbPut('bio',key).then(function(){ return encWith(key,pw); }).then(function(e2){ data.bio={credId:credId,iv:e2.iv,ct:e2.ct}; });
+      });
+    });
+  }).then(function(){
+    wr(data); refreshRow(); $('qlSetOv').classList.remove('show');
+    toast('⚡ Login Cepat aktif'+(data.bio?' (PIN + biometrik)':' (PIN)'));
+    try{ if(typeof renderUserProfile==='function') renderUserProfile(); }catch(e){}
+  }).catch(function(e){
+    if(data.pin && wantBio && e && (e.name==='NotAllowedError'||e.name==='SecurityError'||e.name==='NotSupportedError')){
+      // PIN tetap disimpan; hanya biometrik yang batal/gagal
+      delete data.bio; wr(data); refreshRow(); $('qlSetOv').classList.remove('show');
+      toast('PIN aktif. Biometrik tidak jadi diaktifkan.');
+      try{ if(typeof renderUserProfile==='function') renderUserProfile(); }catch(e2){}
+    } else { bad('Gagal menyimpan: '+((e&&e.message)||'coba lagi')); }
+  }).then(function(){ btn.disabled=false; btn.textContent='Simpan'; });
+}
+
+/* Tawarkan sekali setelah login pertama berhasil (akun non-admin) */
+function maybeOffer(){
+  try{
+    if(!CRYPTO_OK || !window.AUTH || !AUTH.loggedIn || isAdminUser(AUTH.user)) return;
+    if(rd() || localStorage.getItem(ASKED)) return;
+    window._qlOpenSetup();
+  }catch(e){}
+}
+var _hl=window.hideLoginScreen;
+if(typeof _hl==='function') window.hideLoginScreen=function(){ var r=_hl.apply(this,arguments); setTimeout(maybeOffer,2200); return r; };
+var _sl=window.showLoginScreen;
+if(typeof _sl==='function') window.showLoginScreen=function(){ var r=_sl.apply(this,arguments); refreshRow(); return r; };
+
+/* Tombol pengaturan di Profil Saya */
+var _rp=window.renderUserProfile;
+if(typeof _rp==='function') window.renderUserProfile=function(){
+  var r=_rp.apply(this,arguments);
+  try{
+    var body=$('userProfileBody');
+    if(body && CRYPTO_OK && AUTH && AUTH.user && !isAdminUser(AUTH.user) && !body.querySelector('.ql-prof')){
+      var d=rd(), on=!!(d&&d.pin&&d.username===AUTH.user.username);
+      var box=document.createElement('div'); box.className='ql-prof';
+      box.innerHTML='<b>⚡ Login Cepat</b><small>'+(on?('Aktif di perangkat ini'+(d.bio?' · PIN + biometrik':' · PIN')):'Masuk dengan PIN atau sidik jari tanpa mengetik password')+'</small><button type="button" onclick="_qlOpenSetup()">'+(on?'Atur / Nonaktifkan':'Aktifkan')+'</button>';
+      body.appendChild(box);
+    }
+  }catch(e){}
+  return r;
+};
+
+refreshRow();
+})();
+</script>
+
 </body></html>
