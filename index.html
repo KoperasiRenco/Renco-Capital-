@@ -2,6 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
+<meta name="rc-build" content="20261020-rpinstall-v3">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a472a">
 <meta name="mobile-web-app-capable" content="yes">
@@ -92,10 +93,47 @@ window.addEventListener('beforeinstallprompt',function(e){
 </script>
 
 <script>
+/* Anti-versi-lama: saat aplikasi dibuka, bandingkan penanda <meta name="rc-build"> milik halaman ini dengan yang ada di server.
+   Jika berbeda (halaman ini disajikan dari cache/service worker lama → splash & kurva loading model lama),
+   hapus cache + service worker lalu muat ulang SEKALI. Setiap rilis: ubah isi meta rc-build di atas. */
+(function(){
+  try{
+    var meta=document.querySelector('meta[name="rc-build"]'); if(!meta||!window.fetch) return;
+    var BUILD=meta.getAttribute('content');
+    var cur=new URL(location.href);
+    if(cur.searchParams.has('_rcb')){ cur.searchParams.delete('_rcb'); try{ history.replaceState(null,'',cur.pathname+cur.search+cur.hash); }catch(e){} }
+    var ctrl=('AbortController' in window)?new AbortController():null;
+    fetch(location.pathname+'?_rcchk='+Date.now(),{cache:'no-store',signal:ctrl?ctrl.signal:undefined}).then(function(r){
+      if(!r.ok||!r.body||!r.body.getReader) return null;
+      var rd=r.body.getReader(), dec=new TextDecoder(), buf='';
+      return (function pump(){
+        return rd.read().then(function(x){
+          if(x.value) buf+=dec.decode(x.value,{stream:true});
+          var m=buf.match(/name="rc-build"\s+content="([^"]+)"/);
+          if(m||x.done||buf.length>8192){ try{ rd.cancel(); }catch(e){} try{ if(ctrl) ctrl.abort(); }catch(e){} return m?m[1]:null; }
+          return pump();
+        });
+      })();
+    }).then(function(live){
+      if(!live||live===BUILD) return;
+      var key='rc_build_healed';
+      try{ if(sessionStorage.getItem(key)===live) return; sessionStorage.setItem(key,live); }catch(e){ return; }
+      var jobs=[];
+      if(window.caches&&caches.keys) jobs.push(caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }));
+      if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(g){ return g.unregister(); })); }));
+      Promise.all(jobs).catch(function(){}).then(function(){
+        var n=new URL(location.href); n.searchParams.set('_rcb',live); location.replace(n.href);
+      });
+    }).catch(function(){});
+  }catch(e){}
+})();
+</script>
+
+<script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/Renco-Capital-/sw.js')
-      .then(function(reg) { console.log('[RENCO] SW terdaftar:', reg.scope); })
+    navigator.serviceWorker.register('/Renco-Capital-/sw.js', { updateViaCache: 'none' })
+      .then(function(reg) { try { reg.update(); } catch(e) {} console.log('[RENCO] SW terdaftar:', reg.scope); })
       .catch(function(err) {
         // SW tidak wajib — app tetap berjalan normal tanpa SW
         if (err && err.message && err.message.indexOf('404') !== -1) return;
@@ -12918,6 +12956,8 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
       <!-- ══ SUB MENU GRID HIBURAN (gaya sama dgn Beranda & Keuangan) ══ -->
       <div id="forumGridMenu" style="padding:0 0 20px;position:relative">
 
+
+
         <!-- Slider Iklan Bergambar (menu Hiburan) — sama dengan menu Keuangan; admin ketuk gambar untuk tambah/hapus; data di DB.iklanHiburan (tersinkron cloud) -->
         <div class="keu-ad" id="forumAd" style="display:none;margin:12px 14px 8px">
           <div class="keu-ad-track" id="forumAdTrack"></div>
@@ -13012,6 +13052,16 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
             <span class="fgb-label">100 Nasehat</span>
           </button>
 
+        </div>
+
+        <!-- Slider Iklan BARU (persegi) — di bawah menu Hiburan; admin ketuk gambar untuk tambah/hapus; data di DB.iklanHiburanKotak (tersinkron cloud) -->
+        <div class="hb-sq" id="forumSq" style="display:none">
+          <div class="hb-sq-track" id="forumSqTrack"></div>
+          <div class="hb-sq-dots" id="forumSqDots"></div>
+          <div class="hb-sq-admin" id="forumSqAdmin" style="display:none">
+            <button type="button" onclick="forumSqAdd()">＋ Tambah Gambar</button>
+          </div>
+          <input type="file" id="forumSqFile" accept="image/*" multiple style="display:none">
         </div>
       </div>
 
@@ -13115,13 +13165,22 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
 
       <!-- DISKUSI SECTION -->
       <div id="forumSeksiDiskusi">
-        <div class="card" style="margin-bottom:0">
+        <!-- Sub-menu interaktif: Diskusi (kritik/saran/masukan) · Review Koperasi · Rating Aplikasi -->
+        <div class="fd-nav" id="fdNav">
+          <button type="button" data-v="diskusi" class="on" onclick="fdView('diskusi')">💬 Diskusi</button>
+          <button type="button" data-v="koperasi" onclick="fdView('koperasi')">🏛️ Review Koperasi</button>
+          <button type="button" data-v="aplikasi" onclick="fdView('aplikasi')">⭐ Rating Aplikasi</button>
+        </div>
+        <div class="card" id="fdViewDiskusi" style="margin-bottom:0">
           <div class="card-header" style="justify-content:flex-end;padding:10px 16px;gap:8px">
             <button id="btnBersihkanChat" onclick="adminBersihkanChat()" style="display:none;padding:7px 14px;border-radius:10px;border:1.5px solid rgba(230,57,70,0.35);background:rgba(230,57,70,0.07);color:#e63946;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:none;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6" stroke="#e63946" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="#e63946" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="#e63946" stroke-width="2" stroke-linecap="round"/></svg> Bersihkan Chat</button>
-            <button class="btn btn-sm btn-primary" onclick="openModal('modalForumPost')">+ Post</button>
+            <button class="btn btn-sm btn-primary" onclick="openModal('modalForumPost')">✍️ Tulis</button>
           </div>
+          <div class="fd-filter" id="fdFilter"></div>
           <div id="forumList"></div>
         </div>
+        <div id="fdViewKoperasi" class="fd-rv" style="display:none"></div>
+        <div id="fdViewAplikasi" class="fd-rv" style="display:none"></div>
       </div>
 
       <!-- POLLING SECTION -->
@@ -13175,88 +13234,56 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
       </div>
 
       <div id="forumSeksiArisan" style="display:none;">
+        <div class="ar-wrap">
 
-        <!-- Hero Banner -->
-        <div class="arisan-card">
-          <div class="arisan-hex-bg"></div>
-          <div style="position:relative;z-index:1">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
-              <div>
-                <span class="arisan-card-title">ARISAN RENCO</span>
-                <div class="arisan-card-meta">
-                  SESI: <span id="arisanSesi" style="color:rgba(245,215,126,0.9)">-</span>
-                  &nbsp;·&nbsp;
-                  PUTARAN: <span id="arisanPutaran" style="color:rgba(245,215,126,0.9)">1</span>
+          <!-- Buku catatan arisan -->
+          <div class="ar-book">
+            <div class="ar-rings"></div>
+            <div class="ar-book-in">
+              <div class="ar-hd">
+                <div>
+                  <div class="ar-kicker">BUKU CATATAN</div>
+                  <div class="ar-title">Arisan Renco</div>
+                  <div class="ar-meta">Sesi: <b id="arisanSesi">-</b> · Putaran <b id="arisanPutaran">1</b></div>
                 </div>
+                <div class="ar-live"><i></i>LIVE</div>
               </div>
-              <!-- Live indicator -->
-              <div style="display:flex;align-items:center;gap:5px;background:rgba(212,170,40,0.1);border:1px solid rgba(212,170,40,0.3);border-radius:99px;padding:4px 10px">
-                <div style="width:6px;height:6px;border-radius:50%;background:#f4c842;animation:bk-blink 1.2s infinite"></div>
-                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:9px;font-weight:700;color:#f4c842;letter-spacing:1px">LIVE</span>
-              </div>
+              <div class="ar-potlbl">Uang terkumpul tiap putaran</div>
+              <div class="ar-pot"><span id="arisanPot">Rp 0</span></div>
+              <div class="ar-prog"><div class="ar-prog-bar"><u id="arProgFill"></u></div><span id="arProgTxt">Belum ada peserta</span></div>
             </div>
-
-            <!-- Divider line -->
-            <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(212,170,40,0.55),transparent);margin-bottom:14px"></div>
-
-            <!-- Total pot -->
-            <div class="arisan-pot-label" style="display:flex;align-items:center;justify-content:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M9.5 15c0 1 1 1.8 2.5 1.8s2.5-.7 2.5-1.6c0-2.4-5-1.2-5-3.6 0-.9 1-1.6 2.5-1.6s2.5.6 2.5 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 7.5v1M12 15.5v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> TOTAL POT ARISAN</div>
-            <div class="arisan-pot-val" id="arisanPot">Rp 0</div>
           </div>
-        </div>
 
-        <!-- Stats Row -->
-        <div class="arisan-stats-grid" style="margin-top:8px">
-          <div class="arisan-stat-cell">
-            <div class="arisan-stat-val" id="arisanJmlPeserta">0</div>
-            <div class="arisan-stat-lbl">Peserta</div>
+          <!-- Catatan tempel -->
+          <div class="ar-notes">
+            <div class="ar-note n1" onclick="this.classList.remove('bounce');void this.offsetWidth;this.classList.add('bounce')"><b id="arisanJmlPeserta">0</b><span>Peserta</span></div>
+            <div class="ar-note n2" onclick="this.classList.remove('bounce');void this.offsetWidth;this.classList.add('bounce')"><b id="arisanSudahUndian">0</b><span>Sudah Undian</span></div>
+            <div class="ar-note n3" onclick="this.classList.remove('bounce');void this.offsetWidth;this.classList.add('bounce')"><b id="arisanSisaUndian">0</b><span>Sisa Undian</span></div>
           </div>
-          <div class="arisan-stat-cell" style="border-color:rgba(64,145,108,0.25);background:rgba(64,145,108,0.06)">
-            <div class="arisan-stat-val" style="color:rgba(120,200,160,0.95)" id="arisanSudahUndian">0</div>
-            <div class="arisan-stat-lbl">Sudah Undian</div>
+
+          <!-- Kontrol -->
+          <div class="ar-ctrl">
+            <button type="button" onclick="openModal('modalArisanSetting')">⚙️ Atur</button>
+            <button type="button" onclick="openModal('modalTambahPeserta')">👥 Peserta</button>
+            <button type="button" class="red" onclick="openModal('modalResetArisan')">↺ Reset</button>
           </div>
-          <div class="arisan-stat-cell" style="border-color:rgba(212,170,40,0.2);background:rgba(212,170,40,0.05)">
-            <div class="arisan-stat-val" style="color:rgba(245,215,126,0.95)" id="arisanSisaUndian">0</div>
-            <div class="arisan-stat-lbl">Sisa Undian</div>
+
+          <!-- Kertas undian -->
+          <div class="ar-sec"><span>✎ Kertas Undian</span></div>
+          <div class="ar-mode" id="arMode">
+            <button type="button" data-m="kocok" class="on" onclick="arMode('kocok')">🎲 Kocok Otomatis</button>
+            <button type="button" data-m="pilih" onclick="arMode('pilih')">✋ Pilih Kertas</button>
           </div>
-        </div>
+          <div class="ar-sheet" id="arSheet">
+            <div class="ar-sheet-top"><div class="ar-hint" id="arHint"></div><button type="button" class="ar-shuf" id="arShuffleBtn" onclick="arShuffle()">🔀 Acak</button></div>
+            <div class="ar-slips" id="drumWrap"></div>
+          </div>
+          <button type="button" class="ar-go" onclick="spinArisan()" id="spinBtn">🎲 KOCOK &amp; UNDI</button>
 
-        <!-- Controls -->
-        <div class="arisan-ctrl-row">
-          <button class="arisan-ctrl-btn" onclick="openModal('modalArisanSetting')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.8"/></svg>
-            PENGATURAN
-          </button>
-          <button class="arisan-ctrl-btn gold" onclick="openModal('modalTambahPeserta')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            PESERTA
-          </button>
-          <button class="arisan-ctrl-btn" onclick="openModal('modalResetArisan')" style="border-color:rgba(230,57,70,0.45);color:rgba(230,57,70,0.85);">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><polyline points="1 4 1 10 7 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            RESET
-          </button>
-        </div>
+          <!-- Catatan pemenang -->
+          <div class="ar-sec"><span>✎ Catatan Pemenang</span></div>
+          <div class="ar-hist"><div id="arisanHistory"></div></div>
 
-        <!-- Participants Section -->
-        <div class="arisan-section-hdr">
-          <div class="arisan-section-hdr-label">⬡ GRID PESERTA</div>
-          <div class="arisan-section-hdr-line"></div>
-        </div>
-        <div class="drum-wrap" id="drumWrap"></div>
-
-        <!-- Spin Button -->
-        <button class="spin-btn" onclick="spinArisan()" id="spinBtn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          UNDI PEMENANG
-        </button>
-
-        <!-- History Section -->
-        <div class="arisan-section-hdr">
-          <div class="arisan-section-hdr-label">⬡ RIWAYAT PEMENANG</div>
-          <div class="arisan-section-hdr-line"></div>
-        </div>
-        <div class="arisan-history-card">
-          <div id="arisanHistory"></div>
         </div>
       </div>
 
@@ -14408,91 +14435,25 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
   </div>
 </div>
 
-<!-- MODAL: Setting Arisan -->
-<div class="modal-overlay" id="modalArisanSetting">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <div class="modal-header">
-      <h3 class="modal-title">⚙️ Pengaturan Arisan</h3>
-      <button class="modal-close" onclick="closeModal('modalArisanSetting')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="field"><label>Nama Sesi Arisan</label><input type="text" id="arisanNamaSesi" placeholder="Arisan 2025"></div>
-      <div class="field"><label>Iuran Per Putaran (Rp)</label><input type="number" id="arisanIuran" placeholder="0"></div>
-      <button class="btn btn-primary btn-block" onclick="saveArisanSetting()">💾 Simpan</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Tambah Peserta Arisan -->
-<div class="modal-overlay" id="modalTambahPeserta">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <div class="modal-header">
-      <h3 class="modal-title">➕ Kelola Peserta Arisan</h3>
-      <button class="modal-close" onclick="closeModal('modalTambahPeserta')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="pesertaArisanList" style="margin-bottom:16px"></div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <input type="text" id="namaPesertaBaru" placeholder="Nama peserta baru..." style="flex:1;padding:10px 14px;border:2px solid #eee;border-radius:10px;font-family:inherit;font-size:14px;outline:none">
-        <button class="btn btn-primary btn-sm" onclick="addPesertaArisan()">Tambah</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Reset Arisan -->
-<div class="modal-overlay" id="modalResetArisan">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div>
-    <div class="modal-header">
-      <h3 class="modal-title">🔄 Reset Arisan</h3>
-      <button class="modal-close" onclick="closeModal('modalResetArisan')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div style="text-align:center;padding:8px 0 20px">
-        <div style="width:64px;height:64px;border-radius:50%;background:rgba(230,57,70,0.1);border:2px solid rgba(230,57,70,0.3);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px">🔄</div>
-        <p style="font-size:14px;color:var(--text-soft);line-height:1.6">Pilih jenis reset yang ingin dilakukan.<br>Tindakan ini <b style="color:var(--danger)">tidak dapat dibatalkan</b>.</p>
-      </div>
-      <div id="resetOptUndian" onclick="selectResetMode('undian')" style="border:2px solid #eee;border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;transition:all 0.2s">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:40px;height:40px;border-radius:10px;background:rgba(67,97,238,0.1);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🔁</div>
-          <div>
-            <div style="font-weight:700;font-size:14px;color:var(--text)">Reset Putaran Baru</div>
-            <div style="font-size:12px;color:var(--text-soft);margin-top:2px">Hapus riwayat undian &amp; reset nomor putaran. Peserta tetap ada.</div>
-          </div>
-        </div>
-      </div>
-      <div id="resetOptTotal" onclick="selectResetMode('total')" style="border:2px solid #eee;border-radius:14px;padding:16px;margin-bottom:20px;cursor:pointer;transition:all 0.2s">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:40px;height:40px;border-radius:10px;background:rgba(230,57,70,0.1);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">&#128465;&#65039;</div>
-          <div>
-            <div style="font-weight:700;font-size:14px;color:var(--danger)">Reset Total</div>
-            <div style="font-size:12px;color:var(--text-soft);margin-top:2px">Hapus semua peserta, riwayat undian, dan reset pengaturan ke awal.</div>
-          </div>
-        </div>
-      </div>
-      <div id="resetConfirmWrap" style="display:none;background:rgba(230,57,70,0.06);border:1.5px solid rgba(230,57,70,0.2);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--danger);line-height:1.5"></div>
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-outline btn-block" style="flex:1" onclick="closeModal('modalResetArisan')">Batal</button>
-        <button id="btnKonfirmasiReset" class="btn btn-block" onclick="konfirmasiReset()" style="flex:1;background:var(--danger);color:white;opacity:0.4;pointer-events:none">Konfirmasi Reset</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- MODAL: Forum Post -->
 <div class="modal-overlay" id="modalForumPost">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <h3 class="modal-title">📝 Tulis Diskusi</h3>
+      <h3 class="modal-title">📝 Tulis Pesan</h3>
       <button class="modal-close" onclick="closeModal('modalForumPost')">✕</button>
     </div>
     <div class="modal-body">
-      <div class="field"><label>Isi Diskusi</label><textarea id="forumIsi" placeholder="Tulis isi diskusi..." style="min-height:120px"></textarea></div>
-      <button class="btn btn-primary btn-block" onclick="saveForumPost()">📤 Posting</button>
+      <div class="field"><label>Jenis Pesan</label>
+        <div class="fd-cats" id="fdModalCats"></div>
+        <div class="fd-hint" id="fdCatHint"></div>
+      </div>
+      <div class="field"><label>Isi Pesan</label>
+        <textarea id="forumIsi" maxlength="800" oninput="fdCount()" placeholder="Tulis pesan Anda..." style="min-height:120px"></textarea>
+        <div class="fd-count" id="fdCount">0/800</div>
+      </div>
+      <label class="fd-anon" id="fdAnonRow" style="display:none"><input type="checkbox" id="forumAnonim"><span>Kirim sebagai anonim<small>Nama disembunyikan dari anggota lain. Pengurus tetap dapat melihat pengirim.</small></span></label>
+      <button class="btn btn-primary btn-block" onclick="saveForumPost()">📤 Kirim</button>
     </div>
   </div>
 </div>
@@ -60197,6 +60158,82 @@ window.nsBayarCicilan = function(pinId) {
 
 </div>
 
+<!-- Modal arisan: sengaja di luar #app supaya tampil di atas panel Hiburan (z-index 490) -->
+<!-- MODAL: Setting Arisan -->
+<div class="modal-overlay" id="modalArisanSetting">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h3 class="modal-title">⚙️ Pengaturan Arisan</h3>
+      <button class="modal-close" onclick="closeModal('modalArisanSetting')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Nama Sesi Arisan</label><input type="text" id="arisanNamaSesi" placeholder="Arisan 2025"></div>
+      <div class="field"><label>Iuran Per Putaran (Rp)</label><input type="number" id="arisanIuran" placeholder="0"></div>
+      <button class="btn btn-primary btn-block" onclick="saveArisanSetting()">💾 Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Tambah Peserta Arisan -->
+<div class="modal-overlay" id="modalTambahPeserta">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h3 class="modal-title">➕ Kelola Peserta Arisan</h3>
+      <button class="modal-close" onclick="closeModal('modalTambahPeserta')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="pesertaArisanList" style="margin-bottom:16px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <input type="text" id="namaPesertaBaru" placeholder="Nama peserta baru..." style="flex:1;padding:10px 14px;border:2px solid #eee;border-radius:10px;font-family:inherit;font-size:14px;outline:none">
+        <button class="btn btn-primary btn-sm" onclick="addPesertaArisan()">Tambah</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Reset Arisan -->
+<div class="modal-overlay" id="modalResetArisan">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h3 class="modal-title">🔄 Reset Arisan</h3>
+      <button class="modal-close" onclick="closeModal('modalResetArisan')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="text-align:center;padding:8px 0 20px">
+        <div style="width:64px;height:64px;border-radius:50%;background:rgba(230,57,70,0.1);border:2px solid rgba(230,57,70,0.3);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px">🔄</div>
+        <p style="font-size:14px;color:var(--text-soft);line-height:1.6">Pilih jenis reset yang ingin dilakukan.<br>Tindakan ini <b style="color:var(--danger)">tidak dapat dibatalkan</b>.</p>
+      </div>
+      <div id="resetOptUndian" onclick="selectResetMode('undian')" style="border:2px solid #eee;border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;transition:all 0.2s">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(67,97,238,0.1);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🔁</div>
+          <div>
+            <div style="font-weight:700;font-size:14px;color:var(--text)">Reset Putaran Baru</div>
+            <div style="font-size:12px;color:var(--text-soft);margin-top:2px">Hapus riwayat undian &amp; reset nomor putaran. Peserta tetap ada.</div>
+          </div>
+        </div>
+      </div>
+      <div id="resetOptTotal" onclick="selectResetMode('total')" style="border:2px solid #eee;border-radius:14px;padding:16px;margin-bottom:20px;cursor:pointer;transition:all 0.2s">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(230,57,70,0.1);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">&#128465;&#65039;</div>
+          <div>
+            <div style="font-weight:700;font-size:14px;color:var(--danger)">Reset Total</div>
+            <div style="font-size:12px;color:var(--text-soft);margin-top:2px">Hapus semua peserta, riwayat undian, dan reset pengaturan ke awal.</div>
+          </div>
+        </div>
+      </div>
+      <div id="resetConfirmWrap" style="display:none;background:rgba(230,57,70,0.06);border:1.5px solid rgba(230,57,70,0.2);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--danger);line-height:1.5"></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-outline btn-block" style="flex:1" onclick="closeModal('modalResetArisan')">Batal</button>
+        <button id="btnKonfirmasiReset" class="btn btn-block" onclick="konfirmasiReset()" style="flex:1;background:var(--danger);color:white;opacity:0.4;pointer-events:none">Konfirmasi Reset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <script>
 // ══════════════════════════════════════════════════════════
 //  NASEHAT KEUANGAN HARIAN — muncul sekali per hari setelah login
@@ -60444,8 +60481,9 @@ window.nsBayarCicilan = function(pinId) {
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       .then(registration => {
+        try { registration.update(); } catch(e) {}
         console.log('Service Worker registered:', registration);
       })
       .catch(error => {
@@ -63693,11 +63731,11 @@ function _confirmUpdateSuccess() {
         var im = new Image();
         im.onerror = rej;
         im.onload = function(){
-          var maxW = 1000, sc = Math.min(1, maxW / im.width);
+          var maxW = 700, sc = Math.min(1, maxW / im.width);
           var c = document.createElement('canvas');
           c.width = Math.round(im.width * sc); c.height = Math.round(im.height * sc);
           c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-          res(c.toDataURL('image/jpeg', 0.8));
+          res(c.toDataURL('image/jpeg', 0.65));
         };
         im.src = e.target.result;
       };
@@ -63814,11 +63852,11 @@ function _confirmUpdateSuccess() {
         var im = new Image();
         im.onerror = rej;
         im.onload = function(){
-          var maxW = 1000, sc = Math.min(1, maxW / im.width);
+          var maxW = 700, sc = Math.min(1, maxW / im.width);
           var c = document.createElement('canvas');
           c.width = Math.round(im.width * sc); c.height = Math.round(im.height * sc);
           c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-          res(c.toDataURL('image/jpeg', 0.8));
+          res(c.toDataURL('image/jpeg', 0.65));
         };
         im.src = e.target.result;
       };
@@ -63872,6 +63910,893 @@ function _confirmUpdateSuccess() {
   });
 })();
 </script>
+
+<style id="hiburan-sq-ad">
+/* Slider iklan persegi di bawah menu Hiburan: mengisi area kosong, bentuk persegi, soft gradient putih di bagian bawah */
+.hb-sq{ position:relative; width:calc(100% - 32px); max-width:520px; aspect-ratio:1/1; margin:12px auto 6px;
+  border-radius:22px; overflow:hidden; background:#e9f1ec;
+  border:1px solid rgba(45,106,79,.12); box-shadow:0 1px 2px rgba(13,32,22,.04),0 12px 28px rgba(13,32,22,.12); }
+.hb-sq-track{ position:absolute; inset:0; display:flex; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.hb-sq-track::-webkit-scrollbar{ display:none; }
+.hb-sq-slide{ flex:0 0 100%; height:100%; scroll-snap-align:start; position:relative; }
+.hb-sq-slide img{ width:100%; height:100%; object-fit:cover; display:block; }
+/* soft gradient putih di bagian bawah foto */
+.hb-sq-slide::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:40%; pointer-events:none;
+  background:linear-gradient(to top, rgba(255,255,255,.97) 0%, rgba(255,255,255,.78) 26%, rgba(255,255,255,.34) 62%, rgba(255,255,255,0) 100%); }
+.hb-sq-dots{ position:absolute; left:0; right:0; bottom:12px; z-index:2; display:flex; justify-content:center; gap:5px; pointer-events:none; }
+.hb-sq-dots i{ width:6px; height:6px; border-radius:50%; background:rgba(13,32,22,.22); transition:all .25s; }
+.hb-sq-dots i.on{ width:18px; border-radius:99px; background:#2d6a4f; }
+.hb-sq-admin{ position:absolute; left:10px; top:10px; z-index:3; }
+.hb-sq-admin button{ border:none; border-radius:99px; padding:7px 13px; font-size:11px; font-weight:700; font-family:inherit;
+  background:#f4d67a; color:#0d2016; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.3); }
+.hb-sq-del{ position:absolute; top:10px; right:10px; z-index:3; width:28px; height:28px; border-radius:50%; border:none;
+  background:rgba(0,0,0,.55); color:#fff; font-size:13px; line-height:1; cursor:pointer; }
+.hb-sq.empty{ background:linear-gradient(180deg,#f3f8f5 0%,#fff 100%); border:1.5px dashed rgba(45,106,79,.4); box-shadow:none; }
+.hb-sq.empty .hb-sq-track{ align-items:center; justify-content:center; color:#2d6a4f; font-size:12px; font-weight:600; overflow:hidden; }
+.hb-sq.empty .hb-sq-admin{ left:50%; top:calc(50% + 24px); transform:translateX(-50%); }
+/* tombol tambah & hapus hanya muncul saat gambar diketuk (admin) */
+.hb-sq:not(.show-ctl) .hb-sq-admin, .hb-sq:not(.show-ctl) .hb-sq-del{ display:none !important; }
+.hb-sq.empty.show-ctl .hb-sq-admin, .hb-sq.empty .hb-sq-admin.always{ display:block !important; }
+</style>
+
+<script>
+/* ═══ Slider Iklan Persegi — di bawah menu Hiburan ═══
+   Data: DB.iklanHiburanKotak = [{id, img(dataURL JPEG persegi, terkompres)}], ikut tersinkron ke cloud.
+   Admin: ketuk gambar → tombol tambah/hapus muncul. Nasabah: hanya melihat. */
+(function(){
+  var _timer = null, _ctlTimer = null, _sig = '';
+  function _isAdm(){ return (typeof isAdmin === 'function' && isAdmin()) || (typeof AUTH !== 'undefined' && AUTH && AUTH.user && AUTH.user.role === 'admin'); }
+  function _list(){ return (window.DB && Array.isArray(DB.iklanHiburanKotak)) ? DB.iklanHiburanKotak : []; }
+  function _persist(){
+    if (!window.DB) return;
+    if (typeof saveDB === 'function') saveDB();
+    if (typeof window._doSync === 'function') setTimeout(function(){ window._doSync(); }, 100);
+  }
+  function _toast(m){ if (typeof showToast === 'function') showToast(m); }
+
+  window.forumSqRender = function(){
+    var box = document.getElementById('forumSq'); if (!box) return;
+    var track = document.getElementById('forumSqTrack'), dots = document.getElementById('forumSqDots');
+    var admin = document.getElementById('forumSqAdmin');
+    var list = _list(), adm = _isAdm();
+    _sig = (adm ? 'A' : 'U') + list.map(function(x){ return x.id; }).join(',');
+    if (!list.length && !adm) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    box.classList.toggle('empty', !list.length);
+    admin.style.display = adm ? '' : 'none';
+    admin.classList.toggle('always', adm && !list.length);
+    dots.style.display = list.length > 1 ? '' : 'none';
+    if (!list.length) { track.innerHTML = '<span style="padding:0 16px;text-align:center">Belum ada gambar iklan</span>'; dots.innerHTML = ''; return; }
+    track.innerHTML = list.map(function(it, i){
+      return '<div class="hb-sq-slide"><img src="' + it.img + '" alt="Iklan ' + (i+1) + '" draggable="false">' +
+        (adm ? '<button type="button" class="hb-sq-del" title="Hapus gambar" onclick="forumSqDel(\'' + it.id + '\')">✕</button>' : '') + '</div>';
+    }).join('');
+    dots.innerHTML = list.map(function(_, i){ return '<i' + (i === 0 ? ' class="on"' : '') + '></i>'; }).join('');
+    track.onscroll = function(){
+      var w = track.clientWidth || 1, n = Math.round(track.scrollLeft / w);
+      Array.prototype.forEach.call(dots.children, function(d, k){ d.classList.toggle('on', k === n); });
+    };
+    _startTimer();
+  };
+
+  function _startTimer(){
+    if (_timer) clearInterval(_timer);
+    _timer = setInterval(function(){
+      var box = document.getElementById('forumSq'), track = document.getElementById('forumSqTrack'), n = _list().length;
+      if (!box || !track || n < 2 || !box.offsetParent) return;
+      var next = (Math.round(track.scrollLeft / (track.clientWidth || 1)) + 1) % n;
+      track.scrollTo({ left: next * track.clientWidth, behavior: 'smooth' });
+    }, 4500);
+  }
+
+  /* Potong tengah jadi persegi (maks 700×700) lalu kompres JPEG */
+  function _compress(file){
+    return new Promise(function(res, rej){
+      var r = new FileReader();
+      r.onerror = rej;
+      r.onload = function(e){
+        var im = new Image();
+        im.onerror = rej;
+        im.onload = function(){
+          var side = Math.min(im.width, im.height), out = Math.min(700, side);
+          var sx = (im.width - side) / 2, sy = (im.height - side) / 2;
+          var c = document.createElement('canvas'); c.width = out; c.height = out;
+          c.getContext('2d').drawImage(im, sx, sy, side, side, 0, 0, out, out);
+          res(c.toDataURL('image/jpeg', 0.65));
+        };
+        im.src = e.target.result;
+      };
+      r.readAsDataURL(file);
+    });
+  }
+
+  window.forumSqAdd = function(){
+    if (!_isAdm()) return;
+    var inp = document.getElementById('forumSqFile'); if (!inp) return;
+    inp.value = '';
+    inp.onchange = async function(){
+      var files = Array.prototype.slice.call(inp.files || []).filter(function(f){ return /^image\//.test(f.type); });
+      if (!files.length) { _toast('⚠️ Pilih file gambar'); return; }
+      _toast('📤 Memproses gambar...');
+      if (!Array.isArray(DB.iklanHiburanKotak)) DB.iklanHiburanKotak = [];
+      for (var i = 0; i < files.length; i++) {
+        try { DB.iklanHiburanKotak.push({ id: 'hs' + Date.now() + '_' + i, img: await _compress(files[i]) }); } catch(e){}
+      }
+      _persist(); window.forumSqRender();
+      _toast('✅ Gambar iklan ditambahkan');
+    };
+    inp.click();
+  };
+
+  window.forumSqDel = function(id){
+    if (!_isAdm() || !confirm('Hapus gambar iklan ini?')) return;
+    DB.iklanHiburanKotak = _list().filter(function(x){ return x.id !== id; });
+    _persist(); window.forumSqRender();
+    _toast('🗑 Gambar iklan dihapus');
+  };
+
+  // Ketuk gambar → tampilkan tombol tambah/hapus (hanya admin); ketuk lagi / tunggu 4 dtk → sembunyi
+  document.addEventListener('click', function(e){
+    var box = document.getElementById('forumSq'); if (!box) return;
+    if (!box.contains(e.target)) { box.classList.remove('show-ctl'); return; }
+    if (!_isAdm() || e.target.closest('button')) return;
+    var on = !box.classList.contains('show-ctl');
+    box.classList.toggle('show-ctl', on);
+    clearTimeout(_ctlTimer);
+    if (on) _ctlTimer = setTimeout(function(){ box.classList.remove('show-ctl'); }, 4000);
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    [200, 1500, 4000].forEach(function(t){ setTimeout(window.forumSqRender, t); });
+    var pg = document.getElementById('page-forum');
+    if (pg && window.MutationObserver) {
+      new MutationObserver(function(){ if (pg.classList.contains('active')) window.forumSqRender(); })
+        .observe(pg, { attributes: true, attributeFilter: ['class'] });
+    }
+    /* data cloud / peran admin bisa tiba belakangan: segarkan hanya bila isinya berubah */
+    setInterval(function(){
+      var adm = _isAdm(), now = (adm ? 'A' : 'U') + _list().map(function(x){ return x.id; }).join(',');
+      if (now !== _sig) window.forumSqRender();
+    }, 3000);
+  });
+})();
+</script>
+
+<style id="forum-diskusi-interaktif">
+/* ═══ Diskusi interaktif: kritik · saran · masukan · review koperasi · rating aplikasi ═══ */
+.fd-nav{ display:flex; gap:6px; padding:10px 14px 4px; overflow-x:auto; scrollbar-width:none; }
+.fd-nav::-webkit-scrollbar{ display:none; }
+.fd-nav button{ flex:1 0 auto; border:1.5px solid rgba(45,106,79,.22); background:var(--rdf-bg2,#fff); color:var(--text-soft,#3a6e4e);
+  border-radius:99px; padding:8px 13px; font-weight:700;font-size:12px;line-height:1;font-family:inherit; cursor:pointer; white-space:nowrap; transition:all .2s; }
+.fd-nav button.on{ background:linear-gradient(135deg,var(--forest,#1a472a),var(--forest-mid,#2d6a4f)); color:#f4d67a; border-color:transparent; box-shadow:0 4px 12px rgba(13,32,22,.22); }
+.fd-filter{ display:flex; gap:6px; padding:10px 14px 6px; overflow-x:auto; scrollbar-width:none; }
+.fd-filter::-webkit-scrollbar{ display:none; }
+.fd-chip{ flex:0 0 auto; border:1.5px solid rgba(45,106,79,.2); background:transparent; color:var(--text-soft,#3a6e4e); border-radius:99px;
+  padding:5px 11px; font-weight:700;font-size:11px;line-height:1.2;font-family:inherit; cursor:pointer; transition:all .18s; }
+.fd-chip.on{ background:var(--fd-c,#2d6a4f); border-color:var(--fd-c,#2d6a4f); color:#fff; }
+.fd-chip small{ opacity:.75; margin-left:3px; font-weight:700; }
+.fd-badge{ display:inline-flex; align-items:center; gap:3px; font-weight:800;font-size:10px;line-height:1;font-family:inherit; padding:3px 8px; border-radius:99px;
+  color:var(--fd-c,#2d6a4f); background:color-mix(in srgb,var(--fd-c,#2d6a4f) 13%,transparent); border:1px solid color-mix(in srgb,var(--fd-c,#2d6a4f) 30%,transparent); }
+.fd-badge.adm{ --fd-c:#b07a00; }
+.fd-st-sel{ font-weight:700;font-size:10px;line-height:1;font-family:inherit; border-radius:99px; padding:3px 6px; border:1px solid rgba(0,0,0,.18); background:transparent; color:inherit; }
+.fd-badges{ display:flex; gap:5px; flex-wrap:wrap; margin:0 0 6px; align-items:center; }
+.fd-reply{ margin-top:8px; padding:10px; background:var(--cream,#f4f9f1); border-radius:10px; border-left:3px solid var(--forest-light,#40916c); position:relative; }
+.fd-reply.admin{ border-left-color:#d4a017; background:rgba(244,169,34,.10); }
+.fd-reply .who{ font-size:11px; font-weight:700; color:var(--forest-mid,#2d6a4f); display:flex; gap:6px; align-items:center; }
+.fd-reply .txt{ font-size:13px; margin-top:4px; white-space:pre-wrap; word-break:break-word; }
+.fd-reply .dt{ font-size:10px; color:var(--text-soft,#3a6e4e); margin-top:2px; }
+.fd-x{ position:absolute; right:8px; top:6px; border:none; background:none; color:#9ca3af; font-size:12px; cursor:pointer; }
+.fd-act{ display:flex; gap:14px; margin-top:10px; align-items:center; flex-wrap:wrap; }
+.fd-act button{ font-weight:600;font-size:11px;line-height:1;font-family:inherit; color:var(--text-soft,#3a6e4e); border:none; background:none; cursor:pointer; padding:4px 0; display:flex; gap:4px; align-items:center; }
+.fd-act button.on{ color:#d4380d; font-weight:800; }
+.fd-act button.pop{ animation:fdPop .35s ease; }
+.fd-act .del{ margin-left:auto; color:#c0392b; }
+@keyframes fdPop{ 0%{transform:scale(1)} 40%{transform:scale(1.35)} 100%{transform:scale(1)} }
+.fd-text{ font-size:13px; line-height:1.6; color:var(--text,#1c3025); white-space:pre-wrap; word-break:break-word; }
+.fd-box{ width:100%; border-radius:10px; border:1.5px solid var(--border,rgba(0,0,0,.14)); padding:10px; font-size:13px; font-family:inherit; resize:none; min-height:70px; box-sizing:border-box; background:transparent; color:inherit; }
+/* modal */
+.fd-cats{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+.fd-cats button{ border:1.5px solid rgba(45,106,79,.2); background:transparent; border-radius:12px; padding:10px 8px; font-weight:700;font-size:12px;line-height:1.2;font-family:inherit; color:inherit; cursor:pointer; transition:all .18s; }
+.fd-cats button.on{ border-color:var(--fd-c); background:color-mix(in srgb,var(--fd-c) 14%,transparent); color:var(--fd-c); box-shadow:0 0 0 2px color-mix(in srgb,var(--fd-c) 18%,transparent); }
+.fd-hint{ font-size:11px; color:var(--text-soft,#3a6e4e); margin-top:6px; line-height:1.45; }
+.fd-count{ font-size:10px; color:var(--text-soft,#3a6e4e); text-align:right; margin-top:3px; }
+.fd-anon{ display:flex; gap:10px; align-items:flex-start; margin:2px 0 12px; font-size:13px; font-weight:700; cursor:pointer; }
+.fd-anon input{ margin-top:3px; width:17px; height:17px; accent-color:#2d6a4f; }
+.fd-anon small{ display:block; font-size:10.5px; font-weight:500; color:var(--text-soft,#3a6e4e); margin-top:2px; line-height:1.4; }
+/* review & rating */
+.fd-rv{ padding:12px 14px 90px; }
+.fd-card{ background:var(--rdf-bg2,#fff); border:1px solid rgba(45,106,79,.12); border-radius:18px; padding:14px; margin-bottom:12px; box-shadow:0 1px 2px rgba(13,32,22,.04),0 8px 22px rgba(13,32,22,.07); }
+.fd-sum{ display:flex; gap:14px; align-items:center; }
+.fd-avg{ text-align:center; min-width:88px; }
+.fd-avg b{ display:block; font:800 38px/1 'Playfair Display',serif; color:var(--forest,#1a472a); }
+.fd-avg small{ font-size:10.5px; color:var(--text-soft,#3a6e4e); font-weight:600; }
+.fd-st{ display:inline-block; letter-spacing:1px; font-size:15px; line-height:1; background:linear-gradient(90deg,#f4a922 var(--p,0%),rgba(120,140,125,.30) var(--p,0%)); -webkit-background-clip:text; background-clip:text; color:transparent; -webkit-text-fill-color:transparent; }
+.fd-bars{ flex:1; display:flex; flex-direction:column; gap:4px; }
+.fd-bar{ display:flex; align-items:center; gap:6px; border:none; background:none; padding:1px 0; cursor:pointer; font-family:inherit; color:var(--text-soft,#3a6e4e); font-size:10.5px; font-weight:700; }
+.fd-bar i{ flex:1; height:7px; border-radius:99px; background:rgba(120,140,125,.22); overflow:hidden; display:block; }
+.fd-bar i u{ display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,#f4a922,#ffd166); transition:width .5s ease; text-decoration:none; }
+.fd-bar.on{ color:#b07a00; }
+.fd-bar span{ width:14px; text-align:right; } .fd-bar em{ width:22px; font-style:normal; text-align:left; }
+.fd-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.fd-tag{ font-weight:700;font-size:10.5px;line-height:1.2;font-family:inherit; padding:5px 10px; border-radius:99px; border:1.5px solid rgba(45,106,79,.22); background:transparent; color:var(--text-soft,#3a6e4e); cursor:pointer; }
+.fd-tag.on{ background:#2d6a4f; border-color:#2d6a4f; color:#fff; }
+.fd-tag.ro{ cursor:default; background:rgba(45,106,79,.07); border-color:transparent; }
+.fd-tag.ro b{ color:var(--forest,#1a472a); margin-left:3px; }
+.fd-title{ font-weight:800;font-size:14px;line-height:1.3;font-family:inherit; color:var(--text,#1c3025); margin-bottom:4px; }
+.fd-sub{ font-size:11.5px; color:var(--text-soft,#3a6e4e); margin-bottom:10px; }
+.fd-pick{ display:flex; gap:4px; justify-content:center; margin:6px 0 4px; }
+.fd-pick button{ border:none; background:none; font-size:36px; line-height:1; cursor:pointer; padding:0 2px; color:rgba(120,140,125,.35); transition:transform .15s,color .15s; }
+.fd-pick button.on{ color:#f4a922; text-shadow:0 2px 8px rgba(244,169,34,.4); }
+.fd-pick button:active{ transform:scale(1.25); }
+.fd-pick-lbl{ text-align:center; font-size:12px; font-weight:800; color:#b07a00; min-height:16px; margin-bottom:8px; }
+.fd-btn{ width:100%; border:none; border-radius:12px; padding:12px; font-weight:800;font-size:13px;line-height:1;font-family:inherit; cursor:pointer; background:linear-gradient(135deg,var(--forest,#1a472a),var(--forest-mid,#2d6a4f)); color:#f4d67a; box-shadow:0 6px 16px rgba(13,32,22,.22); margin-top:8px; }
+.fd-btn.ghost{ background:transparent; color:var(--text-soft,#3a6e4e); box-shadow:none; border:1.5px solid rgba(45,106,79,.25); }
+.fd-row{ display:flex; gap:8px; align-items:center; }
+.fd-sort{ display:flex; justify-content:space-between; align-items:center; margin:2px 2px 10px; gap:8px; }
+.fd-sort select{ font-weight:700;font-size:11px;line-height:1;font-family:inherit; border-radius:99px; padding:6px 10px; border:1.5px solid rgba(45,106,79,.22); background:transparent; color:inherit; }
+.fd-rvi{ padding:12px 0; border-top:1px solid rgba(0,0,0,.06); }
+.fd-rvi:first-child{ border-top:none; padding-top:2px; }
+.fd-rvi .hd{ display:flex; gap:10px; align-items:center; margin-bottom:6px; }
+.fd-rvi .hd .nm{ font-size:13px; font-weight:800; color:var(--text,#1c3025); }
+.fd-rvi .hd .mt{ font-size:10px; color:var(--text-soft,#3a6e4e); display:flex; gap:6px; align-items:center; }
+.fd-mine{ border:1.5px solid rgba(244,169,34,.5); background:linear-gradient(160deg,rgba(244,169,34,.10),transparent); }
+.fd-empty{ text-align:center; padding:30px 10px; color:var(--text-soft,#3a6e4e); font-size:12.5px; }
+.fd-empty .ic{ font-size:34px; margin-bottom:6px; }
+.fd-admin-note{ font-size:10.5px; color:var(--text-soft,#3a6e4e); text-align:center; margin-top:4px; }
+html.renco-dark .fd-nav button{ background:var(--rdf-bg2,#16261c); color:var(--rdf-sub,#b9c9bd); border-color:var(--rdf-line,rgba(244,214,122,.18)); }
+html.renco-dark .fd-card{ background:var(--rdf-bg2,#16261c); border-color:var(--rdf-line,rgba(244,214,122,.18)); box-shadow:none; }
+html.renco-dark .fd-avg b, html.renco-dark .fd-title, html.renco-dark .fd-rvi .hd .nm, html.renco-dark .fd-text{ color:var(--rdf-tx,#eef5ef); }
+html.renco-dark .fd-sub, html.renco-dark .fd-avg small, html.renco-dark .fd-hint, html.renco-dark .fd-count, html.renco-dark .fd-rvi .hd .mt, html.renco-dark .fd-chip, html.renco-dark .fd-act button, html.renco-dark .fd-tag{ color:var(--rdf-sub,#b9c9bd); }
+html.renco-dark .fd-reply{ background:rgba(255,255,255,.05); }
+html.renco-dark .fd-reply .txt{ color:var(--rdf-tx,#eef5ef); }
+html.renco-dark .fd-rvi{ border-top-color:var(--rdf-line,rgba(244,214,122,.18)); }
+html.renco-dark .fd-tag.on, html.renco-dark .fd-chip.on{ color:#fff; }
+</style>
+
+<script>
+/* ═══ Diskusi interaktif ═══
+   • Pesan berkategori (Diskusi / Kritik / Saran / Masukan) di DB.forum: reaksi 👍 sekali per akun, balasan, status tindak lanjut (admin), opsi anonim, hapus oleh pengirim/admin
+   • Review Koperasi Renco: DB.reviewKoperasi  • Rating Aplikasi: DB.ratingAplikasi
+   Satu akun = satu ulasan/rating (bisa diubah). Admin dapat menanggapi dan menghapus. Teks diberi escape HTML. */
+(function(){
+  var CAT = {
+    diskusi: { ic:'💬', lb:'Diskusi', cl:'#2d6a4f', hint:'Ajak anggota lain berdiskusi tentang koperasi, simpanan, pembiayaan, atau kegiatan.' },
+    kritik:  { ic:'📣', lb:'Kritik',  cl:'#c2410c', hint:'Sampaikan hal yang kurang baik dengan sopan dan jelas supaya bisa diperbaiki pengurus.' },
+    saran:   { ic:'💡', lb:'Saran',   cl:'#b07a00', hint:'Usulkan ide, program, atau fitur aplikasi yang menurut Anda bermanfaat.' },
+    masukan: { ic:'📝', lb:'Masukan', cl:'#1d6fb8', hint:'Beri masukan umum tentang pelayanan, layanan, atau pengalaman Anda sebagai anggota.' }
+  };
+  var STATUS = [
+    { k:'baru', lb:'Baru', cl:'#6b7280' }, { k:'ditinjau', lb:'Ditinjau', cl:'#1d6fb8' },
+    { k:'ditindaklanjuti', lb:'Ditindaklanjuti', cl:'#b07a00' }, { k:'selesai', lb:'Selesai', cl:'#2d6a4f' }
+  ];
+  var RV = {
+    koperasi: { key:'reviewKoperasi', box:'fdViewKoperasi', judul:'Review Koperasi Renco', tanya:'Bagaimana pengalaman Anda bersama Koperasi Renco?', ph:'Ceritakan pengalaman Anda: pelayanan, kemudahan transaksi, transparansi, bagi hasil… (minimal 10 huruf)', wajibTeks:true,
+      tags:['Pelayanan ramah','Proses cepat','Transparan','Bagi hasil adil','Mudah dihubungi','Perlu ditingkatkan'], kosong:'Belum ada review. Jadilah yang pertama menilai Koperasi Renco!' },
+    aplikasi: { key:'ratingAplikasi', box:'fdViewAplikasi', judul:'Rating Aplikasi', tanya:'Seberapa puas Anda memakai aplikasi ini?', ph:'Tulis komentar atau fitur yang Anda harapkan (opsional)…', wajibTeks:false,
+      tags:['Mudah dipakai','Tampilan bagus','Cepat','Fitur lengkap','Sering error','Perlu fitur baru'], kosong:'Belum ada rating aplikasi. Beri bintang pertama Anda!' }
+  };
+  var LBL = ['', 'Sangat Buruk', 'Kurang', 'Cukup', 'Bagus', 'Sangat Bagus'];
+  var _view = 'diskusi', _filter = 'semua', _selCat = 'diskusi', _sig = '';
+  var _st = { koperasi:{ star:0, tags:[], text:'', anon:false, sort:'terbaru', filter:0, edit:false }, aplikasi:{ star:0, tags:[], text:'', anon:false, sort:'terbaru', filter:0, edit:false } };
+
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function $(id){ return document.getElementById(id); }
+  function me(){ var u = (typeof AUTH !== 'undefined' && AUTH && AUTH.user) ? AUTH.user : null; return u ? { id: String(u.username || u.nama || ''), nama: u.nama || u.username || 'Anggota' } : { id:'', nama:'Anonim' }; }
+  function adm(){ return (typeof isAdmin === 'function') && isAdmin(); }
+  function toast(m){ if (typeof showToast === 'function') showToast(m); }
+  function dt(d){ try { return (typeof fmtDate === 'function') ? fmtDate(d) : new Date(d).toLocaleDateString('id-ID'); } catch(e){ return ''; } }
+  function save(){ if (typeof saveDB === 'function') saveDB(); }
+  function avatar(nama, anon){
+    if (anon) return '<div class="forum-avatar" style="background:linear-gradient(135deg,#6b7280,#9ca3af)">?</div>';
+    try { if (typeof renderForumAvatar === 'function') return renderForumAvatar(nama); } catch(e){}
+    return '<div class="forum-avatar">' + esc((nama || '?').charAt(0).toUpperCase()) + '</div>';
+  }
+  function stars(v){ var p = Math.max(0, Math.min(5, v)) / 5 * 100; return '<span class="fd-st" style="--p:' + p.toFixed(0) + '%">★★★★★</span>'; }
+  function arr(k){ if (!window.DB) return []; if (!Array.isArray(DB[k])) DB[k] = []; return DB[k]; }
+
+  /* ───────── Sub-menu ───────── */
+  window.fdView = function(v){
+    _view = v;
+    var nav = $('fdNav'); if (nav) Array.prototype.forEach.call(nav.children, function(b){ b.classList.toggle('on', b.getAttribute('data-v') === v); });
+    var a = $('fdViewDiskusi'), b = $('fdViewKoperasi'), c = $('fdViewAplikasi');
+    if (a) a.style.display = v === 'diskusi' ? '' : 'none';
+    if (b) b.style.display = v === 'koperasi' ? '' : 'none';
+    if (c) c.style.display = v === 'aplikasi' ? '' : 'none';
+    fdRefresh();
+  };
+  window.fdRefresh = function(){
+    _sig = sig();
+    if (_view === 'diskusi') window.renderForum();
+    else renderRV(_view);
+  };
+  function sig(){ try { return JSON.stringify([(DB.forum||[]).length, (DB.forum||[]).map(function(f){ return [f.likes, (f.replies||[]).length, f.status]; }), (DB.reviewKoperasi||[]).map(function(r){ return [r.id, r.bintang, (r.helpful||[]).length, r.balasan && r.balasan.isi]; }), (DB.ratingAplikasi||[]).map(function(r){ return [r.id, r.bintang, (r.helpful||[]).length, r.balasan && r.balasan.isi]; })]); } catch(e){ return ''; } }
+
+  /* ───────── Pesan: kritik / saran / masukan / diskusi ───────── */
+  function renderFilter(){
+    var box = $('fdFilter'); if (!box) return;
+    var all = (DB.forum || []), cnt = { semua: all.length };
+    Object.keys(CAT).forEach(function(k){ cnt[k] = all.filter(function(f){ return (f.kategori || 'diskusi') === k; }).length; });
+    var h = '<button type="button" class="fd-chip' + (_filter === 'semua' ? ' on' : '') + '" onclick="fdFilterSet(\'semua\')">Semua<small>' + cnt.semua + '</small></button>';
+    Object.keys(CAT).forEach(function(k){
+      h += '<button type="button" class="fd-chip' + (_filter === k ? ' on' : '') + '" style="--fd-c:' + CAT[k].cl + '" onclick="fdFilterSet(\'' + k + '\')">' + CAT[k].ic + ' ' + CAT[k].lb + '<small>' + cnt[k] + '</small></button>';
+    });
+    box.innerHTML = h;
+  }
+  window.fdFilterSet = function(k){ _filter = k; window.renderForum(); };
+
+  function postHtml(f){
+    var kat = CAT[f.kategori] ? f.kategori : 'diskusi', c = CAT[kat], u = me();
+    var anon = !!f.anonim, mine = (f.oleh && f.oleh === u.id) || (!f.oleh && f.penulis === u.nama);
+    var nama = anon ? 'Anonim' : f.penulis;
+    var nmHtml = esc(nama) + (anon && adm() ? ' <span style="font-weight:600;color:var(--text-soft)">(' + esc(f.penulis) + ')</span>' : '');
+    var liked = (f.likedBy || []).indexOf(u.id) > -1;
+    var badges = '<span class="fd-badge" style="--fd-c:' + c.cl + '">' + c.ic + ' ' + c.lb + '</span>';
+    if (kat !== 'diskusi') {
+      var stt = f.status || 'baru', so = STATUS.filter(function(x){ return x.k === stt; })[0] || STATUS[0];
+      if (adm()) {
+        badges += '<select class="fd-st-sel" style="color:' + so.cl + '" onchange="fdSetStatus(\'' + f.id + '\',this.value)">' + STATUS.map(function(x){ return '<option value="' + x.k + '"' + (x.k === stt ? ' selected' : '') + '>' + x.lb + '</option>'; }).join('') + '</select>';
+      } else {
+        badges += '<span class="fd-badge" style="--fd-c:' + so.cl + '">● ' + so.lb + '</span>';
+      }
+    }
+    var reps = (f.replies || []).map(function(r, i){
+      var canX = adm() || (r.oleh && r.oleh === u.id);
+      return '<div class="fd-reply' + (r.admin ? ' admin' : '') + '">' + (canX ? '<button class="fd-x" title="Hapus balasan" onclick="fdDelReply(\'' + f.id + '\',' + i + ')">✕</button>' : '') +
+        '<div class="who">' + esc(r.penulis) + (r.admin ? ' <span class="fd-badge adm">Pengurus</span>' : '') + '</div>' +
+        '<div class="txt">' + esc(r.isi) + '</div><div class="dt">' + dt(r.tanggal) + '</div></div>';
+    }).join('');
+    return '<div class="forum-post" id="fpost-' + f.id + '">' +
+      '<div class="fd-badges">' + badges + '</div>' +
+      '<div class="forum-post-header">' + avatar(nama, anon) + '<div class="forum-meta"><div class="forum-author">' + nmHtml + '</div><div class="forum-time">' + dt(f.tanggal) + '</div></div></div>' +
+      '<div class="fd-text">' + esc(f.isi) + '</div>' +
+      '<div class="fd-act">' +
+        '<button type="button" class="' + (liked ? 'on' : '') + '" onclick="fdLike(\'' + f.id + '\',this)">' + (liked ? '👍' : '👍') + ' ' + (kat === 'diskusi' ? 'Suka' : 'Setuju') + ' · ' + (f.likes || 0) + '</button>' +
+        '<button type="button" onclick="toggleReplyBox(\'' + f.id + '\')">💬 ' + (adm() && kat !== 'diskusi' ? 'Tanggapi' : 'Balas') + (reps ? ' · ' + (f.replies || []).length : '') + '</button>' +
+        ((adm() || mine) ? '<button type="button" class="del" onclick="fdDelPost(\'' + f.id + '\')">🗑 Hapus</button>' : '') +
+      '</div>' + reps +
+      '<div id="replyBox-' + f.id + '" style="display:none;margin-top:10px">' +
+        '<textarea id="replyInput-' + f.id + '" class="fd-box" maxlength="500" placeholder="' + (adm() ? 'Tulis tanggapan pengurus…' : 'Tulis balasan…') + '"></textarea>' +
+        '<button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="submitReply(\'' + f.id + '\')">Kirim ' + (adm() ? 'Tanggapan' : 'Balasan') + '</button>' +
+      '</div></div>';
+  }
+
+  window.renderForum = function(){
+    var el = $('forumList'); if (!el) return;
+    renderFilter();
+    var list = (DB.forum || []).slice().reverse();
+    if (_filter !== 'semua') list = list.filter(function(f){ return (f.kategori || 'diskusi') === _filter; });
+    if (!list.length) {
+      var c = CAT[_filter];
+      el.innerHTML = '<div class="fd-empty"><div class="ic">' + (c ? c.ic : '💬') + '</div><b>' + (c ? 'Belum ada ' + c.lb.toLowerCase() : 'Forum masih kosong') + '</b><br>Ketuk “✍️ Tulis” untuk menjadi yang pertama.</div>';
+      return;
+    }
+    el.innerHTML = list.map(postHtml).join('');
+  };
+
+  window.toggleReplyBox = function(id){
+    var box = $('replyBox-' + id); if (!box) return;
+    var open = box.style.display !== 'none';
+    box.style.display = open ? 'none' : '';
+    if (!open) { var i = $('replyInput-' + id); if (i) i.focus(); }
+  };
+  window.submitReply = function(id){
+    var input = $('replyInput-' + id);
+    if (!input || !input.value.trim()) { toast('⚠️ Isi balasan dulu'); return; }
+    var p = (DB.forum || []).filter(function(f){ return f.id === id; })[0]; if (!p) return;
+    var u = me();
+    p.replies = p.replies || [];
+    p.replies.push({ penulis: u.nama, oleh: u.id, admin: adm(), isi: input.value.trim().slice(0, 500), tanggal: nowISO() });
+    if (adm() && (p.kategori || 'diskusi') !== 'diskusi' && (!p.status || p.status === 'baru')) p.status = 'ditinjau';
+    save(); window.renderForum(); toast('✅ ' + (adm() ? 'Tanggapan terkirim' : 'Balasan terkirim'));
+  };
+  window.fdDelReply = function(id, i){
+    var p = (DB.forum || []).filter(function(f){ return f.id === id; })[0]; if (!p || !p.replies || !p.replies[i]) return;
+    var r = p.replies[i]; if (!(adm() || (r.oleh && r.oleh === me().id))) return;
+    if (!confirm('Hapus balasan ini?')) return;
+    p.replies.splice(i, 1); save(); window.renderForum();
+  };
+  window.fdLike = function(id, btn){
+    var p = (DB.forum || []).filter(function(f){ return f.id === id; })[0]; if (!p) return;
+    var u = me(); if (!u.id) return;
+    p.likedBy = p.likedBy || [];
+    var ix = p.likedBy.indexOf(u.id);
+    if (ix > -1) { p.likedBy.splice(ix, 1); p.likes = Math.max(0, (p.likes || 0) - 1); }
+    else { p.likedBy.push(u.id); p.likes = (p.likes || 0) + 1; }
+    save(); window.renderForum();
+    var el = $('fpost-' + id); var b = el && el.querySelector('.fd-act button'); if (b) { b.classList.add('pop'); }
+  };
+  window.likePost = function(id){ window.fdLike(id); };
+  window.fdSetStatus = function(id, v){
+    if (!adm()) return;
+    var p = (DB.forum || []).filter(function(f){ return f.id === id; })[0]; if (!p) return;
+    p.status = v; save(); window.renderForum(); toast('✅ Status diperbarui');
+  };
+  window.fdDelPost = function(id){
+    var p = (DB.forum || []).filter(function(f){ return f.id === id; })[0]; if (!p) return;
+    var u = me(); if (!(adm() || (p.oleh && p.oleh === u.id) || (!p.oleh && p.penulis === u.nama))) return;
+    if (!confirm('Hapus pesan ini beserta balasannya?')) return;
+    DB.forum = DB.forum.filter(function(f){ return f.id !== id; }); save(); window.renderForum(); toast('🗑 Pesan dihapus');
+  };
+
+  /* ───────── Modal tulis pesan ───────── */
+  window.fdPickCat = function(k){
+    _selCat = CAT[k] ? k : 'diskusi';
+    var box = $('fdModalCats'); if (box) box.innerHTML = Object.keys(CAT).map(function(x){
+      return '<button type="button" class="' + (x === _selCat ? 'on' : '') + '" style="--fd-c:' + CAT[x].cl + '" onclick="fdPickCat(\'' + x + '\')">' + CAT[x].ic + ' ' + CAT[x].lb + '</button>';
+    }).join('');
+    var h = $('fdCatHint'); if (h) h.textContent = CAT[_selCat].hint;
+    var r = $('fdAnonRow'); if (r) r.style.display = _selCat === 'diskusi' ? 'none' : 'flex';
+    var t = $('forumIsi'); if (t) t.placeholder = _selCat === 'kritik' ? 'Apa yang perlu diperbaiki?' : _selCat === 'saran' ? 'Apa ide atau usulan Anda?' : _selCat === 'masukan' ? 'Apa masukan Anda?' : 'Tulis isi diskusi…';
+  };
+  window.fdCount = function(){ var t = $('forumIsi'), c = $('fdCount'); if (t && c) c.textContent = t.value.length + '/800'; };
+  window.saveForumPost = function(){
+    var t = $('forumIsi'); var isi = t ? t.value.trim() : '';
+    if (!isi) { toast('⚠️ Isi pesan wajib diisi'); return; }
+    var u = me(), kat = _selCat, a = $('forumAnonim');
+    var post = { id: uid(), judul: '', isi: isi.slice(0, 800), penulis: u.nama, oleh: u.id, kategori: kat, anonim: !!(a && a.checked && kat !== 'diskusi'), tanggal: nowISO(), likes: 0, likedBy: [], replies: [] };
+    if (kat !== 'diskusi') post.status = 'baru';
+    if (!Array.isArray(DB.forum)) DB.forum = [];
+    DB.forum.push(post); save();
+    closeModal('modalForumPost');
+    if (t) t.value = ''; if (a) a.checked = false; window.fdCount();
+    _filter = 'semua'; _view = 'diskusi'; window.fdView('diskusi');
+    toast(kat === 'diskusi' ? '✅ Diskusi diposting' : '✅ ' + CAT[kat].lb + ' terkirim, terima kasih!');
+  };
+  var _om = window.openModal;
+  window.openModal = openModal = function(id){
+    _om(id);
+    if (id === 'modalForumPost') { window.fdPickCat(CAT[_filter] ? _filter : 'diskusi'); var t = $('forumIsi'); if (t) t.value = ''; var a = $('forumAnonim'); if (a) a.checked = false; window.fdCount(); }
+  };
+
+  /* ───────── Review Koperasi & Rating Aplikasi ───────── */
+  function readDraft(kind){
+    var st = _st[kind], t = $('rvText-' + kind), a = $('rvAnon-' + kind);
+    if (t) st.text = t.value; if (a) st.anon = a.checked;
+  }
+  function renderRV(kind){
+    var cfg = RV[kind], st = _st[kind], box = $(cfg.box); if (!box) return;
+    var list = arr(cfg.key), u = me(), n = list.length;
+    var sum = list.reduce(function(a, r){ return a + (r.bintang || 0); }, 0), avg = n ? sum / n : 0;
+    var dist = [0,0,0,0,0,0]; list.forEach(function(r){ if (r.bintang >= 1 && r.bintang <= 5) dist[r.bintang]++; });
+    var tagCnt = {}; list.forEach(function(r){ (r.tags || []).forEach(function(t){ tagCnt[t] = (tagCnt[t] || 0) + 1; }); });
+    var topTags = Object.keys(tagCnt).sort(function(a, b){ return tagCnt[b] - tagCnt[a]; }).slice(0, 6);
+    var mine = list.filter(function(r){ return r.oleh === u.id; })[0];
+    var h = '';
+    /* Ringkasan */
+    h += '<div class="fd-card"><div class="fd-sum"><div class="fd-avg"><b>' + (n ? avg.toFixed(1).replace('.', ',') : '–') + '</b>' + stars(avg) + '<br><small>' + n + ' ' + (kind === 'koperasi' ? 'review' : 'penilaian') + '</small></div><div class="fd-bars">';
+    for (var s = 5; s >= 1; s--) h += '<button type="button" class="fd-bar' + (st.filter === s ? ' on' : '') + '" onclick="fdRvFilter(\'' + kind + '\',' + s + ')"><span>' + s + '</span><i><u style="width:' + (n ? dist[s] / n * 100 : 0).toFixed(0) + '%"></u></i><em>' + dist[s] + '</em></button>';
+    h += '</div></div>';
+    if (topTags.length) h += '<div class="fd-tags">' + topTags.map(function(t){ return '<span class="fd-tag ro">' + esc(t) + '<b>' + tagCnt[t] + '</b></span>'; }).join('') + '</div>';
+    h += '</div>';
+    /* Form / ulasan saya */
+    if (mine && !st.edit) {
+      h += '<div class="fd-card fd-mine"><div class="fd-title">Penilaian Anda</div>' + stars(mine.bintang) + ' <b style="font-size:12px;color:#b07a00">' + LBL[mine.bintang] + '</b>' +
+        ((mine.tags || []).length ? '<div class="fd-tags">' + mine.tags.map(function(t){ return '<span class="fd-tag ro">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+        (mine.isi ? '<div class="fd-text" style="margin-top:8px">' + esc(mine.isi) + '</div>' : '') +
+        '<div class="fd-row" style="margin-top:10px"><button class="fd-btn ghost" style="margin:0" onclick="fdRvEdit(\'' + kind + '\')">✏️ Ubah</button><button class="fd-btn ghost" style="margin:0;color:#c0392b;border-color:rgba(192,57,43,.3)" onclick="fdRvDel(\'' + kind + '\',\'' + mine.id + '\')">🗑 Hapus</button></div></div>';
+    } else {
+      h += '<div class="fd-card"><div class="fd-title">' + (mine ? 'Ubah penilaian Anda' : cfg.tanya) + '</div><div class="fd-sub">Ketuk bintang untuk menilai.</div><div class="fd-pick">';
+      for (var b = 1; b <= 5; b++) h += '<button type="button" class="' + (b <= st.star ? 'on' : '') + '" aria-label="' + b + ' bintang" onclick="fdRvStar(\'' + kind + '\',' + b + ')">★</button>';
+      h += '</div><div class="fd-pick-lbl">' + LBL[st.star] + '</div><div class="fd-tags" style="margin:0 0 10px">' +
+        cfg.tags.map(function(t, i){ return '<button type="button" class="fd-tag' + (st.tags.indexOf(t) > -1 ? ' on' : '') + '" onclick="fdRvTag(\'' + kind + '\',' + i + ')">' + esc(t) + '</button>'; }).join('') + '</div>' +
+        '<textarea id="rvText-' + kind + '" class="fd-box" maxlength="600" style="min-height:90px" placeholder="' + esc(cfg.ph) + '">' + esc(st.text) + '</textarea>' +
+        '<label class="fd-anon" style="margin:10px 0 0;font-weight:600;font-size:12px"><input type="checkbox" id="rvAnon-' + kind + '"' + (st.anon ? ' checked' : '') + '><span>Sembunyikan nama saya<small>Pengurus tetap dapat melihat pengirim.</small></span></label>' +
+        '<button type="button" class="fd-btn" onclick="fdRvSubmit(\'' + kind + '\')">' + (mine ? 'Simpan Perubahan' : kind === 'koperasi' ? 'Kirim Review' : 'Kirim Rating') + '</button>' +
+        (mine ? '<button type="button" class="fd-btn ghost" onclick="fdRvCancel(\'' + kind + '\')">Batal</button>' : '') + '</div>';
+    }
+    /* Daftar */
+    var items = list.slice();
+    if (st.filter) items = items.filter(function(r){ return r.bintang === st.filter; });
+    if (st.sort === 'tertinggi') items.sort(function(a, b){ return b.bintang - a.bintang || String(b.tanggal).localeCompare(String(a.tanggal)); });
+    else if (st.sort === 'terendah') items.sort(function(a, b){ return a.bintang - b.bintang || String(b.tanggal).localeCompare(String(a.tanggal)); });
+    else if (st.sort === 'membantu') items.sort(function(a, b){ return (b.helpful || []).length - (a.helpful || []).length; });
+    else items.sort(function(a, b){ return String(b.tanggal).localeCompare(String(a.tanggal)); });
+    h += '<div class="fd-card"><div class="fd-sort"><div class="fd-title" style="margin:0">' + (kind === 'koperasi' ? 'Review Anggota' : 'Komentar Pengguna') + (st.filter ? ' · ' + st.filter + '★ <button type="button" class="fd-chip on" onclick="fdRvFilter(\'' + kind + '\',0)">✕</button>' : '') + '</div>' +
+      '<select onchange="fdRvSort(\'' + kind + '\',this.value)">' + [['terbaru','Terbaru'],['membantu','Paling membantu'],['tertinggi','Tertinggi'],['terendah','Terendah']].map(function(o){ return '<option value="' + o[0] + '"' + (st.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+    if (!items.length) h += '<div class="fd-empty"><div class="ic">' + (kind === 'koperasi' ? '🏛️' : '⭐') + '</div>' + (st.filter ? 'Tidak ada ulasan ' + st.filter + ' bintang.' : cfg.kosong) + '</div>';
+    else h += items.map(function(r){ return rvItem(kind, r, u); }).join('');
+    h += '</div>';
+    box.innerHTML = h;
+  }
+  function rvItem(kind, r, u){
+    var anon = !!r.anonim, nama = anon ? 'Anonim' : r.penulis;
+    var helped = (r.helpful || []).indexOf(u.id) > -1;
+    var out = '<div class="fd-rvi"><div class="hd">' + avatar(nama, anon) + '<div><div class="nm">' + esc(nama) + (anon && adm() ? ' <span style="font-weight:600;color:var(--text-soft)">(' + esc(r.penulis) + ')</span>' : '') + '</div><div class="mt">' + stars(r.bintang) + '<span>' + dt(r.tanggal) + (r.diedit ? ' · diedit' : '') + '</span></div></div></div>';
+    if ((r.tags || []).length) out += '<div class="fd-tags" style="margin:0 0 6px">' + r.tags.map(function(t){ return '<span class="fd-tag ro">' + esc(t) + '</span>'; }).join('') + '</div>';
+    if (r.isi) out += '<div class="fd-text">' + esc(r.isi) + '</div>';
+    if (r.balasan && r.balasan.isi) out += '<div class="fd-reply admin"><div class="who"><span class="fd-badge adm">Tanggapan Pengurus</span></div><div class="txt">' + esc(r.balasan.isi) + '</div><div class="dt">' + dt(r.balasan.tanggal) + '</div></div>';
+    out += '<div class="fd-act"><button type="button" class="' + (helped ? 'on' : '') + '" onclick="fdRvHelp(\'' + kind + '\',\'' + r.id + '\')">👍 Membantu · ' + (r.helpful || []).length + '</button>' +
+      (adm() ? '<button type="button" onclick="fdRvReplyBox(\'' + r.id + '\')">💬 ' + (r.balasan && r.balasan.isi ? 'Ubah tanggapan' : 'Tanggapi') + '</button><button type="button" class="del" onclick="fdRvDel(\'' + kind + '\',\'' + r.id + '\')">🗑 Hapus</button>' : '') + '</div>';
+    if (adm()) out += '<div id="rvReplyBox-' + r.id + '" style="display:none;margin-top:8px"><textarea id="rvReply-' + r.id + '" class="fd-box" maxlength="500" placeholder="Tulis tanggapan pengurus…">' + esc(r.balasan && r.balasan.isi || '') + '</textarea><button type="button" class="fd-btn" style="margin-top:6px" onclick="fdRvSaveReply(\'' + kind + '\',\'' + r.id + '\')">Kirim Tanggapan</button></div>';
+    return out + '</div>';
+  }
+  function find(kind, id){ return arr(RV[kind].key).filter(function(r){ return r.id === id; })[0]; }
+  window.fdRvStar = function(kind, n){ readDraft(kind); _st[kind].star = n; renderRV(kind); };
+  window.fdRvTag = function(kind, i){ readDraft(kind); var st = _st[kind], t = RV[kind].tags[i], ix = st.tags.indexOf(t); if (ix > -1) st.tags.splice(ix, 1); else st.tags.push(t); renderRV(kind); };
+  window.fdRvSort = function(kind, v){ readDraft(kind); _st[kind].sort = v; renderRV(kind); };
+  window.fdRvFilter = function(kind, n){ readDraft(kind); _st[kind].filter = (_st[kind].filter === n ? 0 : n); renderRV(kind); };
+  window.fdRvEdit = function(kind){
+    var u = me(), mine = arr(RV[kind].key).filter(function(r){ return r.oleh === u.id; })[0]; if (!mine) return;
+    var st = _st[kind]; st.star = mine.bintang; st.tags = (mine.tags || []).slice(); st.text = mine.isi || ''; st.anon = !!mine.anonim; st.edit = true; renderRV(kind);
+  };
+  window.fdRvCancel = function(kind){ var st = _st[kind]; st.edit = false; st.star = 0; st.tags = []; st.text = ''; st.anon = false; renderRV(kind); };
+  window.fdRvSubmit = function(kind){
+    readDraft(kind);
+    var cfg = RV[kind], st = _st[kind], u = me(), text = (st.text || '').trim();
+    if (!u.id) { toast('⚠️ Masuk dulu untuk memberi penilaian'); return; }
+    if (!st.star) { toast('⚠️ Pilih jumlah bintang dulu'); return; }
+    if (cfg.wajibTeks && text.length < 10) { toast('⚠️ Tulis review minimal 10 huruf'); return; }
+    var list = arr(cfg.key), mine = list.filter(function(r){ return r.oleh === u.id; })[0];
+    if (mine) { mine.bintang = st.star; mine.tags = st.tags.slice(); mine.isi = text.slice(0, 600); mine.anonim = st.anon; mine.diedit = nowISO(); }
+    else list.push({ id: 'rv' + uid(), oleh: u.id, penulis: u.nama, anonim: st.anon, bintang: st.star, tags: st.tags.slice(), isi: text.slice(0, 600), tanggal: nowISO(), helpful: [], balasan: null });
+    save(); st.edit = false; st.star = 0; st.tags = []; st.text = ''; st.anon = false;
+    renderRV(kind); toast(kind === 'koperasi' ? '✅ Review terkirim, terima kasih!' : '⭐ Terima kasih atas rating Anda!');
+  };
+  window.fdRvDel = function(kind, id){
+    var r = find(kind, id); if (!r) return;
+    if (!(adm() || r.oleh === me().id)) return;
+    if (!confirm('Hapus ' + (kind === 'koperasi' ? 'review' : 'rating') + ' ini?')) return;
+    DB[RV[kind].key] = arr(RV[kind].key).filter(function(x){ return x.id !== id; });
+    save(); renderRV(kind); toast('🗑 Dihapus');
+  };
+  window.fdRvHelp = function(kind, id){
+    var r = find(kind, id), u = me(); if (!r || !u.id) return;
+    r.helpful = r.helpful || []; var ix = r.helpful.indexOf(u.id);
+    if (ix > -1) r.helpful.splice(ix, 1); else r.helpful.push(u.id);
+    save(); readDraft(kind); renderRV(kind);
+  };
+  window.fdRvReplyBox = function(id){ var b = $('rvReplyBox-' + id); if (!b) return; b.style.display = b.style.display === 'none' ? '' : 'none'; var t = $('rvReply-' + id); if (t && b.style.display !== 'none') t.focus(); };
+  window.fdRvSaveReply = function(kind, id){
+    if (!adm()) return;
+    var r = find(kind, id), t = $('rvReply-' + id); if (!r || !t) return;
+    var v = t.value.trim();
+    r.balasan = v ? { isi: v.slice(0, 500), tanggal: nowISO(), oleh: me().nama } : null;
+    save(); renderRV(kind); toast(v ? '✅ Tanggapan terkirim' : '🗑 Tanggapan dihapus');
+  };
+
+  /* ───────── Integrasi ───────── */
+  var _ft = window.forumTab;
+  window.forumTab = forumTab = function(tab){ _ft(tab); if (tab === 'diskusi') window.fdView(_view); };
+  document.addEventListener('DOMContentLoaded', function(){
+    window.fdPickCat('diskusi');
+    /* data cloud bisa tiba belakangan: segarkan bila berubah dan pengguna tidak sedang mengetik */
+    setInterval(function(){
+      var sec = $('forumSeksiDiskusi'); if (!sec || !sec.offsetParent) return;
+      var ae = document.activeElement; if (ae && sec.contains(ae) && /^(TEXTAREA|SELECT|INPUT)$/.test(ae.tagName)) return;
+      var now = sig(); if (now !== _sig) window.fdRefresh();
+    }, 4000);
+  });
+})();
+</script>
+
+<style id="arisan-kertas-buku">
+/* ═══ ARISAN — gaya KERTAS BUKU (buku tulis bergaris, margin merah, spiral, kertas undian sobek) ═══ */
+#forumSeksiArisan{ --paper:#fffdf5; --paper2:#fbf6e6; --ln:rgba(70,118,190,.30); --mg:rgba(214,64,64,.55); --ink:#233a8f; --pen:#c0392b;
+  --hand:'Bradley Hand','Segoe Print','Chalkboard SE','Marker Felt','Comic Sans MS','Comic Neue',cursive;
+  background:linear-gradient(180deg,#e8efe3 0%,#f6f2e4 100%) !important; }
+#forumSeksiArisan::before{ display:none !important; }
+html.renco-dark #forumSeksiArisan{ background:linear-gradient(180deg,#0e1913 0%,#14221a 100%) !important; }
+.ar-wrap{ position:relative; z-index:1; padding:12px 14px 6px; }
+/* ── Buku (hero) ── */
+.ar-book{ position:relative; border-radius:6px 18px 18px 6px; background:var(--paper); overflow:hidden;
+  box-shadow:0 2px 0 #d9d2bb, 0 14px 28px rgba(13,32,22,.20), inset 6px 0 10px -6px rgba(0,0,0,.18); }
+.ar-rings{ height:22px; background:
+  radial-gradient(circle at 50% 50%, transparent 0 5.5px, #aab0ac 6px 7.5px, transparent 8px) 0 50%/26px 22px repeat-x,
+  radial-gradient(circle at 50% 50%, #26302b 0 4.5px, transparent 5px) 0 50%/26px 22px repeat-x, linear-gradient(#efe9d6,#fffdf5); }
+.ar-book-in{ position:relative; padding:6px 18px 16px 44px; background:linear-gradient(transparent 27px,var(--ln) 28px) 0 0/100% 28px; }
+.ar-book-in::before{ content:''; position:absolute; left:32px; top:0; bottom:0; width:2px; background:var(--mg); }
+.ar-hd{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.ar-kicker{ font:800 9px/1 'Plus Jakarta Sans',sans-serif; letter-spacing:2px; color:#8a7b52; margin-top:6px; }
+.ar-title{ font-family:var(--hand); font-size:34px; line-height:1.05; color:var(--ink); transform:rotate(-1.5deg); transform-origin:left; margin:4px 0 2px; }
+.ar-meta{ font:600 12px/1.3 'Plus Jakarta Sans',sans-serif; color:#5b5846; }
+.ar-meta b{ color:var(--ink); font-family:var(--hand); font-size:15px; }
+.ar-live{ display:flex; align-items:center; gap:5px; font:800 9px/1 'Plus Jakarta Sans',sans-serif; letter-spacing:1px; color:#b8860b; border:1.5px dashed rgba(184,134,11,.55); border-radius:99px; padding:4px 9px; transform:rotate(3deg); margin-top:6px; background:rgba(255,255,255,.7); }
+.ar-live i{ width:6px; height:6px; border-radius:50%; background:#d4a017; animation:arBlink 1.2s infinite; }
+@keyframes arBlink{ 0%,100%{opacity:1} 50%{opacity:.25} }
+.ar-potlbl{ margin-top:10px; font:700 10px/1 'Plus Jakarta Sans',sans-serif; letter-spacing:.6px; color:#8a7b52; text-transform:uppercase; }
+.ar-pot{ margin-top:4px; }
+.ar-pot span{ font-family:var(--hand); font-size:34px; color:var(--pen); line-height:1.1; background:linear-gradient(transparent 62%,rgba(255,226,92,.75) 62% 92%,transparent 92%); padding:0 6px 0 2px; }
+.ar-prog{ margin-top:12px; }
+.ar-prog-bar{ height:9px; border-radius:99px; background:rgba(0,0,0,.08); border:1.5px solid rgba(35,58,143,.35); overflow:hidden; }
+.ar-prog-bar u{ display:block; height:100%; width:0; background:repeating-linear-gradient(135deg,#2d6a4f 0 6px,#40916c 6px 12px); transition:width .7s ease; text-decoration:none; }
+.ar-prog span{ display:block; margin-top:5px; font-family:var(--hand); font-size:13px; color:#5b5846; }
+/* ── Sticky notes ── */
+.ar-notes{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 4px 6px; }
+.ar-note{ position:relative; padding:14px 6px 10px; text-align:center; border-radius:3px 3px 12px 3px; cursor:pointer; box-shadow:0 6px 12px rgba(0,0,0,.16); transition:transform .2s; }
+.ar-note::before{ content:''; position:absolute; top:-7px; left:50%; width:38px; height:13px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); box-shadow:0 1px 2px rgba(0,0,0,.12); }
+.ar-note b{ display:block; font-family:var(--hand); font-size:30px; line-height:1; color:#23304a; }
+.ar-note span{ display:block; margin-top:3px; font:700 10px/1.2 'Plus Jakarta Sans',sans-serif; color:rgba(35,48,74,.7); }
+.ar-note.n1{ background:#fff3a3; transform:rotate(-3deg); } .ar-note.n2{ background:#bfeccb; transform:rotate(2deg); } .ar-note.n3{ background:#ffc9d4; transform:rotate(-1.5deg); }
+.ar-note:active, .ar-note.bounce{ animation:arBounce .45s ease; }
+@keyframes arBounce{ 0%{transform:scale(1)} 40%{transform:scale(1.12) rotate(0)} 100%{transform:scale(1)} }
+/* ── Tombol kontrol ── */
+.ar-ctrl{ display:flex; gap:8px; margin:12px 0 4px; }
+.ar-ctrl button{ flex:1; border:1.5px dashed rgba(35,58,143,.45); background:rgba(255,253,245,.9); color:var(--ink); border-radius:12px; padding:9px 4px; font-family:var(--hand); font-size:15px; font-weight:700; cursor:pointer; transition:transform .15s; }
+.ar-ctrl button:active{ transform:scale(.95) rotate(-1deg); }
+.ar-ctrl button.red{ color:var(--pen); border-color:rgba(192,57,43,.5); }
+.ar-sec{ margin:18px 2px 8px; display:flex; align-items:center; gap:8px; }
+.ar-sec span{ font-family:var(--hand); font-size:20px; color:var(--ink); transform:rotate(-1deg); white-space:nowrap; }
+.ar-sec::after{ content:''; flex:1; height:0; border-top:2px dashed rgba(35,58,143,.3); }
+html.renco-dark .ar-sec span{ color:#f5d77e; } html.renco-dark .ar-sec::after{ border-top-color:rgba(245,215,126,.3); }
+/* ── Mode ── */
+.ar-mode{ display:flex; gap:6px; margin-bottom:10px; background:rgba(0,0,0,.06); padding:4px; border-radius:99px; }
+.ar-mode button{ flex:1; border:none; background:transparent; border-radius:99px; padding:9px 6px; font:800 12px/1 'Plus Jakarta Sans',sans-serif; color:#4a5d50; cursor:pointer; transition:all .2s; }
+.ar-mode button.on{ background:linear-gradient(135deg,#1a472a,#2d6a4f); color:#f4d67a; box-shadow:0 4px 10px rgba(13,32,22,.25); }
+html.renco-dark .ar-mode{ background:rgba(255,255,255,.08); } html.renco-dark .ar-mode button{ color:#b9c9bd; } html.renco-dark .ar-mode button.on{ color:#f4d67a; }
+/* ── Lembar undian (kertas buku) ── */
+.ar-sheet{ position:relative; border-radius:6px 16px 16px 6px; background:var(--paper); background-image:linear-gradient(transparent 27px,var(--ln) 28px); background-size:100% 28px;
+  box-shadow:0 2px 0 #d9d2bb, 0 12px 24px rgba(13,32,22,.18), inset 6px 0 10px -6px rgba(0,0,0,.18); overflow:hidden; }
+.ar-sheet::before{ content:''; position:absolute; left:32px; top:0; bottom:0; width:2px; background:var(--mg); z-index:0; pointer-events:none; }
+.ar-sheet-top{ position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px 0 44px; }
+.ar-hint{ font-family:var(--hand); font-size:14px; line-height:1.3; color:#5b5846; flex:1; }
+.ar-shuf{ border:1.5px solid rgba(35,58,143,.45); background:#fff; color:var(--ink); border-radius:99px; padding:6px 11px; font:800 11px/1 'Plus Jakarta Sans',sans-serif; cursor:pointer; display:none; }
+.ar-shuf.show{ display:block; }
+.ar-slips{ position:relative; z-index:1; display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:16px 10px; padding:14px 12px 18px 44px; min-height:90px; }
+.ar-slipw{ position:relative; transform:rotate(var(--r,0deg)); transition:transform .25s, filter .25s; filter:drop-shadow(0 3px 3px rgba(0,0,0,.20)); cursor:pointer; animation:arDeal .45s ease both; animation-delay:var(--d,0s); }
+@keyframes arDeal{ from{ opacity:0; transform:translateY(-14px) rotate(calc(var(--r,0deg) + 14deg)) scale(.85); } to{ opacity:1; } }
+.ar-slip{ position:relative; height:64px; padding:8px 6px 6px; display:flex; align-items:center; justify-content:center; text-align:center; background-color:#fffef8;
+  background-image:linear-gradient(transparent 14px,rgba(70,118,190,.28) 15px); background-size:100% 15px; overflow:hidden;
+  clip-path:polygon(0 9%,7% 0,14% 8%,21% 0,28% 7%,35% 0,42% 8%,49% 0,56% 7%,63% 0,70% 8%,77% 0,84% 7%,91% 0,100% 8%,100% 100%,0 100%); }
+.ar-slip::after{ content:''; position:absolute; right:0; bottom:0; width:16px; height:16px; background:linear-gradient(135deg,transparent 50%,#e4d9b8 50%); box-shadow:-1px -1px 2px rgba(0,0,0,.10); }
+.ar-nm{ position:relative; font-family:var(--hand); font-size:14px; line-height:1.15; color:var(--ink); word-break:break-word; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; font-weight:700; }
+.ar-slip.fold{ background-image:linear-gradient(180deg,rgba(0,0,0,.10) 0 50%,rgba(255,255,255,.55) 50% 100%),linear-gradient(transparent 14px,rgba(70,118,190,.28) 15px); background-size:100% 100%,100% 15px; }
+.ar-slip.fold::before{ content:'?'; font-family:var(--hand); font-size:26px; color:rgba(35,58,143,.55); font-weight:700; }
+.ar-slip.fold .ar-nm{ display:none; }
+.ar-slipw:hover, .ar-slipw:active{ transform:rotate(0deg) translateY(-3px); }
+.ar-slipw.sel{ transform:rotate(0deg) translateY(-9px) scale(1.07); z-index:3; filter:drop-shadow(0 10px 8px rgba(212,160,23,.55)); }
+.ar-slipw.sel::after{ content:'ketuk lagi'; position:absolute; left:50%; bottom:-17px; transform:translateX(-50%); font:700 10px/1 var(--hand); color:#a06800; white-space:nowrap; background:#fff3b0; padding:2px 7px; border-radius:99px; }
+.ar-slipw.hl{ filter:drop-shadow(0 0 7px rgba(244,169,34,.95)); transform:rotate(0deg) translateY(-4px) scale(1.06); z-index:2; }
+.ar-slipw.hl .ar-slip{ background-color:#fff4c2; }
+.ar-slipw.win{ z-index:5; animation:arWin .9s ease forwards; }
+@keyframes arWin{ 0%{ transform:rotate(var(--r,0deg)) scale(1); } 45%{ transform:rotate(0deg) translateY(-18px) scale(1.4); } 100%{ transform:rotate(0deg) translateY(-12px) scale(1.3); filter:drop-shadow(0 0 16px rgba(244,169,34,1)); } }
+.ar-slipw.flip .ar-slip{ animation:arFlip .6s ease; }
+@keyframes arFlip{ 0%{ transform:rotateY(0); } 50%{ transform:rotateY(90deg); } 100%{ transform:rotateY(0); } }
+.ar-slipw.drawn{ cursor:default; filter:drop-shadow(0 1px 1px rgba(0,0,0,.12)); }
+.ar-slipw.drawn .ar-slip{ opacity:.55; }
+.ar-slipw.drawn .ar-nm{ text-decoration:line-through; text-decoration-color:var(--pen); text-decoration-thickness:2.5px; }
+.ar-slipw.drawn::before{ content:'✓'; position:absolute; right:-4px; top:-8px; z-index:2; width:20px; height:20px; border-radius:50%; background:#2d6a4f; color:#fff; font:800 12px/20px sans-serif; text-align:center; }
+.ar-slipw.last{ filter:drop-shadow(0 0 8px rgba(244,169,34,.9)); } .ar-slipw.last .ar-slip{ opacity:.85; }
+.ar-slipw.last::before{ content:'★'; background:#d4a017; }
+.ar-sheet.shaking .ar-slipw:not(.drawn){ animation:arShake .26s infinite ease-in-out; animation-delay:var(--d,0s); }
+@keyframes arShake{ 0%,100%{ transform:rotate(var(--r,0deg)) translate(0,0); } 25%{ transform:rotate(calc(var(--r,0deg) + 5deg)) translate(3px,-3px); } 75%{ transform:rotate(calc(var(--r,0deg) - 5deg)) translate(-3px,2px); } }
+.ar-sheet.swirl .ar-slipw{ animation:arSwirl .55s ease; }
+@keyframes arSwirl{ 0%{ transform:rotate(var(--r,0deg)); } 50%{ transform:rotate(calc(var(--r,0deg) + 200deg)) scale(.7); opacity:.4; } 100%{ transform:rotate(var(--r,0deg)); } }
+.ar-empty{ grid-column:1/-1; text-align:center; padding:18px 8px; font-family:var(--hand); font-size:16px; color:#6b6648; line-height:1.5; }
+.ar-empty b{ color:var(--ink); }
+/* ── Tombol undi ── */
+.ar-go{ width:100%; margin-top:14px; border:none; border-radius:16px; padding:15px 12px; cursor:pointer; font-family:var(--hand); font-size:21px; font-weight:700; letter-spacing:.5px; color:#f4d67a;
+  background:linear-gradient(135deg,#123a22,#2d6a4f); box-shadow:0 8px 18px rgba(13,32,22,.30), inset 0 0 0 2px rgba(244,214,122,.35); display:flex; align-items:center; justify-content:center; gap:8px; transition:transform .15s; }
+.ar-go:active{ transform:scale(.97); }
+.ar-go:disabled{ opacity:.6; cursor:default; }
+.ar-go.soft{ background:rgba(255,253,245,.9); color:var(--ink); box-shadow:inset 0 0 0 2px rgba(35,58,143,.35); font-size:17px; }
+/* ── Catatan pemenang ── */
+.ar-hist{ position:relative; border-radius:6px 16px 16px 6px; background-color:var(--paper); background-image:linear-gradient(transparent 33px,var(--ln) 34px); background-size:100% 34px;
+  box-shadow:0 2px 0 #d9d2bb, 0 12px 24px rgba(13,32,22,.16), inset 6px 0 10px -6px rgba(0,0,0,.18); padding:0 12px 6px 44px; overflow:hidden; }
+.ar-hist::before{ content:''; position:absolute; left:32px; top:0; bottom:0; width:2px; background:var(--mg); }
+.ar-hrow{ position:relative; display:flex; align-items:center; gap:8px; min-height:34px; line-height:34px; cursor:pointer; }
+.ar-hrow:active .ar-hname{ color:var(--pen); }
+.ar-hn{ position:absolute; left:-33px; width:26px; text-align:center; font-family:var(--hand); font-size:15px; color:var(--pen); font-weight:700; }
+.ar-hname{ flex:1; min-width:0; font-family:var(--hand); font-size:19px; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ar-hdt{ font-family:var(--hand); font-size:12px; color:#7d765a; white-space:nowrap; }
+.ar-hchk{ font-family:var(--hand); font-size:18px; color:#2d6a4f; font-weight:700; }
+.ar-hempty{ text-align:center; font-family:var(--hand); font-size:17px; color:#8a846a; line-height:34px; padding-top:34px; padding-bottom:34px; }
+/* ── Pengumuman pemenang (kertas terbuka) ── */
+.ar-ov{ position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(8,18,12,.78); animation:arOvIn .3s ease both; }
+@keyframes arOvIn{ from{ opacity:0; } to{ opacity:1; } }
+.ar-big{ position:relative; width:min(92vw,360px); padding:30px 22px 20px 50px; border-radius:6px 14px 14px 6px; background-color:var(--paper,#fffdf5); background-image:linear-gradient(transparent 31px,rgba(70,118,190,.30) 32px); background-size:100% 32px;
+  box-shadow:0 24px 60px rgba(0,0,0,.5); transform-origin:top center; animation:arUnfold .85s cubic-bezier(.2,.9,.3,1.08) both; text-align:left; --hand:'Bradley Hand','Segoe Print','Chalkboard SE','Marker Felt','Comic Sans MS','Comic Neue',cursive; }
+.ar-big::before{ content:''; position:absolute; left:36px; top:0; bottom:0; width:2px; background:rgba(214,64,64,.55); }
+@keyframes arUnfold{ 0%{ opacity:0; transform:perspective(900px) rotateX(-88deg) scaleY(.2); } 60%{ opacity:1; } 100%{ opacity:1; transform:perspective(900px) rotateX(0) scaleY(1); } }
+.ar-big .tp{ position:absolute; top:-9px; width:64px; height:20px; background:rgba(255,236,150,.75); box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.ar-big .tp.a{ left:18px; transform:rotate(-6deg); } .ar-big .tp.b{ right:18px; transform:rotate(5deg); }
+.ar-big .k{ font:800 10px/1.4 'Plus Jakarta Sans',sans-serif; letter-spacing:2px; color:#8a7b52; }
+.ar-big .nm{ position:relative; margin:10px 0 4px; padding:14px 10px 16px; text-align:center; font-family:var(--hand); font-size:clamp(28px,9vw,40px); font-weight:700; line-height:1.1; color:#233a8f; word-break:break-word; animation:arNameIn .6s .55s ease both; }
+@keyframes arNameIn{ from{ opacity:0; transform:translateY(10px) scale(.9); } to{ opacity:1; transform:none; } }
+.ar-big .nm svg{ position:absolute; inset:-6px -4px; width:calc(100% + 8px); height:calc(100% + 12px); pointer-events:none; }
+.ar-big .nm svg path{ fill:none; stroke:#c0392b; stroke-width:3.2; stroke-linecap:round; stroke-dasharray:760; stroke-dashoffset:760; animation:arDraw 1s 1.05s ease forwards; }
+@keyframes arDraw{ to{ stroke-dashoffset:0; } }
+.ar-big .pot{ font-family:var(--hand); font-size:18px; color:#4a4730; margin-top:6px; line-height:1.4; }
+.ar-big .pot b{ color:#c0392b; font-size:24px; background:linear-gradient(transparent 60%,rgba(255,226,92,.8) 60% 92%,transparent 92%); }
+.ar-big .sub{ font-family:var(--hand); font-size:13px; color:#7d765a; margin-top:6px; line-height:1.4; }
+.ar-big .stamp{ position:absolute; right:14px; top:52px; padding:3px 10px; border:3px solid #c0392b; color:#c0392b; border-radius:8px; font:800 15px/1.2 'Plus Jakarta Sans',sans-serif; letter-spacing:2px; opacity:0; transform:rotate(-14deg) scale(2.4); animation:arStamp .4s 1.6s cubic-bezier(.3,1.6,.5,1) forwards; background:rgba(255,255,255,.4); }
+@keyframes arStamp{ to{ opacity:.9; transform:rotate(-14deg) scale(1); } }
+.ar-big .bt{ display:flex; gap:8px; margin-top:16px; }
+.ar-big .bt button{ flex:1; border-radius:12px; padding:11px 6px; font-family:var(--hand); font-size:16px; font-weight:700; cursor:pointer; border:1.5px dashed rgba(35,58,143,.5); background:#fff; color:#233a8f; }
+.ar-big .bt button.pri{ background:linear-gradient(135deg,#123a22,#2d6a4f); color:#f4d67a; border:none; }
+@media (prefers-reduced-motion:reduce){ .ar-slipw, .ar-big, .ar-big .nm, .ar-big .stamp{ animation:none !important; } .ar-big .stamp{ opacity:.9; transform:rotate(-14deg); } .ar-big .nm svg path{ animation:none; stroke-dashoffset:0; } }
+</style>
+
+<script>
+/* ═══ ARISAN — mode undian KERTAS BUKU ═══
+   Data tetap memakai DB.arisanPeserta / arisanHistory / arisanPutaran / arisanSetting (kompatibel dengan kode lama).
+   • Kocok Otomatis: kertas bergetar & disorot acak, pemenang dipilih acak (crypto) lalu terangkat.
+   • Pilih Kertas: kertas dikocok & terlipat tanpa nama; ketuk 1 untuk memilih, ketuk lagi untuk membuka. */
+(function(){
+  var _mode = 'kocok', _busy = false, _order = null, _sel = -1, _slipList = [];
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function toast(m, d){ if (typeof showToast === 'function') showToast(m, d); }
+  function rnd(n){ try { var a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; } catch(e){ return Math.floor(Math.random() * n); } }
+  function shuffle(a){ a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = rnd(i + 1), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function ensure(){ if (!window.DB) return false; DB.arisanSetting = DB.arisanSetting || {}; DB.arisanPeserta = DB.arisanPeserta || []; DB.arisanHistory = DB.arisanHistory || []; return true; }
+  function drawnNames(){ return DB.arisanHistory.map(function(h){ return h.peserta; }); }
+  function remaining(){ var d = drawnNames(); return DB.arisanPeserta.filter(function(p){ return d.indexOf(p) < 0; }); }
+  function potNow(){ return (DB.arisanPeserta.length || 0) * (DB.arisanSetting.iuran || 0); }
+  function money(n){ try { return (typeof fmt === 'function') ? fmt(n) : 'Rp ' + n.toLocaleString('id-ID'); } catch(e){ return 'Rp ' + n; } }
+
+  window.renderArisan = function(){
+    if (!ensure()) return;
+    var total = DB.arisanPeserta.length, done = DB.arisanHistory.length, sisa = Math.max(0, total - done);
+    function t(id, v){ var e = $(id); if (e) e.textContent = v; }
+    t('arisanSesi', DB.arisanSetting.nama || '-'); t('arisanPutaran', DB.arisanPutaran || 1); t('arisanPot', money(potNow()));
+    t('arisanJmlPeserta', total); t('arisanSudahUndian', done); t('arisanSisaUndian', sisa);
+    var f = $('arProgFill'); if (f) f.style.width = (total ? Math.min(100, done / total * 100) : 0) + '%';
+    t('arProgTxt', total ? done + ' dari ' + total + ' peserta sudah dapat giliran' : 'Belum ada peserta');
+    window.renderDrumBalls(); window.renderArisanHistory(); syncUi();
+  };
+
+  function syncUi(){
+    var btn = $('spinBtn'), hint = $('arHint'), shuf = $('arShuffleBtn'), mb = document.querySelectorAll('#arMode button');
+    Array.prototype.forEach.call(mb, function(b){ b.classList.toggle('on', b.getAttribute('data-m') === _mode); });
+    if (!ensure()) return;
+    var rem = remaining().length;
+    if (shuf) shuf.classList.toggle('show', _mode === 'pilih' && rem > 1 && !_busy);
+    if (hint) hint.textContent = !DB.arisanPeserta.length ? 'Tambahkan peserta dulu untuk membuat kertas undian.' : !rem ? 'Semua peserta sudah dapat giliran. Reset untuk putaran baru.' :
+      _mode === 'pilih' ? 'Kertas sudah dikocok. Ketuk 1 kertas untuk memilih, ketuk lagi untuk membukanya.' : 'Ketuk kertas untuk mengintip, atau tekan tombol di bawah untuk mengocok.';
+    if (!btn) return;
+    btn.classList.toggle('soft', _mode === 'pilih' || !rem);
+    btn.disabled = _busy;
+    btn.innerHTML = _busy ? '✍️ Mengocok…' : !rem && DB.arisanPeserta.length ? '🎉 Semua sudah dapat giliran' : _mode === 'pilih' ? '✋ Ketuk salah satu kertas' : '🎲 KOCOK &amp; UNDI';
+  }
+
+  window.renderDrumBalls = function(){
+    var wrap = $('drumWrap'); if (!wrap || !ensure()) return;
+    var peserta = DB.arisanPeserta;
+    if (!peserta.length) { wrap.innerHTML = '<div class="ar-empty">Belum ada peserta.<br>Ketuk <b>PESERTA</b> di atas untuk menulis nama pertama ✎</div>'; _slipList = []; return; }
+    var drawn = drawnNames(), last = DB.arisanHistory.length ? DB.arisanHistory[DB.arisanHistory.length - 1].peserta : null;
+    var list, html = '';
+    if (_mode === 'pilih') {
+      var rem = remaining();
+      if (!_order || _order.length !== rem.length || _order.some(function(p){ return rem.indexOf(p) < 0; })) _order = shuffle(rem);
+      list = _order;
+      if (!list.length) { wrap.innerHTML = '<div class="ar-empty"><b>Semua kertas sudah terbuka 🎉</b><br>Reset untuk memulai putaran baru.</div>'; _slipList = []; return; }
+      _slipList = list;
+      list.forEach(function(p, i){
+        html += '<div class="ar-slipw" style="--r:' + (((i * 37) % 9) - 4) + 'deg;--d:' + ((i % 8) * .06).toFixed(2) + 's" data-i="' + i + '" onclick="arSlipTap(' + i + ')"><div class="ar-slip fold"><span class="ar-nm"></span></div></div>';
+      });
+    } else {
+      list = peserta; _slipList = list;
+      list.forEach(function(p, i){
+        var dr = drawn.indexOf(p) > -1, cls = (dr ? ' drawn' : '') + (dr && p === last ? ' last' : '');
+        html += '<div class="ar-slipw' + cls + '" style="--r:' + (((i * 37) % 9) - 4) + 'deg;--d:' + ((i % 8) * .06).toFixed(2) + 's" data-i="' + i + '" onclick="arSlipTap(' + i + ')"><div class="ar-slip"><span class="ar-nm">' + esc(p) + '</span></div></div>';
+      });
+    }
+    wrap.innerHTML = html;
+  };
+
+  window.arMode = function(m){
+    if (_busy || m === _mode) return;
+    _mode = m; _sel = -1; _order = null; window.renderDrumBalls(); syncUi();
+  };
+  window.arShuffle = function(){
+    if (_busy) return;
+    var sh = $('arSheet'); if (sh) { sh.classList.add('swirl'); try { arisanSfxTick(.6); } catch(e){} }
+    setTimeout(function(){ _order = null; _sel = -1; window.renderDrumBalls(); if (sh) sh.classList.remove('swirl'); }, 280);
+  };
+
+  window.arSlipTap = function(i){
+    if (_busy || !ensure()) return;
+    var el = document.querySelector('#drumWrap .ar-slipw[data-i="' + i + '"]'); if (!el) return;
+    if (_mode === 'kocok') {
+      if (el.classList.contains('drawn')) return;
+      el.classList.remove('hl'); void el.offsetWidth; el.classList.add('hl'); try { arisanSfxTick(.5); } catch(e){}
+      setTimeout(function(){ el.classList.remove('hl'); }, 700);
+      return;
+    }
+    /* mode pilih: ketuk 1 = pilih, ketuk 2 = buka */
+    if (_sel !== i) {
+      Array.prototype.forEach.call(document.querySelectorAll('#drumWrap .ar-slipw.sel'), function(x){ x.classList.remove('sel'); });
+      el.classList.add('sel'); _sel = i; try { arisanSfxTick(.7); } catch(e){}
+      return;
+    }
+    _busy = true; syncUi();
+    var winner = _slipList[i];
+    var go = function(){
+      el.classList.remove('sel'); el.classList.add('flip');
+      setTimeout(function(){ var s = el.querySelector('.ar-slip'), n = el.querySelector('.ar-nm'); if (s) s.classList.remove('fold'); if (n) n.textContent = winner; }, 300);
+      setTimeout(function(){ el.classList.add('win'); }, 650);
+      setTimeout(function(){ commit(winner); }, 1700);
+    };
+    try { arisanSfxSpinStart(go); } catch(e){ go(); }
+  };
+
+  window.spinArisan = function(){
+    if (_busy || !ensure()) return;
+    var rem = remaining();
+    if (!DB.arisanPeserta.length) { toast('⚠️ Tambahkan peserta dulu'); return; }
+    if (!rem.length) { toast('🎉 Semua peserta sudah menang! Reset untuk putaran baru'); return; }
+    if (_mode === 'pilih') { toast('✋ Mode Pilih Kertas: ketuk salah satu kertas'); return; }
+    var winner = rem[rnd(rem.length)];
+    _busy = true; syncUi();
+    var sh = $('arSheet'); if (sh) sh.classList.add('shaking');
+    var start = function(){ loop(winner); };
+    try { arisanSfxSpinStart(start); } catch(e){ start(); }
+  };
+
+  function loop(winner){
+    var slips = Array.prototype.slice.call(document.querySelectorAll('#drumWrap .ar-slipw:not(.drawn)'));
+    var total = 30, count = 0;
+    (function frame(){
+      slips.forEach(function(s){ s.classList.remove('hl'); });
+      if (slips.length) slips[rnd(slips.length)].classList.add('hl');
+      var half = total / 2, speed = count < half ? count / half : 1 - (count - half) / half;
+      try { arisanSfxTick(speed); } catch(e){}
+      count++;
+      if (count >= total) {
+        slips.forEach(function(s){ s.classList.remove('hl'); });
+        var sh = $('arSheet'); if (sh) sh.classList.remove('shaking');
+        var wi = _slipList.indexOf(winner), el = document.querySelector('#drumWrap .ar-slipw[data-i="' + wi + '"]');
+        if (el) el.classList.add('win');
+        setTimeout(function(){ commit(winner); }, 1000);
+      } else setTimeout(frame, count < 5 ? 60 : count < 12 ? 75 : count < 22 ? 110 : 180);
+    })();
+  }
+
+  function commit(winner){
+    var rec = { peserta: winner, putaran: DB.arisanPutaran || 1, tanggal: nowISO() };
+    DB.arisanHistory.push(rec); DB.arisanPutaran = (DB.arisanPutaran || 1) + 1;
+    if (typeof saveDB === 'function') saveDB();
+    _busy = false; _sel = -1; _order = null;
+    window.renderArisan();
+    reveal(rec, true);
+  }
+
+  window.renderArisanHistory = function(){
+    var el = $('arisanHistory'); if (!el || !ensure()) return;
+    var h = DB.arisanHistory;
+    if (!h.length) { el.innerHTML = '<div class="ar-hempty">— belum ada undian —</div>'; return; }
+    el.innerHTML = h.map(function(r, i){ return { r: r, i: i }; }).reverse().map(function(o){
+      var d = ''; try { d = (typeof fmtDate === 'function') ? fmtDate(o.r.tanggal) : ''; } catch(e){}
+      return '<div class="ar-hrow" onclick="arShowRec(' + o.i + ')"><span class="ar-hn">' + o.r.putaran + '</span><span class="ar-hname">' + esc(o.r.peserta) + '</span><span class="ar-hdt">' + esc(d) + '</span><span class="ar-hchk">✓</span></div>';
+    }).join('') + '<div style="height:20px"></div>';
+  };
+  window.arShowRec = function(i){ if (ensure() && DB.arisanHistory[i]) reveal(DB.arisanHistory[i], false); };
+
+  /* Kertas terbuka: pengumuman pemenang */
+  function reveal(rec, celebrate){
+    var old = $('arOv'); if (old) old.remove();
+    var pot = potNow(), d = ''; try { d = (typeof fmtDate === 'function') ? fmtDate(rec.tanggal) : ''; } catch(e){}
+    var ov = document.createElement('div'); ov.id = 'arOv'; ov.className = 'ar-ov';
+    ov.innerHTML = '<div class="ar-big"><i class="tp a"></i><i class="tp b"></i>' +
+      '<div class="k">PEMENANG ARISAN · PUTARAN ' + esc(rec.putaran) + '</div>' +
+      '<div class="nm">' + esc(rec.peserta) + '<svg viewBox="0 0 300 90" preserveAspectRatio="none"><path d="M12 46C10 14 86 6 150 6s138 10 138 38-76 40-138 40S14 78 12 46Z"/></svg></div>' +
+      (pot ? '<div class="pot">Menerima <b>' + esc(money(pot)) + '</b></div>' : '') +
+      '<div class="sub">Sesi ' + esc(DB.arisanSetting.nama || 'Arisan') + (d ? ' · ' + esc(d) : '') + '</div>' +
+      '<div class="stamp">MENANG</div>' +
+      '<div class="bt"><button type="button" onclick="arShare(' + (DB.arisanHistory.indexOf(rec)) + ')">📤 Bagikan</button><button type="button" class="pri" onclick="arCloseReveal()">Tutup ✓</button></div></div>';
+    ov.addEventListener('click', function(e){ if (e.target === ov) window.arCloseReveal(); });
+    document.body.appendChild(ov);
+    if (celebrate) {
+      try { arisanSfxWinner(); } catch(e){}
+      try { _arisanConfetti(); } catch(e){}
+    }
+  }
+  window.arCloseReveal = function(){ var o = $('arOv'); if (o) o.remove(); };
+  window.arShare = function(i){
+    var r = DB.arisanHistory[i]; if (!r) return;
+    var pot = potNow();
+    var text = '🎉 Pemenang Arisan ' + (DB.arisanSetting.nama || '') + ' putaran ' + r.putaran + ': ' + r.peserta + (pot ? ' (' + money(pot) + ')' : '') + '. Selamat!';
+    if (navigator.share) { navigator.share({ text: text }).catch(function(){}); return; }
+    try { navigator.clipboard.writeText(text).then(function(){ toast('📋 Pengumuman disalin'); }, function(){ prompt('Salin pengumuman:', text); }); }
+    catch(e){ prompt('Salin pengumuman:', text); }
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ try { if (window.DB) window.renderArisan(); } catch(e){} }, 800); });
+})();
+</script>
+
+
 
 <script>
 /* ═══ Pembersihan data program Cashback & Poin Loyalitas RencoPay ═══
@@ -67177,6 +68102,8 @@ body.rp-theme #page-forum .forum-grid-btn.fgb-current .fgb-label{color:#ffd166}
 <style id="rp-standalone-css">
 /* Di aplikasi RencoPay mandiri: tombol kembali ke Koperasi disembunyikan */
 html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
+/* DISEMBUNYIKAN sementara (install RencoPay dikembangkan nanti). Untuk menampilkan lagi: hapus baris di bawah ini. */
+#rpInstallFab{ display:none !important; }
 #rpInstallFab{ position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 92px); z-index:700; display:none; align-items:center;
   filter:drop-shadow(0 8px 18px rgba(0,0,0,.55)); animation:rpFabIn .5s cubic-bezier(.2,.9,.3,1.2) both, rpFabFloat 3.2s ease-in-out .6s infinite; }
 #rpInstallFab .rf-main{ position:relative; overflow:hidden; display:flex; align-items:center; gap:10px; border:none; cursor:pointer; font-family:inherit;
@@ -67317,26 +68244,10 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
       manual();
       return;
     }
-    /* Android/Chrome/Edge: pakai manifest RencoPay lalu langsung tampilkan dialog install bawaan browser */
-    var oldEvt=window.__rcInstallEvt, done=false, timer=null;
-    window.__rpInstalling=true; window.__rcInstallEvt=null;
-    function finish(){ done=true; clearTimeout(timer); window.removeEventListener('rc-install-ready',onReady); setRpManifest(false); window.__rcInstallEvt=oldEvt; window.__rpInstalling=false; }
-    function onReady(){
-      if(done) return;
-      var ev=window.__rcInstallEvt;
-      if(!ev) return;
-      done=true; clearTimeout(timer); window.removeEventListener('rc-install-ready',onReady);
-      try{
-        ev.prompt();
-        ev.userChoice.then(function(c){
-          if(c&&c.outcome==='accepted') markRpInstalled();
-          setRpManifest(false); window.__rcInstallEvt=oldEvt; setTimeout(function(){ window.__rpInstalling=false; },1500);
-        }).catch(function(){ setRpManifest(false); window.__rcInstallEvt=oldEvt; window.__rpInstalling=false; });
-      }catch(e){ finish(); fallbackOpen(); }
-    }
-    window.addEventListener('rc-install-ready',onReady);
-    setRpManifest(true);
-    timer=setTimeout(function(){ if(done) return; finish(); fallbackOpen(); },3000);
+    /* Android/Chrome/Edge: buka halaman RencoPay mandiri (?app=rencopay&install=1) yang sejak awal memuat manifest-rencopay.json.
+       Menukar <link rel="manifest"> di halaman Koperasi TIDAK andal: browser sudah menilai halaman ini sebagai aplikasi Koperasi
+       (yang terpasang), sehingga prompt install RencoPay tidak pernah muncul. */
+    fallbackOpen();
   };
 
   if(rpMode){
@@ -67353,7 +68264,12 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
     if(/[?&]install=1\b/.test(location.search) && !standalone()){
       var offer=function(){ sheet('Pasang RencoPay sebagai aplikasi sendiri di layar utama. Akun dan data sama dengan aplikasi Koperasi.','Install Sekarang',doPrompt); };
       if(window.__rcInstallEvt) setTimeout(offer,1500);
-      else { window.addEventListener('rc-install-ready',function(){ setTimeout(offer,300); }); setTimeout(function(){ if(!window.__rcInstallEvt) manual(); },6000); }
+      else { window.addEventListener('rc-install-ready',function(){ setTimeout(offer,300); }); setTimeout(function(){
+        if(window.__rcInstallEvt) return;
+        var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+        if(ios){ manual(); return; }
+        sheet('Browser belum menawarkan install RencoPay. Jika RencoPay sudah pernah terpasang, buka dari ikonnya di layar utama. Jika belum, buka menu browser (⋮) lalu pilih "Instal aplikasi" (bukan "Buka Koperasi").','Mengerti',function(){ document.getElementById('rpInstallSheet').style.display='none'; });
+      },6000); }
     }
   }
 })();
@@ -68187,6 +69103,8 @@ html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item-kembali .nav-icon,
 html:not(.renco-dark) body #app #bottomNavRencoPay .nav-item-kembali .nav-label{color:var(--cw-acc) !important; filter:none !important;}
 html:not(.renco-dark) body #rpFlash{background:#ffffff !important; background-image:none !important;}
 html:not(.renco-dark) body #rpFlash *{color:var(--cw-ink) !important; text-shadow:none !important;}
+/* Splash RencoPay (mode terang): kata "RENCO" berwarna hijau */
+html:not(.renco-dark) body #rpFlash .rpf-title .b1{color:var(--cw-acc,#1f6b45) !important;}
 html:not(.renco-dark) body #app .bk-hero{background:#ffffff !important; background-image:none !important; border-bottom:1px solid var(--cw-line);}
 html:not(.renco-dark) body #app .bk-hero::before{display:none !important;}
 html:not(.renco-dark) body #app .bk-hero-title{color:var(--cw-ink) !important;}
@@ -69635,4 +70553,365 @@ html:not(.renco-dark) body #app #page-rencoPay #rpOfflinePanel [style*="backgrou
 #modalUserProfile .dmt-switch{transform:scale(.88);transform-origin:right center}
 #modalUserProfile .adminp-grid{margin-bottom:8px !important}
 </style>
+<style id="arisan-admin-only">
+/* Non-admin: arisan hanya bisa dilihat (kontrol kelola & undi disembunyikan) */
+#forumSeksiArisan.ar-readonly .ar-ctrl,
+#forumSeksiArisan.ar-readonly #arMode,
+#forumSeksiArisan.ar-readonly #arShuffleBtn,
+#forumSeksiArisan.ar-readonly #spinBtn{ display:none !important; }
+</style>
+<script>
+/* ═══ ARISAN — hanya ADMIN yang boleh edit / kelola data ═══
+   • Modal Atur / Peserta / Reset dipindah ke luar #app (lihat HTML) agar tampil DI DEPAN panel Hiburan.
+   • Non-admin: tombol Atur, Peserta, Reset, mode, acak & kocok disembunyikan; semua fungsi pengubah data diblokir. */
+(function(){
+  'use strict';
+  var MODALS = ['modalArisanSetting','modalTambahPeserta','modalResetArisan'];
+  var GUARDED = ['saveArisanSetting','addPesertaArisan','hapusPeserta','editPeserta',
+                 'selectResetMode','konfirmasiReset','spinArisan','arShuffle','arMode'];
+
+  function adm(){ try { return typeof isAdmin === 'function' && !!isAdmin(); } catch(e){ return false; } }
+  function deny(){ if (typeof showToast === 'function') showToast('🔒 Hanya admin yang dapat mengelola data arisan'); }
+
+  var _origArMode = window.arMode;
+
+  function applyRole(){
+    var sec = document.getElementById('forumSeksiArisan'); if (!sec) return;
+    var ro = !adm();
+    sec.classList.toggle('ar-readonly', ro);
+    if (!ro) return;
+    try { if (typeof _origArMode === 'function') _origArMode('kocok'); } catch(e){}
+    var h = document.getElementById('arHint');
+    if (h) h.textContent = 'Hanya admin yang dapat mengelola dan mengundi arisan.';
+    var em = sec.querySelector('#drumWrap .ar-empty');
+    if (em) em.innerHTML = 'Belum ada peserta.';
+  }
+
+  function guard(name){
+    var f = window[name];
+    if (typeof f !== 'function' || f._arAdm) return;
+    var w = function(){ if (!adm()) { deny(); return; } return f.apply(this, arguments); };
+    w._arAdm = true;
+    window[name] = w;
+  }
+  GUARDED.forEach(guard);
+
+  /* ketuk kertas mode "Pilih" = menetapkan pemenang → khusus admin */
+  var _tap = window.arSlipTap;
+  if (typeof _tap === 'function') {
+    window.arSlipTap = function(){
+      if (!adm()) {
+        var on = document.querySelector('#arMode button.on');
+        if (on && on.getAttribute('data-m') === 'pilih') { deny(); return; }
+      }
+      return _tap.apply(this, arguments);
+    };
+  }
+
+  /* buka modal kelola arisan → khusus admin */
+  var _om = window.openModal;
+  if (typeof _om === 'function') {
+    window.openModal = function(id){
+      if (MODALS.indexOf(id) > -1 && !adm()) { deny(); return; }
+      return _om.apply(this, arguments);
+    };
+  }
+
+  /* terapkan peran setiap kali halaman arisan digambar ulang */
+  var _ra = window.renderArisan;
+  if (typeof _ra === 'function') {
+    window.renderArisan = function(){
+      var r = _ra.apply(this, arguments);
+      try { applyRole(); } catch(e){}
+      return r;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', applyRole);
+  window.addEventListener('load', function(){ GUARDED.forEach(guard); applyRole(); });
+})();
+</script>
+<style id="gn-style">
+/* ═══ Berita Otomatis — Google News RSS (Indonesia) ═══ */
+.gn-wrap{padding:12px 16px 0}
+.gn-seg{display:flex;gap:6px;background:#e9efeb;border-radius:12px;padding:4px;margin-bottom:10px}
+.gn-seg button{flex:1;border:none;background:transparent;padding:8px 6px;border-radius:9px;font-size:12px;font-weight:700;font-family:inherit;color:#5b6b62;cursor:pointer}
+.gn-seg button.on{background:#fff;color:#1a472a;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.gn-chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.gn-chips::-webkit-scrollbar{display:none}
+.gn-chip{flex:0 0 auto;border:1.5px solid #dfe6e1;background:#fff;color:#3d4f45;border-radius:99px;padding:7px 13px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap}
+.gn-chip.on{background:linear-gradient(135deg,#1a472a,#40916c);border-color:transparent;color:#fff}
+.gn-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:#8a978f;margin:0 0 8px}
+.gn-bar button{border:1.5px solid #dfe6e1;background:#fff;color:#2d6a4f;border-radius:99px;padding:5px 11px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0}
+.gn-bar button:disabled{opacity:.5}
+.gn-card{display:block;text-decoration:none;background:#fff;border:1.5px solid #eee;border-radius:16px;padding:13px 14px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.gn-card:active{transform:scale(.99)}
+.gn-src{font-size:10px;font-weight:800;color:#2d6a4f;letter-spacing:.2px}
+.gn-ttl{font-size:14px;font-weight:800;line-height:1.4;color:var(--text,#1f2b23);margin:4px 0 7px}
+.gn-meta{display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#9ca3af}
+.gn-meta b{color:#4361ee;font-weight:700}
+.gn-sk{height:78px;border-radius:16px;margin-bottom:10px;background:linear-gradient(90deg,#eef2ef 25%,#f7faf8 50%,#eef2ef 75%);background-size:200% 100%;animation:gnSk 1.2s linear infinite}
+@keyframes gnSk{to{background-position:-200% 0}}
+.gn-empty{text-align:center;padding:34px 18px;color:#6b7a72}
+.gn-empty .e{font-size:38px;margin-bottom:8px}
+.gn-empty b{display:block;font-size:14px;margin-bottom:4px;color:var(--text,#1f2b23)}
+.gn-empty small{display:block;font-size:12px;line-height:1.5;margin-bottom:12px}
+.gn-empty button{border:none;border-radius:10px;padding:9px 18px;font-size:12px;font-weight:700;font-family:inherit;color:#fff;background:linear-gradient(135deg,#1a472a,#40916c);cursor:pointer}
+.gn-foot{font-size:10px;color:#9ca3af;text-align:center;line-height:1.5;padding:4px 10px 12px}
+html.renco-dark .gn-seg{background:#1a261f}
+html.renco-dark .gn-seg button{color:#9fb3a6}
+html.renco-dark .gn-seg button.on{background:#26382d;color:#f5d77e}
+html.renco-dark .gn-chip,html.renco-dark .gn-bar button{background:#1a261f;border-color:rgba(255,255,255,.1);color:#c4dccb}
+html.renco-dark .gn-chip.on{color:#fff}
+html.renco-dark .gn-card{background:#1a261f;border-color:rgba(255,255,255,.08)}
+html.renco-dark .gn-ttl{color:#eef7f0}
+html.renco-dark .gn-src{color:#86e3ab}
+html.renco-dark .gn-sk{background:linear-gradient(90deg,#1a261f 25%,#22332a 50%,#1a261f 75%);background-size:200% 100%}
+</style>
+<script>
+/* ═══ BERITA OTOMATIS — Google News RSS edisi Indonesia (hl=id, gl=ID, ceid=ID:id) ═══
+   Google News tidak mengizinkan akses langsung dari browser (CORS), jadi RSS diambil lewat
+   layanan perantara dengan cadangan berlapis: rss2json → allorigins → corsproxy.
+   Hasil disimpan 10 menit di perangkat (localStorage) agar cepat & hemat kuota; bila semua
+   perantara gagal, berita tersimpan terakhir tetap ditampilkan.
+   Tab Berita punya 2 tampilan: "Google News" (otomatis) dan "Pilihan Admin" (posting manual lama). */
+(function(){
+  'use strict';
+  var BASE = 'https://news.google.com';
+  var LOC  = 'hl=id&gl=ID&ceid=ID:id';
+  var TTL  = 10 * 60 * 1000;
+  var MAX  = 30;
+
+  var CATS = [
+    { k:'terkini',   n:'🔥 Berita Terkini',    u:'/rss' },
+    { k:'ekonomi',   n:'📈 Ekonomi & Bisnis',  u:'/rss/headlines/section/topic/BUSINESS' },
+    { k:'keuangan',  n:'💳 Keuangan',          q:'keuangan OR perbankan OR OJK OR "Bank Indonesia"' },
+    { k:'umkm',      n:'🤝 UMKM & Koperasi',   q:'UMKM OR koperasi OR "usaha mikro"' },
+    { k:'investasi', n:'💰 Investasi & Saham', q:'IHSG OR saham OR investasi OR reksadana' },
+    { k:'syariah',   n:'🕌 Ekonomi Syariah',   q:'"ekonomi syariah" OR "keuangan syariah" OR "bank syariah"' },
+    { k:'teknologi', n:'💻 Teknologi',         u:'/rss/headlines/section/topic/TECHNOLOGY' },
+    { k:'nasional',  n:'🇮🇩 Nasional',          u:'/rss/headlines/section/topic/NATION' },
+    { k:'kesehatan', n:'🩺 Kesehatan',         u:'/rss/headlines/section/topic/HEALTH' },
+    { k:'olahraga',  n:'⚽ Olahraga',          u:'/rss/headlines/section/topic/SPORTS' },
+    { k:'hiburan',   n:'🎬 Hiburan',           u:'/rss/headlines/section/topic/ENTERTAINMENT' }
+  ];
+
+  var _view = lsGet('rc_gn_view') === 'admin' ? 'admin' : 'google';
+  var _cat  = lsGet('rc_gn_cat') || 'terkini';
+  if (!CATS.some(function(c){ return c.k === _cat; })) _cat = 'terkini';
+  var _tok = 0, _busy = false;
+
+  function $(id){ return document.getElementById(id); }
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function decode(s){ var t = document.createElement('textarea'); t.innerHTML = String(s == null ? '' : s); return t.value; }
+  function curCat(){ for (var i = 0; i < CATS.length; i++) if (CATS[i].k === _cat) return CATS[i]; return CATS[0]; }
+
+  function feedUrl(c){
+    var path = c.u ? c.u : '/rss/search?q=' + encodeURIComponent(c.q + ' when:7d');
+    return BASE + path + (path.indexOf('?') > -1 ? '&' : '?') + LOC;
+  }
+
+  /* ── Pengambilan data ── */
+  function tmo(url, ms){
+    var ac = window.AbortController ? new AbortController() : null;
+    var t = setTimeout(function(){ if (ac) ac.abort(); }, ms);
+    return fetch(url, ac ? { signal: ac.signal } : {}).then(function(r){ clearTimeout(t); return r; }, function(e){ clearTimeout(t); throw e; });
+  }
+  function parseXml(txt){
+    var doc = new DOMParser().parseFromString(txt, 'text/xml');
+    if (doc.querySelector('parsererror')) throw new Error('xml');
+    var out = [];
+    Array.prototype.forEach.call(doc.querySelectorAll('item'), function(it){
+      var g = function(n){ var e = it.querySelector(n); return e ? e.textContent : ''; };
+      var d = Date.parse(g('pubDate'));
+      out.push({ t: g('title'), l: g('link'), d: isNaN(d) ? 0 : d, s: g('source') });
+    });
+    if (!out.length) throw new Error('kosong');
+    return out;
+  }
+  var PROXIES = [
+    function(u){
+      return tmo('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(u), 9000)
+        .then(function(r){ if (!r.ok) throw new Error('http'); return r.json(); })
+        .then(function(j){
+          if (!j || j.status !== 'ok' || !j.items || !j.items.length) throw new Error('kosong');
+          return j.items.map(function(it){
+            var d = Date.parse(String(it.pubDate || '').replace(' ', 'T') + 'Z');
+            return { t: it.title, l: it.link, d: isNaN(d) ? 0 : d, s: '' };
+          });
+        });
+    },
+    function(u){
+      return tmo('https://api.allorigins.win/raw?url=' + encodeURIComponent(u), 9000)
+        .then(function(r){ if (!r.ok) throw new Error('http'); return r.text(); }).then(parseXml);
+    },
+    function(u){
+      return tmo('https://corsproxy.io/?' + encodeURIComponent(u), 9000)
+        .then(function(r){ if (!r.ok) throw new Error('http'); return r.text(); }).then(parseXml);
+    }
+  ];
+  function normalize(raw){
+    var seen = {}, out = [];
+    raw.forEach(function(r){
+      var t = decode(r.t).trim(), s = decode(r.s).trim(), l = String(r.l || '').trim();
+      if (!t || !/^https?:\/\//i.test(l)) return;
+      var i = t.lastIndexOf(' - ');
+      if (i > 8) { var tail = t.slice(i + 3).trim(); if (!s) s = tail; if (tail === s) t = t.slice(0, i).trim(); }
+      var key = t.toLowerCase();
+      if (seen[key]) return; seen[key] = 1;
+      out.push({ t: t, s: s, l: l, d: r.d || 0 });
+    });
+    out.sort(function(a, b){ return b.d - a.d; });
+    return out.slice(0, MAX);
+  }
+  function fetchFeed(c){
+    var u = feedUrl(c), i = 0;
+    return new Promise(function(res, rej){
+      (function next(){
+        if (i >= PROXIES.length) { rej(new Error('semua gagal')); return; }
+        PROXIES[i++](u).then(function(raw){
+          var items = normalize(raw);
+          if (!items.length) throw new Error('kosong');
+          res(items);
+        }).catch(next);
+      })();
+    });
+  }
+
+  /* ── Cache ── */
+  function readCache(k){
+    try { var o = JSON.parse(lsGet('rc_gn_v1_' + k)); if (o && o.items && o.items.length) return o; } catch(e){}
+    return null;
+  }
+  function writeCache(k, items){ lsSet('rc_gn_v1_' + k, JSON.stringify({ t: Date.now(), items: items })); }
+
+  /* ── Tampilan ── */
+  function ago(ms){
+    if (!ms) return '';
+    var s = (Date.now() - ms) / 1000;
+    if (s < 60) return 'baru saja';
+    if (s < 3600) return Math.floor(s / 60) + ' menit lalu';
+    if (s < 86400) return Math.floor(s / 3600) + ' jam lalu';
+    if (s < 604800) return Math.floor(s / 86400) + ' hari lalu';
+    return new Date(ms).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function ensureUi(){
+    var sec = $('forumSeksiBerita'); if (!sec) return null;
+    var w = $('gnWrap'); if (w) return w;
+    w = document.createElement('div'); w.id = 'gnWrap'; w.className = 'gn-wrap';
+    w.innerHTML =
+      '<div class="gn-seg"><button type="button" data-v="google">📡 Google News</button><button type="button" data-v="admin">📌 Pilihan Admin</button></div>' +
+      '<div id="gnPane">' +
+        '<div class="gn-chips" id="gnChips"></div>' +
+        '<div class="gn-bar"><span id="gnInfo"></span><button type="button" id="gnRefresh">↻ Segarkan</button></div>' +
+        '<div id="gnList"></div>' +
+        '<div class="gn-foot">Sumber: Google News Indonesia. Hak cipta berita milik penerbit masing-masing.</div>' +
+      '</div>';
+    sec.insertBefore(w, sec.firstChild);
+    w.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.hasAttribute('data-v')) { setView(b.getAttribute('data-v')); }
+      else if (b.hasAttribute('data-k')) { setCat(b.getAttribute('data-k')); }
+      else if (b.id === 'gnRefresh' || b.id === 'gnRetry') { load(true); }
+    });
+    return w;
+  }
+  function renderChips(){
+    var el = $('gnChips'); if (!el) return;
+    el.innerHTML = CATS.map(function(c){
+      return '<button type="button" class="gn-chip' + (c.k === _cat ? ' on' : '') + '" data-k="' + c.k + '">' + esc(c.n) + '</button>';
+    }).join('');
+    var on = el.querySelector('.on');
+    if (on && on.scrollIntoView) { try { el.scrollLeft = Math.max(0, on.offsetLeft - 16); } catch(e){} }
+  }
+  function setInfo(t, busy){
+    var i = $('gnInfo'); if (i) i.textContent = t || '';
+    var b = $('gnRefresh'); if (b) b.disabled = !!busy;
+  }
+  function skeleton(){
+    var l = $('gnList'); if (l) l.innerHTML = '<div class="gn-sk"></div><div class="gn-sk"></div><div class="gn-sk"></div><div class="gn-sk"></div>';
+  }
+  function renderItems(items, t, note){
+    var l = $('gnList'); if (!l) return;
+    l.innerHTML = items.map(function(n){
+      return '<a class="gn-card" href="' + esc(n.l) + '" target="_blank" rel="noopener noreferrer">' +
+        (n.s ? '<div class="gn-src">📡 ' + esc(n.s) + '</div>' : '') +
+        '<div class="gn-ttl">' + esc(n.t) + '</div>' +
+        '<div class="gn-meta"><span>' + esc(ago(n.d)) + '</span><b>Baca →</b></div></a>';
+    }).join('');
+    setInfo((note ? note + ' · ' : '') + 'Diperbarui ' + ago(t), false);
+  }
+  function renderError(){
+    var l = $('gnList'); if (!l) return;
+    l.innerHTML = '<div class="gn-empty"><div class="e">📡</div><b>Berita belum bisa dimuat</b>' +
+      '<small>Periksa koneksi internet, lalu coba lagi. Layanan perantara Google News kadang sedang sibuk.</small>' +
+      '<button type="button" id="gnRetry">Coba lagi</button></div>';
+    setInfo('', false);
+  }
+
+  function load(force){
+    if (_view !== 'google' || !$('gnList')) return;
+    var c = curCat(), k = c.k, cached = readCache(k);
+    if (cached) renderItems(cached.items, cached.t, '');
+    if (cached && !force && Date.now() - cached.t < TTL) return;
+    if (!cached) skeleton();
+    var tok = ++_tok; setInfo('Memuat…', true);
+    fetchFeed(c).then(function(items){
+      writeCache(k, items);
+      if (tok !== _tok || _view !== 'google') return;
+      renderItems(items, Date.now(), '');
+    }).catch(function(){
+      if (tok !== _tok || _view !== 'google') return;
+      if (cached) renderItems(cached.items, cached.t, 'Offline, menampilkan berita tersimpan');
+      else renderError();
+    });
+  }
+
+  function setCat(k){
+    if (k === _cat) { load(false); return; }
+    _cat = k; lsSet('rc_gn_cat', k); _tok++;
+    renderChips(); load(false);
+  }
+  function setView(v){
+    _view = v === 'admin' ? 'admin' : 'google'; lsSet('rc_gn_view', _view);
+    window.renderBerita();
+  }
+
+  function applyView(){
+    var w = ensureUi(); if (!w) return;
+    Array.prototype.forEach.call(w.querySelectorAll('.gn-seg button'), function(b){
+      b.classList.toggle('on', b.getAttribute('data-v') === _view);
+    });
+    var pane = $('gnPane'), list = $('beritaList'), bar = $('beritaAdminBar');
+    if (_view === 'google') {
+      if (pane) pane.style.display = '';
+      if (list) list.style.display = 'none';
+      if (bar) bar.style.display = 'none';
+      renderChips(); load(false);
+    } else {
+      if (pane) pane.style.display = 'none';
+      if (list) list.style.display = '';
+      _tok++;
+    }
+  }
+
+  /* ── Pasang ke renderBerita (dipanggil saat tab Berita dibuka & setelah posting/hapus) ── */
+  var _rb = window.renderBerita;
+  window.renderBerita = function(){
+    var r;
+    try { if (typeof _rb === 'function') r = _rb.apply(this, arguments); } catch(e){ console.error(e); }
+    try { applyView(); } catch(e){ console.error(e); }
+    return r;
+  };
+  window.gnRefresh = function(){ load(true); };
+
+  /* segarkan otomatis tiap 10 menit selama tab Berita terbuka */
+  setInterval(function(){
+    var l = $('gnList');
+    if (_view === 'google' && l && l.offsetParent !== null && !document.hidden) load(true);
+  }, TTL);
+})();
+</script>
 </body></html>
