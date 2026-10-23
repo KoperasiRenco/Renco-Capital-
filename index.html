@@ -8080,7 +8080,7 @@ function _renderNasabahDashboard(kkId) {
             '<span style="opacity:0.4">\u00b7</span>' +
             '<span>' + _hbDate + '</span>' +
             '<span style="flex-basis:100%;height:0"></span>' +
-            '<span style="background:' + (mySukarela<0 ? 'rgba(230,57,70,0.2)' : 'rgba(244,169,34,0.2)') + ';color:' + (mySukarela<0 ? '#e63946' : '#ffd166') + ';padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">' + (mySukarela<0 ? '⚠️ Utang: ' + fmtFn(Math.abs(mySukarela)) : 'Sukarela: ' + fmtFn(mySukarela)) + '</span>' +
+            '<span class="hb-mask" style="background:' + (mySukarela<0 ? 'rgba(230,57,70,0.2)' : 'rgba(244,169,34,0.2)') + ';color:' + (mySukarela<0 ? '#e63946' : '#ffd166') + ';padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">' + (mySukarela<0 ? '⚠️ Utang: ' + fmtFn(Math.abs(mySukarela)) : 'Sukarela: ' + fmtFn(mySukarela)) + '</span>' +
           '</div>' +
         '</div>' +
       '</div>' + _hbExtraHTML;
