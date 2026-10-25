@@ -74919,7 +74919,7 @@ window.cuSmSimpan=function(){
 <!-- ═══ ASISTEN KEUANGAN RENCO (berbasis aturan) ═══ -->
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
-   ASISTEN KEUANGAN RENCO — berbasis aturan (tanpa server, tanpa API key)
+   ASISTEN KEUANGAN RENCO — berbasis aturan + belajar mandiri di perangkat (tanpa server, tanpa API key)
    Semua jawaban dihitung di perangkat dari data akun yang sedang login.
    Anggota hanya bisa membaca data miliknya sendiri (AUTH.user.nasabahId).
    ═══════════════════════════════════════════════════════════════════════ */
@@ -75072,30 +75072,42 @@ function parseTujuan(t){
   return m ? m[1].trim() : '';
 }
 
-/* ───────────── jawaban ───────────── */
-var CHIPS_UTAMA = ['Saldo saya', 'Pinjaman saya', 'Cek pengingat', 'Saran menabung', 'Tips berhemat', 'Cara tarik tunai'];
-var DISCLAIMER = 'Saran ini bersifat umum, bukan nasihat keuangan profesional.';
+/* ───────────── jawaban (santai tapi tetap sopan) ───────────── */
+var CHIPS_UTAMA = ['Saldo saya', 'Pinjaman saya', 'Cek pengingat', 'Saran menabung', 'Tips berhemat', 'Tentang Koperasi Renco', 'Wawasan hari ini', 'Peta aplikasi', 'Cara tarik tunai'];
+var PILIHAN_MAKSUD = ['Saldo saya', 'Pinjaman saya', 'Iuran saya', 'Cek pengingat', 'Saran menabung', 'Tips berhemat', 'Tentang Koperasi Renco', 'Cara tarik tunai'];
+var DISCLAIMER = 'Saran ini sifatnya umum ya, bukan nasihat keuangan profesional.';
+var TOPIC_MAP = {
+  'Saldo saya': 'saldo', 'Pinjaman saya': 'pinjaman', 'Iuran saya': 'iuran', 'Cek pengingat': 'pengingat', 'Saran menabung': 'nabung', 'Tips berhemat': 'hemat',
+  'Tentang Koperasi Renco': 'k:koperasi', 'Wawasan hari ini': 'wawasan', 'Wawasan lagi': 'wawasan', 'Cara tarik tunai': 'g:tarik', 'Cara ajukan pinjaman': 'g:pinjam',
+  'Cara bayar iuran': 'g:iuran', 'Cara setor simpanan': 'g:setor', 'Cara transfer ke anggota': 'g:transfer', 'Cara top up RencoPay': 'g:topup',
+  'Kenapa sukarela saya minus?': 'g:sukarelaMinus', 'Apa itu SHU?': 'k:shu', 'Prinsip koperasi': 'k:prinsip', 'Apa itu RencoPay?': 'k:rencopay',
+  'Qardh vs Murabahah': 'k:syariah', 'Tentang Arisan': 'k:arisan', 'Kalkulator': 'k:kalkulator', 'Bahaya penipuan': 'k:penipuan', 'Riwayat belajar': 'belajar', 'Peta aplikasi': 'f:peta'
+};
+var TOPIC_ID = {}; Object.keys(TOPIC_MAP).forEach(function(k){ if (!TOPIC_ID[TOPIC_MAP[k]]) TOPIC_ID[TOPIC_MAP[k]] = k; });
+function labelOf(id){ return TOPIC_ID[id] || String(id).replace(/^[gk]:/, ''); }
+function panggil(){ var n = firstName(); return n ? 'Kak ' + n : 'Kak'; }
+function n0(v, d){ v = Number(v); return isFinite(v) && v >= 0 ? v : d; }
 
 function perluAkunAnggota(){
-  return { text: 'Data pribadi hanya tersedia untuk akun **anggota**. Akun Anda tidak terhubung ke data simpanan/pinjaman anggota, tetapi saya tetap bisa membantu soal **panduan aplikasi**, **tips berhemat**, dan **hitung saran menabung**.', chips: ['Cara tarik tunai', 'Tips berhemat', 'Saran menabung'] };
+  return { text: 'Data pribadi cuma bisa dicek lewat akun **anggota** ya, Kak. Akun ini belum nyambung ke data simpanan/pinjaman anggota. Tapi tenang, aku tetap bisa bantu soal **info koperasi**, **panduan aplikasi**, **tips berhemat**, dan **hitung rencana nabung**.', chips: ['Tentang Koperasi Renco', 'Cara tarik tunai', 'Tips berhemat', 'Saran menabung'] };
 }
-function belumLogin(){ return { text: 'Silakan login dulu supaya saya bisa membantu.', chips: [] }; }
+function belumLogin(){ return { text: 'Login dulu yuk, Kak, biar aku bisa bantu 🙏', chips: [] }; }
 
 function jawabSaldo(){
   var id = kkId(); if (!id) return perluAkunAnggota();
   var s = simpananInfo(id), L = [];
-  L.push('**Ringkasan simpanan Anda**');
+  L.push('**Ringkasan simpanan kamu** 💰');
   L.push('• Total simpanan: **' + rp(s.total) + '**');
   L.push('• Pokok: ' + rp(s.pokok) + ' · Wajib: ' + rp(s.wajib));
-  if (s.sukarela < 0) L.push('• Sukarela: **utang ' + rp(Math.abs(s.sukarela)) + '** (biaya admin yang melebihi saldo sukarela)');
-  else L.push('• Sukarela: ' + rp(s.sukarela) + (s.pending > 0 ? ' (' + rp(s.pending) + ' sedang diajukan untuk ditarik)' : ''));
+  if (s.sukarela < 0) L.push('• Sukarela: **utang ' + rp(Math.abs(s.sukarela)) + '** (biaya admin yang lebih besar dari saldo sukarela)');
+  else L.push('• Sukarela: ' + rp(s.sukarela) + (s.pending > 0 ? ' (' + rp(s.pending) + ' lagi diajukan buat ditarik)' : ''));
   if (s.berjangka > 0) L.push('• Tabungan berjangka aktif: ' + rp(s.berjangka));
   if (s.sisaPinjaman > 0) L.push('• Sisa pinjaman aktif: ' + rp(s.sisaPinjaman));
   var bersih = s.total + s.berjangka - s.sisaPinjaman;
   L.push('• Posisi bersih: **' + rp(bersih) + '**');
   L.push('');
-  L.push('Hanya simpanan **sukarela** yang bisa ditarik. Pokok dan wajib tidak dapat ditarik.');
-  if (hidden()) L.push('_Mode sembunyikan saldo sedang aktif, jadi nominal disamarkan. Ketuk ikon mata di Beranda untuk menampilkannya._');
+  L.push('Info singkat: yang bisa ditarik cuma simpanan **sukarela** ya. Pokok & wajib tidak bisa ditarik.');
+  if (hidden()) L.push('_Mode sembunyikan saldo lagi aktif, jadi angkanya disamarkan. Ketuk ikon mata di Beranda buat menampilkannya._');
   var chips = ['Cek pengingat', 'Cara tarik tunai'];
   if (s.sukarela < 0) chips.unshift('Kenapa sukarela saya minus?');
   var komp = s.pokok + s.wajib + Math.max(0, s.sukarela), viz = [];
@@ -75111,10 +75123,10 @@ function jawabPinjaman(){
   var id = kkId(); if (!id) return perluAkunAnggota();
   var info = pinjamanInfo(id), L = [], today = startOfToday();
   if (!info.aktif.length && !info.pengajuan.length) {
-    L.push('Anda **tidak memiliki pinjaman aktif** saat ini.' + (info.lunas ? ' Sebelumnya ' + info.lunas + ' pinjaman sudah lunas. Alhamdulillah!' : ''));
+    L.push('Kamu **nggak punya pinjaman aktif** sekarang.' + (info.lunas ? ' Sebelumnya ' + info.lunas + ' pinjaman sudah lunas. Keren, Alhamdulillah! 🎉' : ''));
     L.push('');
-    L.push('Ingin mengajukan? Tanyakan **"cara ajukan pinjaman"** untuk syarat dan aturannya.');
-    return { text: L.join('\n'), chips: ['Cara ajukan pinjaman', 'Saldo saya'] };
+    L.push('Mau ajukan? Tanya aja **"cara ajukan pinjaman"** buat lihat syarat dan aturannya.');
+    return { text: L.join('\n'), chips: ['Cara ajukan pinjaman', 'Qardh vs Murabahah', 'Saldo saya'] };
   }
   info.aktif.forEach(function(r, i){
     var p = r.p, akad = String(p.akad || '').replace(/^./, function(c){ return c.toUpperCase(); }) || 'Pinjaman';
@@ -75130,12 +75142,12 @@ function jawabPinjaman(){
   });
   if (info.pengajuan.length) {
     L.push('');
-    info.pengajuan.forEach(function(r){ L.push('• Pengajuan ' + rp(r.p.jumlah) + ' (' + (r.p.akad || '-') + ', ' + r.tenor + ' bln) berstatus **' + r.p.status + '**, menunggu proses admin.'); });
+    info.pengajuan.forEach(function(r){ L.push('• Pengajuan ' + rp(r.p.jumlah) + ' (' + (r.p.akad || '-') + ', ' + r.tenor + ' bln) statusnya **' + r.p.status + '**, lagi nunggu diproses admin.'); });
   }
   if (info.aktif.some(function(r){ return r.p.status === 'menunggak'; })) {
-    L.push(''); L.push('⚠️ Ada pinjaman yang menunggak. Segera lakukan pembayaran atau hubungi pengurus agar tidak berlarut.');
+    L.push(''); L.push('⚠️ Ada pinjaman yang menunggak nih. Yuk segera dibayar atau ngobrol sama pengurus biar nggak berlarut ya.');
   }
-  L.push(''); L.push('_Tanggal cicilan dan pelunasan adalah perkiraan dari tanggal pencairan. Angka resmi ada di menu Keuangan → Pinjaman._');
+  L.push(''); L.push('_Tanggal cicilan dan pelunasan itu perkiraan dari tanggal pencairan. Angka resminya ada di menu Keuangan → Pinjaman._');
   var viz = info.aktif.filter(function(r){ return r.tenor > 0; }).map(function(r){
     return { label: 'Cicilan terbayar · ' + (r.p.akad || 'pinjaman'), value: r.dibayar / r.tenor * 100, text: r.dibayar + '/' + r.tenor, tone: r.p.status === 'menunggak' ? 'bad' : '' };
   });
@@ -75145,17 +75157,17 @@ function jawabPinjaman(){
 function jawabIuran(){
   var id = kkId(); if (!id) return perluAkunAnggota();
   var r = iuranInfo(id), L = [];
-  if (!r) return { text: 'Data keanggotaan Anda belum ditemukan. Hubungi pengurus.', chips: [] };
-  if (r.nonaktif) return { text: 'Status keanggotaan Anda **Tidak Aktif**, jadi tidak ada kewajiban iuran baru.', chips: ['Saldo saya'] };
+  if (!r) return { text: 'Data keanggotaanmu belum ketemu nih. Coba hubungi pengurus ya.', chips: [] };
+  if (r.nonaktif) return { text: 'Status keanggotaanmu **Tidak Aktif**, jadi nggak ada kewajiban iuran baru. Mau tahu kenapa bisa nonaktif?', chips: ['Saldo saya', 'Kenapa akun jadi nonaktif?'] };
   L.push('**Iuran simpanan wajib** (' + rp(r.jumlah) + ' per bulan, jatuh tempo tanggal ' + r.hari + ')');
-  if (!r.belum.length && !r.pending) L.push('✅ Semua iuran Anda sampai bulan ini sudah lunas. Barakallahu fiik!');
+  if (!r.belum.length && !r.pending) L.push('✅ Semua iuranmu sampai bulan ini sudah lunas. Barakallahu fiik, mantap! 🙌');
   else {
     if (r.belum.length) {
       L.push('• Belum dibayar: **' + r.belum.length + ' bulan** (total ' + rp(r.belum.length * r.jumlah) + ')');
       r.belum.slice(0, 6).forEach(function(b){ L.push('   – ' + b.label + (b.lewat ? ' (lewat jatuh tempo)' : ' (jatuh tempo ' + tglId(b.jt) + ')')); });
       if (r.belum.length > 6) L.push('   – dan ' + (r.belum.length - 6) + ' bulan lainnya');
     }
-    if (r.pending) L.push('• Menunggu persetujuan admin: ' + r.pending + ' bulan');
+    if (r.pending) L.push('• Nunggu persetujuan admin: ' + r.pending + ' bulan');
   }
   return { text: L.join('\n'), chips: ['Cek pengingat', 'Cara bayar iuran'], actions: r.belum.length ? [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] : [] };
 }
@@ -75169,16 +75181,16 @@ function kumpulPengingat(){
     out.push({ lv: lewat ? 3 : 2, t: (lewat ? '⚠️ ' : '🔔 ') + 'Iuran wajib belum dibayar: **' + ii.belum.length + ' bulan** (' + rp(ii.belum.length * ii.jumlah) + ')' + (lewat ? ', ' + lewat + ' bulan sudah lewat jatuh tempo.' : '.') });
   }
   pj.aktif.forEach(function(r){
-    if (r.p.status === 'menunggak') out.push({ lv: 3, t: '⚠️ Pinjaman ' + rp(r.p.jumlah) + ' **menunggak**. Segera bayar cicilan ' + rp(r.perBulan) + '.' });
+    if (r.p.status === 'menunggak') out.push({ lv: 3, t: '⚠️ Pinjaman ' + rp(r.p.jumlah) + ' **menunggak**. Yuk segera bayar cicilan ' + rp(r.perBulan) + '.' });
     else if (r.berikut) {
       var sel = daysBetween(today, r.berikut);
       if (sel <= 7) out.push({ lv: sel < 0 ? 3 : 2, t: '🔔 Cicilan ' + rp(r.perBulan) + ' ' + (sel < 0 ? 'sudah lewat ' + Math.abs(sel) + ' hari' : (sel === 0 ? 'jatuh tempo **hari ini**' : 'jatuh tempo **' + sel + ' hari lagi**')) + ' (perkiraan ' + tglId(r.berikut) + ').' });
     }
   });
-  if (s.sukarela < 0) out.push({ lv: 3, t: '⚠️ Saldo sukarela **minus ' + rp(Math.abs(s.sukarela)) + '** (utang biaya admin). Setor sukarela untuk menutupnya.' });
+  if (s.sukarela < 0) out.push({ lv: 3, t: '⚠️ Saldo sukarela **minus ' + rp(Math.abs(s.sukarela)) + '** (utang biaya admin). Setor sukarela buat menutupnya ya.' });
   var np = (d.pendingTransaksi || []).filter(function(p){ return p.kkId === id && p.status === 'pending'; }).length;
-  if (np) out.push({ lv: 1, t: 'ℹ️ ' + np + ' pengajuan Anda masih **menunggu persetujuan admin**.' });
-  if (pj.pengajuan.length) out.push({ lv: 1, t: 'ℹ️ ' + pj.pengajuan.length + ' pengajuan pinjaman sedang diproses.' });
+  if (np) out.push({ lv: 1, t: 'ℹ️ ' + np + ' pengajuanmu masih **nunggu persetujuan admin**.' });
+  if (pj.pengajuan.length) out.push({ lv: 1, t: 'ℹ️ ' + pj.pengajuan.length + ' pengajuan pinjaman lagi diproses.' });
   out.sort(function(a, b){ return b.lv - a.lv; });
   return out;
 }
@@ -75186,11 +75198,11 @@ function jawabPengingat(){
   var id = kkId(); if (!id) return perluAkunAnggota();
   var p = kumpulPengingat(), L = [];
   if (!p.length) {
-    L.push('✅ **Semua aman, ' + (firstName() || 'Kak') + '!** Tidak ada tunggakan, cicilan dekat jatuh tempo, atau saldo minus.');
-    L.push(''); L.push('Mau saya bantu menyusun target menabung atau tips berhemat?');
-    return { text: L.join('\n'), chips: ['Saran menabung', 'Tips berhemat'] };
+    L.push('✅ **Aman jaya, ' + panggil() + '!** Nggak ada tunggakan, cicilan dekat jatuh tempo, atau saldo minus.');
+    L.push(''); L.push('Mau aku bantu bikin target nabung, atau kasih tips berhemat?');
+    return { text: L.join('\n'), chips: ['Saran menabung', 'Tips berhemat', 'Wawasan hari ini'] };
   }
-  L.push('**Yang perlu Anda perhatikan:**');
+  L.push('**Yang perlu kamu perhatikan:**');
   p.forEach(function(x){ L.push('• ' + x.t); });
   return { text: L.join('\n'), chips: ['Iuran saya', 'Pinjaman saya'] };
 }
@@ -75200,16 +75212,16 @@ function jawabNabung(t, ctx){
   var tujuan = parseTujuan(t);
   if (ctx && ctx.nabung) { if (jumlah == null) jumlah = ctx.nabung.jumlah; if (bulan == null) bulan = ctx.nabung.bulan; if (!tujuan) tujuan = ctx.nabung.tujuan; }
   if (jumlah == null && bulan == null) {
-    return { text: 'Siap! Untuk menghitung saran menabung, beri tahu saya **target dana** dan **jangka waktunya**.\n\nContoh: _"Saya ingin menabung 12 juta untuk umrah dalam 18 bulan"_.\n\nSaya juga bisa menilai apakah target itu realistis berdasarkan data **Catat Uang** Anda.', chips: ['Nabung 10 juta dalam 12 bulan', 'Nabung 5 juta dalam 6 bulan', 'Tips berhemat'], keep: { nabung: { jumlah: null, bulan: null, tujuan: tujuan } } };
+    return { text: 'Gas! Buat ngitung rencana nabung, kasih tahu aku **target dana** dan **jangka waktunya** ya.\n\nContoh: _"Aku mau nabung 12 juta buat umrah dalam 18 bulan"_.\n\nAku juga bisa nilai target itu realistis atau nggak dari data **Catat Uang** kamu.', chips: ['Nabung 10 juta dalam 12 bulan', 'Nabung 5 juta dalam 6 bulan', 'Tips berhemat'], keep: { nabung: { jumlah: null, bulan: null, tujuan: tujuan } } };
   }
-  if (jumlah == null) return { text: 'Berapa **target dana** yang ingin dikumpulkan dalam ' + Math.round(bulan * 10) / 10 + ' bulan' + (tujuan ? ' untuk ' + tujuan : '') + '? (contoh: _10 juta_)', chips: ['5 juta', '10 juta', '25 juta'], keep: { nabung: { jumlah: null, bulan: bulan, tujuan: tujuan } } };
-  if (bulan == null) return { text: 'Target **' + rpRaw(jumlah) + '**' + (tujuan ? ' untuk ' + tujuan : '') + '. Ingin tercapai dalam berapa **bulan** atau tahun? (contoh: _12 bulan_)', chips: ['6 bulan', '12 bulan', '2 tahun'], keep: { nabung: { jumlah: jumlah, bulan: null, tujuan: tujuan } } };
-  if (jumlah < 1000 || bulan <= 0 || bulan > 600) return { text: 'Angka yang dimasukkan tampaknya belum wajar. Coba tulis ulang, contoh: _"nabung 10 juta dalam 12 bulan"_.', chips: [] };
+  if (jumlah == null) return { text: 'Target dananya berapa nih buat ' + Math.round(bulan * 10) / 10 + ' bulan' + (tujuan ? ' untuk ' + tujuan : '') + '? (contoh: _10 juta_)', chips: ['5 juta', '10 juta', '25 juta'], keep: { nabung: { jumlah: null, bulan: bulan, tujuan: tujuan } } };
+  if (bulan == null) return { text: 'Target **' + rpRaw(jumlah) + '**' + (tujuan ? ' untuk ' + tujuan : '') + ' ya. Mau tercapai dalam berapa **bulan** atau tahun? (contoh: _12 bulan_)', chips: ['6 bulan', '12 bulan', '2 tahun'], keep: { nabung: { jumlah: jumlah, bulan: null, tujuan: tujuan } } };
+  if (jumlah < 1000 || bulan <= 0 || bulan > 600) return { text: 'Angkanya kayaknya belum pas deh. Coba tulis ulang, contoh: _"nabung 10 juta dalam 12 bulan"_.', chips: [] };
 
   bulan = Math.max(1, Math.round(bulan));
   var perBulan = Math.ceil(jumlah / bulan / 1000) * 1000;
   var L = [];
-  L.push('**Rencana menabung' + (tujuan ? ' untuk ' + tujuan : '') + '**');
+  L.push('**Rencana nabung' + (tujuan ? ' untuk ' + tujuan : '') + '** 🎯');
   L.push('• Target: **' + rpRaw(jumlah) + '** dalam **' + bulan + ' bulan**');
   L.push('• Setoran per bulan: **' + rpRaw(perBulan) + '**');
   L.push('• Per minggu ± ' + rpRaw(Math.ceil(perBulan / 4.345 / 1000) * 1000) + ' · per hari ± ' + rpRaw(Math.ceil(perBulan / 30 / 500) * 500));
@@ -75222,18 +75234,18 @@ function jawabNabung(t, ctx){
   }
   L.push('');
   if (surplus != null) {
-    L.push('Dari **Catat Uang** Anda, rata-rata sisa uang per bulan (pemasukan dikurangi pengeluaran) sekitar **' + rp(surplus) + '**.');
-    if (surplus <= 0) L.push('• Saat ini pengeluaran Anda sudah menyamai atau melebihi pemasukan. Kurangi pengeluaran dulu agar target ini bisa dijalankan.');
-    else if (perBulan <= surplus) L.push('• ✅ Target ini **realistis**: setoran ' + rpRaw(perBulan) + ' masih di bawah sisa uang bulanan Anda.');
-    else { var lama = Math.ceil(jumlah / surplus); L.push('• ⚠️ Setoran ' + rpRaw(perBulan) + ' **melebihi** sisa uang bulanan Anda. Pertimbangkan jangka waktu **± ' + lama + ' bulan**, atau tambah penghasilan / kurangi pengeluaran.'); }
+    L.push('Dari **Catat Uang** kamu, rata-rata sisa uang per bulan (pemasukan dikurangi pengeluaran) sekitar **' + rp(surplus) + '**.');
+    if (surplus <= 0) L.push('• Sekarang pengeluaranmu sudah sama atau lebih besar dari pemasukan. Rem dulu pengeluaran ya, biar target ini bisa jalan.');
+    else if (perBulan <= surplus) L.push('• ✅ Target ini **realistis**: setoran ' + rpRaw(perBulan) + ' masih di bawah sisa uang bulananmu. Gaskeun!');
+    else { var lama = Math.ceil(jumlah / surplus); L.push('• ⚠️ Setoran ' + rpRaw(perBulan) + ' **lebih besar** dari sisa uang bulananmu. Coba perpanjang jadi **± ' + lama + ' bulan**, atau tambah penghasilan / kurangi pengeluaran.'); }
   } else {
-    L.push('Isi pemasukan dan pengeluaran di **Keuangan → Catat Uang** supaya saya bisa menilai apakah target ini realistis untuk Anda.');
+    L.push('Isi pemasukan dan pengeluaran di **Keuangan → Catat Uang** dulu ya, biar aku bisa nilai target ini realistis buat kamu.');
   }
   L.push('');
-  L.push('**Tips menjalankannya:**');
-  L.push('• Sisihkan **di awal bulan**, bukan dari sisa. Setor ke **simpanan sukarela** agar otomatis tercatat.');
-  L.push('• Jika ini kebutuhan jangka panjang, pertimbangkan **tabungan berjangka** agar tidak mudah terpakai.');
-  L.push('• Pastikan **dana darurat** (3–6× pengeluaran bulanan) tersedia sebelum menaikkan target lain.');
+  L.push('**Tips biar konsisten:**');
+  L.push('• Sisihkan **di awal bulan**, bukan dari sisa. Setor ke **simpanan sukarela** biar otomatis tercatat.');
+  L.push('• Buat kebutuhan jangka panjang, pertimbangkan **tabungan berjangka** biar nggak gampang kepakai.');
+  L.push('• Pastikan **dana darurat** (3–6× pengeluaran bulanan) aman dulu sebelum naikin target lain.');
   L.push(''); L.push('_' + DISCLAIMER + '_');
   var vizN = [];
   if (surplus != null && surplus > 0) vizN.push({ label: 'Setoran dibanding sisa uang bulanan', value: perBulan / surplus * 100, text: pct(perBulan / surplus * 100), tone: perBulan <= surplus ? '' : 'bad' });
@@ -75242,83 +75254,84 @@ function jawabNabung(t, ctx){
 
 function jawabHemat(){
   var L = [], cu = cuList(), now = new Date(), cur = ym(now), st = cuStat(cu, cur), prevKey = bulanLalu(cur, 1), prev = cuStat(cu, prevKey);
-  var id = kkId(), tips = [];
+  var id = kkId(), tips = [], katArr, base;
   if (st.n === 0 && prev.n === 0) {
-    L.push('**Tips berhemat dan mengatur uang**');
-    L.push('Belum ada catatan di **Catat Uang** bulan ini, jadi ini saran umum dulu:');
-    L.push('• Gunakan pola **50/30/20**: 50% kebutuhan, 30% keinginan, 20% tabungan atau pelunasan utang.');
-    L.push('• **Catat setiap pengeluaran** selama 1 bulan. Biasanya kebocoran terlihat dari hal kecil yang rutin (jajan, pulsa, langganan).');
+    L.push('**Tips berhemat & atur uang** 💡');
+    L.push('Belum ada catatan di **Catat Uang** bulan ini, jadi aku kasih tips umum dulu ya:');
+    L.push('• Pakai pola **50/30/20**: 50% kebutuhan, 30% keinginan, 20% tabungan atau lunasin utang.');
+    L.push('• **Catat semua pengeluaran** selama 1 bulan. Biasanya kebocoran kelihatan dari hal kecil yang rutin (jajan, pulsa, langganan).');
     L.push('• Bayar diri sendiri dulu: sisihkan tabungan di **awal bulan**.');
-    L.push('• Hindari utang konsumtif, termasuk paylater. Utamakan pelunasan utang yang ada.');
+    L.push('• Jauhi utang konsumtif, termasuk paylater. Utamakan lunasin utang yang ada.');
     L.push('• Bangun **dana darurat** 3–6× pengeluaran bulanan.');
-    L.push('• Sisihkan sebagian untuk sedekah. Berbagi tidak mengurangi, justru membuat keuangan lebih berkah.');
+    L.push('• Sisihkan sebagian buat sedekah. Berbagi nggak bikin berkurang, malah bikin keuangan lebih berkah.');
   } else {
-    var base = st.n ? st : prev, label = st.n ? 'bulan ini' : 'bulan lalu (' + BLN[+prevKey.slice(5) - 1] + ')';
-    L.push('**Analisis keuangan ' + label + '** (dari Catat Uang)');
+    base = st.n ? st : prev; var label = st.n ? 'bulan ini' : 'bulan lalu (' + BLN[+prevKey.slice(5) - 1] + ')';
+    L.push('**Analisis keuangan ' + label + '** (dari Catat Uang) 📊');
     L.push('• Pemasukan: ' + rp(base.masuk) + ' · Pengeluaran: ' + rp(base.keluar) + (base.tabung ? ' · Ditabung: ' + rp(base.tabung) : ''));
     var sisa = base.masuk - base.keluar - base.tabung;
-    var katArr = Object.keys(base.kat).map(function(k){ return { k: k, v: base.kat[k] }; }).sort(function(a, b){ return b.v - a.v; });
+    katArr = Object.keys(base.kat).map(function(k){ return { k: k, v: base.kat[k] }; }).sort(function(a, b){ return b.v - a.v; });
     if (katArr.length) {
       L.push('• Pengeluaran terbesar: ' + katArr.slice(0, 3).map(function(x){ return x.k + ' ' + rp(x.v) + (base.keluar ? ' (' + pct(x.v / base.keluar * 100) + ')' : ''); }).join(', '));
     }
     L.push('');
-    L.push('**Saran untuk Anda:**');
-    if (base.masuk > 0 && base.keluar > base.masuk) tips.push('⚠️ Pengeluaran **melebihi pemasukan** sebesar ' + rp(base.keluar - base.masuk) + '. Prioritaskan memangkas keinginan non-esensial.');
+    L.push('**Saran buat kamu:**');
+    if (base.masuk > 0 && base.keluar > base.masuk) tips.push('⚠️ Pengeluaran **lebih besar dari pemasukan** sebesar ' + rp(base.keluar - base.masuk) + '. Prioritaskan pangkas keinginan yang non-esensial.');
     if (base.masuk > 0) {
       var rasioTab = (base.tabung / base.masuk) * 100;
-      if (rasioTab < 10) tips.push('Tingkat menabung baru **' + pct(rasioTab) + '** dari pemasukan. Targetkan minimal **10–20%** (± ' + rp(base.masuk * 0.2) + ' per bulan).');
-      else tips.push('✅ Tingkat menabung Anda **' + pct(rasioTab) + '** dari pemasukan. Pertahankan!');
-      tips.push('Pola 50/30/20 dari pemasukan Anda: kebutuhan ' + rp(base.masuk * 0.5) + ', keinginan ' + rp(base.masuk * 0.3) + ', tabungan ' + rp(base.masuk * 0.2) + '.');
+      if (rasioTab < 10) tips.push('Tingkat nabungmu baru **' + pct(rasioTab) + '** dari pemasukan. Targetkan minimal **10–20%** (± ' + rp(base.masuk * 0.2) + ' per bulan).');
+      else tips.push('✅ Tingkat nabungmu **' + pct(rasioTab) + '** dari pemasukan. Keren, pertahankan!');
+      tips.push('Pola 50/30/20 dari pemasukanmu: kebutuhan ' + rp(base.masuk * 0.5) + ', keinginan ' + rp(base.masuk * 0.3) + ', tabungan ' + rp(base.masuk * 0.2) + '.');
     }
-    if (katArr.length && base.keluar > 0 && katArr[0].v / base.keluar > 0.4) tips.push('Kategori **' + katArr[0].k + '** menyedot ' + pct(katArr[0].v / base.keluar * 100) + ' dari pengeluaran. Coba pasang batas bulanan untuk kategori ini.');
+    if (katArr.length && base.keluar > 0 && katArr[0].v / base.keluar > 0.4) tips.push('Kategori **' + katArr[0].k + '** nyedot ' + pct(katArr[0].v / base.keluar * 100) + ' dari pengeluaran. Coba pasang batas bulanan buat kategori ini.');
     if (st.n && prev.n && prev.keluar > 0) {
       var selisih = ((st.keluar - prev.keluar) / prev.keluar) * 100;
-      if (Math.abs(selisih) >= 10) tips.push('Pengeluaran ' + (selisih > 0 ? 'naik **' : 'turun **') + pct(Math.abs(selisih)) + '** dibanding bulan lalu' + (selisih > 0 ? '. Cek kategori mana yang membengkak.' : '. Bagus, teruskan!'));
+      if (Math.abs(selisih) >= 10) tips.push('Pengeluaran ' + (selisih > 0 ? 'naik **' : 'turun **') + pct(Math.abs(selisih)) + '** dibanding bulan lalu' + (selisih > 0 ? '. Cek kategori mana yang membengkak.' : '. Bagus, lanjutkan!'));
     }
     if (base.masuk > 0 && sisa > 0) tips.push('Ada sisa uang ' + rp(sisa) + ' yang belum dialokasikan. Pindahkan sebagian ke **simpanan sukarela** atau tabungan target.');
     tips.forEach(function(x){ L.push('• ' + x); });
   }
   if (id) {
     var s = simpananInfo(id), pj = pinjamanInfo(id);
-    if (pj.aktif.length) L.push('• Anda punya pinjaman aktif. Jika ada sisa dana, **percepat pelunasan** lebih baik daripada menambah utang baru.');
-    if (s.sukarela < 0) L.push('• Tutup dulu saldo sukarela yang minus agar tidak menjadi beban berulang.');
+    if (pj.aktif.length) L.push('• Kamu punya pinjaman aktif. Kalau ada sisa dana, **percepat pelunasan** lebih baik daripada nambah utang baru.');
+    if (s.sukarela < 0) L.push('• Tutup dulu saldo sukarela yang minus biar nggak jadi beban berulang.');
   }
   L.push(''); L.push('_' + DISCLAIMER + '_');
   var vizH = [];
-  if (typeof katArr !== 'undefined' && katArr && base && base.keluar > 0) katArr.slice(0, 4).forEach(function(x, i){ vizH.push({ label: x.k, value: x.v / base.keluar * 100, text: pct(x.v / base.keluar * 100), tone: i === 0 && x.v / base.keluar > 0.4 ? 'warn' : '' }); });
+  if (katArr && base && base.keluar > 0) katArr.slice(0, 4).forEach(function(x, i){ vizH.push({ label: x.k, value: x.v / base.keluar * 100, text: pct(x.v / base.keluar * 100), tone: i === 0 && x.v / base.keluar > 0.4 ? 'warn' : '' }); });
   return { text: L.join('\n'), chips: ['Saran menabung', 'Cek pengingat'], actions: [{ t: 'Buka Catat Uang', go: 'keu:catatuang' }], viz: vizH };
 }
 
-/* ───────────── panduan ───────────── */
+/* ───────────── panduan aplikasi ───────────── */
 function pengaturan(){ var d = getDB() || {}, p = d.pengaturan || {}; return { pokok: p.simpananPokok || 500000, wajib: p.simpananWajib || 100000, hari: p.iuranJatuhTempo || 10 }; }
+function aturanPinjam(){
+  var r = (typeof PINJAM_RULES !== 'undefined') ? PINJAM_RULES : { qardh: { label: 'Qardh', margin: 0, tenors: [1, 2] }, murabahah: { label: 'Murabahah', margin: 12, tenors: [4, 8, 12] } };
+  var fee = typeof PINJAM_ADMIN_FEE !== 'undefined' ? PINJAM_ADMIN_FEE : 10000, plaf = typeof PINJAM_PLAFON_PCT !== 'undefined' ? PINJAM_PLAFON_PCT : 80;
+  return { q: r.qardh || {}, m: r.murabahah || {}, fee: fee, plaf: plaf };
+}
 var GUIDES = [
   { id: 'sukarelaMinus', re: /(kenapa|mengapa).*(sukarela|saldo).*(minus|negatif|utang)|sukarela.*(minus|negatif)|utang biaya admin/,
-    build: function(){ return { text: '**Kenapa saldo sukarela bisa minus?**\nBiaya admin pinjaman (**Rp 10.000**) dipotong otomatis dari simpanan sukarela saat pinjaman dicairkan. Jika saldo sukarela kurang dari itu, selisihnya tercatat sebagai **utang biaya admin** sehingga saldo tampil minus.\n\n**Solusi:** setor simpanan sukarela sebesar nilai minus tersebut.', chips: ['Cara setor simpanan', 'Saldo saya'], actions: [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] }; } },
+    build: function(){ return { text: '**Kenapa saldo sukarela bisa minus?** ❓\nBiaya admin pinjaman (**Rp 10.000**) dipotong otomatis dari simpanan sukarela saat pinjaman cair. Kalau saldo sukarelamu kurang dari itu, selisihnya tercatat sebagai **utang biaya admin**, makanya saldo kelihatan minus.\n\n**Solusinya gampang:** setor simpanan sukarela sebesar nilai minusnya.', chips: ['Cara setor simpanan', 'Saldo saya'], actions: [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] }; } },
   { id: 'tarik', re: /tarik|ambil (uang|simpanan|saldo)|cairkan simpanan|withdraw/,
-    build: function(){ return { text: '**Cara tarik tunai**\n• Penarikan hanya dari **Simpanan Sukarela**. Simpanan Pokok dan Wajib tidak dapat ditarik.\n• Buka **Keuangan → Simpanan**, pilih penarikan sukarela, lalu isi nominal.\n• Pengajuan akan diproses **admin**. Selama menunggu, nominal itu ikut dihitung agar saldo tidak terpakai dua kali.\n• Jumlah penarikan tidak boleh melebihi saldo sukarela yang tersedia.', chips: ['Saldo saya', 'Cara transfer ke anggota'], actions: [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] }; } },
+    build: function(){ return { text: '**Cara tarik tunai** 🏧\n• Penarikan cuma dari **Simpanan Sukarela**. Simpanan Pokok dan Wajib tidak bisa ditarik.\n• Buka **Keuangan → Simpanan**, pilih penarikan sukarela, lalu isi nominalnya.\n• Pengajuan akan diproses **admin**. Selama nunggu, nominal itu ikut dihitung biar saldo nggak kepakai dua kali.\n• Nominal tarik tidak boleh lebih dari saldo sukarela yang tersedia.', chips: ['Saldo saya', 'Cara transfer ke anggota'], actions: [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] }; } },
   { id: 'transfer', re: /transfer|kirim (uang|saldo|dana)/,
-    build: function(){ return { text: '**Cara transfer simpanan sukarela ke sesama anggota**\n• Buka tab **RencoPay**, lalu pilih transfer simpanan sukarela.\n• Pilih anggota tujuan dan isi nominal. Nominal tidak boleh melebihi saldo sukarela Anda.\n• Transfer antar anggota diproses **langsung** tanpa menunggu persetujuan admin.', chips: ['Cara top up RencoPay', 'Saldo saya'], actions: [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }] }; } },
+    build: function(){ return { text: '**Cara transfer simpanan sukarela ke sesama anggota** 🔁\n• Buka tab **RencoPay**, lalu pilih transfer simpanan sukarela.\n• Pilih anggota tujuan dan isi nominal. Nominalnya tidak boleh lebih dari saldo sukarelamu.\n• Transfer antar anggota diproses **langsung** tanpa nunggu persetujuan admin.', chips: ['Cara top up RencoPay', 'Saldo saya'], actions: [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }] }; } },
   { id: 'topup', re: /top ?up|isi (saldo|dompet)/,
-    build: function(){ return { text: '**Cara top up RencoPay**\n• Buka tab **RencoPay**, lalu pilih **Top Up**.\n• Anda bisa mengisi dari **Simpanan Sukarela** atau memakai metode yang tersedia di halaman tersebut.\n• Top up dari sukarela akan mengurangi saldo sukarela dan tercatat di riwayat.', chips: ['Saldo saya'], actions: [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }] }; } },
+    build: function(){ return { text: '**Cara top up RencoPay** 📲\n• Buka tab **RencoPay**, lalu pilih **Top Up**.\n• Kamu bisa isi dari **Simpanan Sukarela** atau pakai metode lain yang tersedia di halaman itu.\n• Top up dari sukarela akan mengurangi saldo sukarela dan tercatat di riwayat.', chips: ['Apa itu RencoPay?', 'Saldo saya'], actions: [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }] }; } },
   { id: 'cicilan', re: /bayar cicilan|cara angsur|angsuran|cicilan/,
-    build: function(){ return { text: '**Cara membayar cicilan**\n• Buka **Keuangan → Pinjaman**, pilih pinjaman aktif Anda, lalu bayar cicilan.\n• Pembayaran dicatat dan akan **diverifikasi admin**.\n• Tanya saya **"pinjaman saya"** untuk melihat jumlah dan perkiraan jatuh tempo cicilan.', chips: ['Pinjaman saya'], actions: [{ t: 'Buka Pinjaman', go: 'keu:pinjaman' }] }; } },
+    build: function(){ return { text: '**Cara bayar cicilan** 💳\n• Buka **Keuangan → Pinjaman**, pilih pinjaman aktifmu, lalu bayar cicilan.\n• Pembayaran dicatat dan akan **diverifikasi admin**.\n• Tanya aku **"pinjaman saya"** buat lihat jumlah dan perkiraan jatuh tempo cicilanmu.', chips: ['Pinjaman saya'], actions: [{ t: 'Buka Pinjaman', go: 'keu:pinjaman' }] }; } },
   { id: 'iuran', re: /bayar iuran|cara.*iuran|iuran.*(berapa|kapan|cara)|simpanan pokok|simpanan wajib.*(berapa|apa)|simpanan wajib/,
-    build: function(){ var p = pengaturan(); return { text: '**Tentang iuran dan simpanan**\n• **Simpanan Pokok**: ' + rpRaw(p.pokok) + ' (sekali, saat bergabung).\n• **Simpanan Wajib**: ' + rpRaw(p.wajib) + ' per bulan, jatuh tempo tanggal **' + p.hari + '**.\n• Bayar lewat **Keuangan → Simpanan**; pembayaran akan diverifikasi admin.\n• Simpanan Pokok dan Wajib tidak dapat ditarik. Gunakan **Sukarela** untuk dana yang fleksibel.', chips: ['Iuran saya', 'Cek pengingat'], actions: [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] }; } },
+    build: function(){ var p = pengaturan(); return { text: '**Soal iuran & simpanan** 🧾\n• **Simpanan Pokok**: ' + rpRaw(p.pokok) + ' (sekali, saat bergabung).\n• **Simpanan Wajib**: ' + rpRaw(p.wajib) + ' per bulan, jatuh tempo tanggal **' + p.hari + '**.\n• Bayar lewat **Keuangan → Simpanan**; pembayarannya diverifikasi admin.\n• Simpanan Pokok dan Wajib tidak bisa ditarik. Pakai **Sukarela** buat dana yang fleksibel.', chips: ['Iuran saya', 'Cek pengingat'], actions: [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] }; } },
   { id: 'pinjam', re: /pinjam|pengajuan|akad|qardh|murabahah|margin|plafon|bunga|biaya admin|tenor|kredit/,
-    build: function(){ var r = (typeof PINJAM_RULES !== 'undefined') ? PINJAM_RULES : { qardh: { label: 'Qardh', margin: 0, tenors: [1, 2] }, murabahah: { label: 'Murabahah', margin: 12, tenors: [4, 8, 12] } };
-      var fee = typeof PINJAM_ADMIN_FEE !== 'undefined' ? PINJAM_ADMIN_FEE : 10000, plaf = typeof PINJAM_PLAFON_PCT !== 'undefined' ? PINJAM_PLAFON_PCT : 80;
-      var q = r.qardh || {}, m = r.murabahah || {};
-      return { text: '**Cara mengajukan pinjaman**\n• Buka **Keuangan → Pinjaman**, isi akad, jumlah, tenor, dan tujuan.\n• **' + (q.label || 'Qardh') + '**: margin ' + (q.margin || 0) + '%, tenor ' + (q.tenors || []).join('/') + ' bulan (plafon dari total tabungan Anda).\n• **' + (m.label || 'Murabahah') + '**: margin ' + (m.margin || 0) + '%, tenor ' + (m.tenors || []).join('/') + ' bulan (plafon dari dana kelola koperasi yang tersedia).\n• Plafon maksimal **' + plaf + '%** dari basisnya.\n• Biaya admin **' + rpRaw(fee) + '**, dipotong otomatis dari simpanan sukarela.\n• Pengajuan anggota berstatus **pengajuan** sampai disetujui admin.\n• Anggota berstatus blacklist tidak dapat mengajukan.', chips: ['Pinjaman saya', 'Saran menabung'], actions: [{ t: 'Buka Pinjaman', go: 'keu:pinjaman' }] }; } },
+    build: function(){ var a = aturanPinjam(), q = a.q, m = a.m;
+      return { text: '**Cara mengajukan pinjaman** 📝\n• Buka **Keuangan → Pinjaman**, isi akad, jumlah, tenor, dan tujuan.\n• **' + (q.label || 'Qardh') + '**: margin ' + (q.margin || 0) + '%, tenor ' + (q.tenors || []).join('/') + ' bulan (plafon dari total tabunganmu).\n• **' + (m.label || 'Murabahah') + '**: margin ' + (m.margin || 0) + '%, tenor ' + (m.tenors || []).join('/') + ' bulan (plafon dari dana kelola koperasi yang tersedia).\n• Plafon maksimal **' + a.plaf + '%** dari basisnya.\n• Biaya admin **' + rpRaw(a.fee) + '**, dipotong otomatis dari simpanan sukarela.\n• Pengajuan anggota berstatus **pengajuan** sampai disetujui admin.\n• Anggota berstatus blacklist tidak bisa mengajukan.', chips: ['Qardh vs Murabahah', 'Pinjaman saya', 'Saran menabung'], actions: [{ t: 'Buka Pinjaman', go: 'keu:pinjaman' }] }; } },
   { id: 'setor', re: /setor|menyetor|deposit|tambah simpanan|simpanan sukarela/,
-    build: function(){ return { text: '**Cara setor simpanan**\n• Buka **Keuangan → Simpanan**, pilih jenis (Pokok, Wajib, atau Sukarela), isi nominal, lalu kirim.\n• Setoran akan **diverifikasi admin** sebelum masuk ke saldo.\n• Setoran sukarela bisa dilakukan kapan saja dan bisa ditarik kembali.', chips: ['Cara tarik tunai', 'Saldo saya'], actions: [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] }; } },
+    build: function(){ return { text: '**Cara setor simpanan** ➕\n• Buka **Keuangan → Simpanan**, pilih jenis (Pokok, Wajib, atau Sukarela), isi nominal, lalu kirim.\n• Setoran akan **diverifikasi admin** sebelum masuk ke saldo.\n• Setoran sukarela bisa kapan aja dan bisa ditarik lagi.', chips: ['Cara tarik tunai', 'Saldo saya'], actions: [{ t: 'Buka Simpanan', go: 'keu:simpanan' }] }; } },
   { id: 'catat', re: /catat uang|catatan keuangan|pencatatan/,
-    build: function(){ return { text: '**Catat Uang**\n• Buka **Keuangan → Catat Uang** untuk mencatat pemasukan, pengeluaran, dan target tabungan pribadi.\n• Pakai **Catat Cerdas**: ketik atau ucapkan, misalnya _\"makan siang 25rb\"_ atau _\"gaji 3jt\"_, dan jenis, kategori, serta tanggal terisi otomatis.\n• Catatan ini **tersimpan di perangkat ini** untuk akun Anda, bukan di server koperasi.\n• Saya memakai catatan ini untuk menilai **tips berhemat** dan **saran menabung** yang lebih tepat.', chips: ['Tips berhemat', 'Saran menabung'], actions: [{ t: 'Buka Catat Uang', go: 'keu:catatuang' }] }; } },
+    build: function(){ return { text: '**Catat Uang** 📒\n• Buka **Keuangan → Catat Uang** buat nyatat pemasukan, pengeluaran, dan target tabungan pribadi.\n• Pakai **Catat Cerdas**: ketik atau ucapkan, misalnya _"makan siang 25rb"_ atau _"gaji 3jt"_, dan jenis, kategori, serta tanggal terisi otomatis.\n• Catatan ini **tersimpan di perangkat ini** untuk akunmu, bukan di server koperasi.\n• Aku pakai catatan ini buat ngasih **tips berhemat** dan **saran menabung** yang lebih pas.', chips: ['Tips berhemat', 'Saran menabung'], actions: [{ t: 'Buka Catat Uang', go: 'keu:catatuang' }] }; } },
   { id: 'berjangka', re: /berjangka|deposito/,
-    build: function(){ return { text: '**Tabungan berjangka**\nSimpanan dengan jangka waktu tertentu agar dana tidak mudah terpakai. Lihat dan kelola di **Keuangan → Tabungan Berjangka** jika menu tersebut tersedia untuk akun Anda. Total tabungan berjangka aktif ikut dihitung dalam **posisi bersih** di Beranda.', chips: ['Saldo saya'] }; } },
-  { id: 'shu', re: /\bshu\b|sisa hasil usaha|bagi hasil/,
-    build: function(){ return { text: '**SHU (Sisa Hasil Usaha)**\nSHU adalah bagian keuntungan koperasi yang dibagikan kepada anggota sesuai kebijakan dan persentase yang ditetapkan. Lihat rinciannya di **Keuangan → SHU**.', chips: ['Saldo saya'], actions: [{ t: 'Buka SHU', go: 'keu:shu' }] }; } },
+    build: function(){ return { text: '**Tabungan berjangka** ⏳\nSimpanan dengan jangka waktu tertentu biar dana nggak gampang kepakai. Lihat dan kelola di **Keuangan → Tabungan Berjangka** kalau menunya tersedia di akunmu. Total tabungan berjangka aktif ikut dihitung di **posisi bersih** di Beranda.', chips: ['Saldo saya', 'Saran menabung'] }; } },
   { id: 'akun', re: /password|sandi|lupa|login|biometrik|sidik jari|\bpin\b|profil/,
-    build: function(){ return { text: '**Akun dan keamanan**\n• Buka **Profil** (ikon akun di bagian atas) untuk melihat data akun dan mengganti password.\n• Gunakan password yang **unik** dan jangan dibagikan ke siapa pun, termasuk pengurus.\n• Jika lupa password, hubungi admin untuk direset.\n• RencoPay dapat dilindungi dengan **PIN atau biometrik**.', chips: ['Saldo saya'], actions: [{ t: 'Buka Profil', go: 'fn:showProfile' }] }; } }
+    build: function(){ return { text: '**Akun & keamanan** 🔐\n• Buka **Profil** (ikon akun di bagian atas) buat lihat data akun dan ganti password.\n• Pakai password yang **unik** dan jangan dibagikan ke siapa pun, termasuk pengurus.\n• Kalau lupa password, hubungi admin buat direset.\n• RencoPay bisa dilindungi pakai **PIN atau biometrik**.', chips: ['Bahaya penipuan', 'Saldo saya'], actions: [{ t: 'Buka Profil', go: 'fn:showProfile' }] }; } }
 ];
 var HOW = /\b(cara|gimana|bagaimana|langkah|panduan|tutorial|syarat|ketentuan|aturan|prosedur|apa itu|apa saja|berapa biaya|biaya)\b/;
 function cariPanduan(t, paksa){
@@ -75326,44 +75339,514 @@ function cariPanduan(t, paksa){
   return null;
 }
 
-/* ───────────── router ───────────── */
-function norm(s){ return String(s || '').toLowerCase().replace(/[“”"']/g, ' ').replace(/[^a-z0-9.,%\/\s?-]/g, ' ').replace(/\s+/g, ' ').trim(); }
-function sc(t, list){ var s = 0; list.forEach(function(x){ if (x[0].test(t)) s += x[1]; }); return s; }
+/* ───────────── peta aplikasi: asisten tahu semua menu & fitur ───────────── */
+var FITUR = [];
+function F(id, nama, emo, adm, re, lok, isi, go, chips){ FITUR.push({ id: id, nama: nama, emo: emo, adm: adm, re: re, lok: lok, isi: isi, go: go || [], chips: chips || [] }); }
+var ADM_ONLY = function(){ return typeof isAdmin === 'function' && isAdmin(); };
+
+F('beranda', 'Beranda', '🏠', false, /\b(beranda|halaman utama|home|dashboard|total aset koperasi)\b/, 'Tombol **Beranda** di navigasi bawah.',
+  ['• Ringkasan: **total aset koperasi**, jumlah nasabah, total simpanan, total pinjaman, dan pembiayaan.', '• **Aksi cepat**: Simpanan, Tarik Tunai, Transfer, Pinjaman, RencoPay, Laporan.', '• **Transaksi Terkini**, **Tagihan & Cicilan**, **Kesehatan Kas**, **Prediksi Kas Bulan Depan**, dan **Challenge 1 Milyar**.', '• Ada slide/banner info koperasi di bagian atas.'],
+  [{ t: 'Buka Beranda', go: 'nav:home' }], ['Tagihan & cicilan', 'Kesehatan kas', 'Peta aplikasi']);
+F('tagihan', 'Tagihan & Cicilan', '🧾', false, /\b(tagihan (dan )?cicilan|daftar tagihan|kartu tagihan|menunggak di beranda)\b|tagihan.*beranda/, 'Di **Beranda**, kartu **Tagihan & Cicilan**.',
+  ['• Menampilkan tagihan **pinjaman** dan **angsuran** yang perlu dibayar.', '• Bisa disaring: **Semua**, **Menunggak**, atau **Mendatang**.', '• Mau lihat versi pribadimu? Ketik **"cek pengingat"** atau **"iuran saya"**.'],
+  [{ t: 'Buka Beranda', go: 'nav:home' }], ['Cek pengingat', 'Iuran saya']);
+F('kesehatanKas', 'Kesehatan Kas & Prediksi Kas', '💚', false, /\b(kesehatan kas|kas sehat|prediksi kas|kas tersedia|maks(imal)? pinjam baru|kebijakan (kas|limit)|batas aman|rasio pinjaman|limit pinjam|atur kebijakan)\b/, 'Di **Beranda**, kartu **Kesehatan Kas**.',
+  ['• Menunjukkan status kas (misalnya **Kas Sehat**), **kas tersedia**, persentase yang sudah dipinjamkan, dan **batas aman**.', '• Ada **total simpanan**, **dipinjamkan**, dan **maks. pinjam baru**.', '• **Prediksi Kas Bulan Depan** memperkirakan arus kas ke depan.', '• **Atur Kebijakan Limit** (rasio maks. pinjaman dari total simpanan, maks. per nasabah, dan kelipatan simpanan sendiri) diatur oleh **admin**.'],
+  [{ t: 'Buka Beranda', go: 'nav:home' }], ['Tentang Koperasi Renco', 'Peta aplikasi']);
+F('challenge', 'Challenge 1 Milyar', '🏆', false, /\bchallenge 1 ?(milyar|miliar|m)\b|tantangan 1 ?(milyar|miliar)/, 'Di **Beranda**, kartu **Challenge 1 Milyar**.',
+  ['• Tantangan bersama untuk mengelola dana koperasi menuju target **Rp 1 miliar**.', '• Menampilkan **persentase tercapai** supaya progresnya kelihatan.'],
+  [{ t: 'Buka Beranda', go: 'nav:home' }], ['Peta aplikasi']);
+F('slide', 'Edit Slide & Broadcast', '📣', true, /\b(edit slide|slide beranda|banner beranda|broadcast|pengumuman umum|siaran)\b/, 'Di **Beranda**, tombol **Edit Slide** dan **Broadcast**.',
+  ['• **Edit Slide**: mengubah banner/slide info di Beranda. Hanya **admin** yang bisa.', '• **Broadcast**: mengirim pengumuman ke seluruh anggota.'],
+  [{ t: 'Buka Beranda', go: 'nav:home' }], ['Peta aplikasi']);
+F('nasabah', 'Menu Nasabah', '👥', false, /\b(menu nasabah|halaman nasabah|daftar (nasabah|anggota)|data (nasabah|anggota)|rekap iuran|tambah (nasabah|anggota|kk)|blacklist|daftar hitam|nasabah tidak aktif|akun tidak aktif|kartu nasabah|unduh nasabah)\b/, 'Tombol **Nasabah** di navigasi bawah.',
+  ['• Daftar anggota/KK dengan filter **Semua · Aktif · Tidak Aktif · Blacklist** dan **Kategori**.', '• Ada **Kartu** nasabah dan pemberitahuan untuk **akun tidak aktif**.', '• Khusus **admin**: tambah nasabah (tombol +), **Rekap Iuran**, **Unduh**, serta memasukkan atau **mencabut blacklist** (wajib isi alasan).'],
+  [{ t: 'Buka Nasabah', go: 'nav:nasabah' }], ['Iuran saya', 'Peta aplikasi']);
+F('keuangan', 'Menu Keuangan', '💼', false, /\b(menu keuangan|halaman keuangan|isi (menu )?keuangan|keuangan.*(ada apa|apa saja))\b/, 'Tombol **Keuangan** di navigasi bawah.',
+  ['Isinya berupa kartu menu:', '• **Simpanan**: kelola tabungan dan simpanan.', '• **Koperasi Renco**: ajukan pinjaman.', '• **Renco Capital**: pembiayaan syariah & konvensional.', '• **Pembayaran**: bayar tagihan & transaksi cepat.', '• **Hasil Usaha** (admin): pantau pendapatan hasil usaha koperasi.', '• **SHU**: lihat pembagian SHU.', '• **Aset**: kelola aset.', '• **Catat Uang**: pencatatan keuangan pribadi.', '• **Kalkulator**: 4% Rule, tabungan koperasi, PPh & HPP.'],
+  [{ t: 'Buka Keuangan', go: 'nav:keuangan' }], ['Menu Simpanan', 'Menu Pembayaran', 'Menu Kalkulator', 'Menu Aset']);
+F('simpananMenu', 'Menu Simpanan', '🏦', false, /\b(menu|tab|halaman|kartu) simpanan\b|simpanan.*(dimana|letak)/, '**Keuangan → Simpanan**.',
+  ['• Kelola **Simpanan Pokok, Wajib, dan Sukarela**.', '• Dari sini kamu setor, tarik sukarela, dan lihat riwayatnya.', '• Setoran/penarikan **diverifikasi admin**.'],
+  [{ t: 'Buka Simpanan', go: 'keu:simpanan' }], ['Cara setor simpanan', 'Cara tarik tunai', 'Saldo saya']);
+F('pinjamanMenu', 'Menu Koperasi Renco (Pinjaman)', '🤝', false, /\b(menu|tab|halaman|kartu) (pinjaman|koperasi renco)\b|pinjaman.*(dimana|letak)/, '**Keuangan → Koperasi Renco**.',
+  ['• Tempat **mengajukan pinjaman**, memantau pinjaman aktif, dan **membayar cicilan**.', '• Akad: **Qardh** dan **Murabahah**.', '• Pengajuan dan pembayaran **diverifikasi admin**.'],
+  [{ t: 'Buka Pinjaman', go: 'keu:pinjaman' }], ['Cara mengajukan pinjaman', 'Cara bayar cicilan', 'Pinjaman saya']);
+F('pembayaran', 'Menu Pembayaran', '💸', false, /\b(menu|tab|halaman|kartu) pembayaran\b|pembayaran cepat|bayar tagihan cepat/, '**Keuangan → Pembayaran**.',
+  ['• Untuk **membayar tagihan dan transaksi cepat** langsung dari aplikasi.', '• Pembayaran lewat dompet ada juga di **RencoPay → Bayar**.'],
+  [{ t: 'Buka Pembayaran', go: 'keu:pembayaran' }], ['Menu RencoPay', 'Cara bayar cicilan']);
+F('phu', 'Hasil Usaha (PHU)', '📈', true, /\b(hasil usaha|phu|pendapatan koperasi|pendapatan hasil usaha)\b/, '**Keuangan → Hasil Usaha**.',
+  ['• Memantau **pendapatan hasil usaha koperasi**.', '• **Biaya admin pinjaman** otomatis tercatat sebagai pendapatan PHU.', '• Hanya tampil di akun **admin**.'],
+  [{ t: 'Buka Hasil Usaha', go: 'keu:phu' }], ['Apa itu SHU?', 'Peta aplikasi']);
+F('aset', 'Aset', '🏷️', false, /\b(menu|tab|halaman|kartu|fitur) (aset|liabilitas)\b|kelola aset|catat aset|aset (dan|&) liabilitas/, '**Keuangan → Aset**.',
+  ['• Mengelola **aset** (dan **liabilitas/kewajiban**) beserta aksinya.', '• Di akun nasabah: aset milikmu sendiri. Di akun admin: **aset milik koperasi**.', '• Total aset/liabilitas membantu menghitung **posisi bersih**.'],
+  [{ t: 'Buka Aset', go: 'keu:aset' }], ['Posisi bersih', 'Peta aplikasi']);
+F('kalkulator', 'Kalkulator', '🧮', false, /\b(menu|tab|halaman|fitur)? ?kalkulator\b|4 ?% rule|four percent rule|angka kebebasan|fi number|hitung (pph|hpp)|\bpph\b|\bhpp\b|proyeksi tabungan/, '**Keuangan → Kalkulator**.',
+  ['• **4% Rule**: hitung target dana kebebasan finansial (kira-kira **pengeluaran tahunan × 25**) dan lama waktu mencapainya.', '• **Kalkulator Tabungan Koperasi**: proyeksi saldo simpananmu di masa depan.', '• Ada juga kalkulator **PPh** dan **HPP**.', '• Di halaman Keuangan juga ada **Pedoman Muamalah** (bebas riba, gharar, maysir) lengkap dengan ayat rujukan.'],
+  [{ t: 'Buka Kalkulator', go: 'keu:kalkulator' }], ['Saran menabung', 'Menu Keuangan']);
+F('muamalah', 'Pedoman Muamalah', '📖', false, /\bpedoman muamalah\b|prinsip muamalah|ayat riba|al baqarah 275/, 'Di halaman **Keuangan** (bagian kalkulator/pedoman).',
+  ['• Prinsip syariah yang dipakai: **bebas riba, bebas gharar, bebas maysir**, akad jelas di awal, saling ridha, dan bagi hasil yang adil.', '• Disertai rujukan **QS. Al-Baqarah: 275** dan **278–279** dengan terjemahan.'],
+  [{ t: 'Buka Keuangan', go: 'nav:keuangan' }], ['Apa itu akad syariah?']);
+F('capital', 'Renco Capital (Pembiayaan)', '🏛️', false, /\b(renco capital|menu pembiayaan|halaman pembiayaan|pembiayaan syariah|pembiayaan|mudharabah|modal usaha)\b/, '**Keuangan → Renco Capital** (atau tombol Pembiayaan di Beranda/Nasabah).',
+  ['• Jasa layanan pembiayaan **syariah**: **Qardh**, **Mudharabah**, dan **Modal Usaha**, ada juga status **Lunas**.', '• Menampilkan **total pembiayaan aktif** dan jumlah pembiayaan berjalan.', '• Isi menu: **Daftar**, **Ajukan**, **Pembayaran**, **Hasil Usaha**, **Lap.Keu**, **Nasabah**, **Program**, dan **Simulasi**.'],
+  [{ t: 'Buka Renco Capital', go: 'nav:pembiayaan' }], ['Apa itu Renco Capital?', 'Peta aplikasi']);
+F('laporan', 'Menu Laporan', '📊', false, /\b(menu laporan|halaman laporan|laporan (apa saja|ada apa)|laporan kerja|laporan tunggakan|arsip laporan|history laporan|riwayat laporan|tab (arsip|history|tunggakan))\b|laporan.*(dimana|letak)/, 'Tombol **Laporan** di navigasi bawah.',
+  ['Tab yang tersedia:', '• **Nasabah**, **Koperasi**, **Renco Capital**, dan **Keseluruhan**: laporan per bagian.', '• **Arsip**: laporan yang tersimpan.', '• **Tunggakan**: daftar yang menunggak.', '• **History** dan **Laporan Kerja**: khusus **admin**.'],
+  [{ t: 'Buka Laporan', go: 'nav:laporan' }], ['Peta aplikasi']);
+F('forum', 'Menu Forum', '💬', false, /\b(menu forum|halaman forum|forum (ada apa|apa saja)|isi forum|join us)\b/, 'Tombol **Forum** di navigasi bawah.',
+  ['Isinya:', '• **Join Us** · **Diskusi** · **Polling** · **Games**', '• **Arisan** · **Berita** · **Kalender** · **100 Nasehat**'],
+  [{ t: 'Buka Forum', go: 'nav:forum' }], ['Menu Diskusi', 'Menu Polling', 'Menu Games', 'Menu Arisan']);
+F('diskusi', 'Diskusi', '🗣️', false, /\b(menu|tab|fitur)? ?diskusi\b|review koperasi|rating aplikasi|bersihkan chat|ruang obrol/, '**Forum → Diskusi**.',
+  ['• Ngobrol dengan sesama anggota (tombol **Tulis**).', '• Ada **Review Koperasi** dan **Rating Aplikasi** untuk memberi masukan.', '• **Bersihkan Chat** untuk merapikan percakapan.'],
+  [{ t: 'Buka Diskusi', go: 'forum:diskusi' }], ['Menu Forum']);
+F('polling', 'Polling', '🗳️', false, /\b(menu|tab|fitur)? ?polling\b|buat polling|voting|jajak pendapat/, '**Forum → Polling**.',
+  ['• Lihat **polling aktif dan selesai**, lalu ikut memilih.', '• Tombol **+ Buat Polling** untuk membuat polling baru.'],
+  [{ t: 'Buka Polling', go: 'forum:polling' }], ['Menu Forum']);
+F('games', 'Mini Games', '🎮', false, /\b(mini ?games?|menu games?|tab games?|fitur games?|main game|permainan|game memory|kuis)\b/, '**Forum → Games**.',
+  ['• Pilih game lalu mulai main: **Memory** (kartu), **Kuis**, dan **Challenge**.', '• Ada penghitung langkah dan waktu, serta tombol **Main Lagi**.'],
+  [{ t: 'Buka Games', go: 'forum:games' }], ['Menu Forum']);
+F('arisan', 'Arisan Renco', '🎲', false, /\b(menu|tab|fitur)? ?arisan\b|kocok arisan|undi arisan|kertas undian|catatan pemenang/, '**Forum → Arisan**.',
+  ['• Menampilkan sesi, putaran, **uang terkumpul tiap putaran**, peserta, yang sudah dan sisa undian.', '• Tombol: **Atur**, **Peserta**, **Reset**, **Kertas Undian**, serta **Kocok Otomatis** atau **Pilih Kertas**.', '• **KOCOK & UNDI** untuk menentukan pemenang, hasilnya masuk **Catatan Pemenang**.'],
+  [{ t: 'Buka Arisan', go: 'forum:arisan' }], ['Apa itu arisan?', 'Menu Forum']);
+F('nasehat', '100 Nasehat', '💡', false, /\b(100 nasehat|seratus nasehat|nasehat (keuangan|harian)|nasihat keuangan)\b/, '**Forum → 100 Nasehat**.',
+  ['• Kumpulan **100 nasehat keuangan modern**.', '• Tombol **Acak** untuk menampilkan nasehat secara acak.'],
+  [{ t: 'Buka 100 Nasehat', go: 'forum:nasehat' }], ['Wawasan hari ini']);
+F('beritaKalender', 'Berita & Kalender', '🗓️', false, /\b(menu|tab|fitur)? ?(berita|kalender|agenda)\b/, '**Forum → Berita** dan **Forum → Kalender**.',
+  ['• **Berita**: informasi dan kabar terbaru seputar koperasi.', '• **Kalender**: agenda dan jadwal kegiatan.'],
+  [{ t: 'Buka Berita', go: 'forum:berita' }, { t: 'Buka Kalender', go: 'forum:kalender' }], ['Menu Forum']);
+F('rencopay', 'Menu RencoPay', '📲', false, /\b(menu rencopay|halaman rencopay|isi rencopay|rencopay (ada apa|apa saja)|dompet digital|dompet renco|menu lainnya|bottom ?sheet lainnya)\b/, 'Tombol **RencoPay** di navigasi bawah (butuh PIN atau biometrik).',
+  ['• **Beranda RencoPay**: saldo, serta tombol **Transfer, Bayar, Top Up, Net Worth, Riwayat, Lainnya**.', '• Menu lain: **QRIS**, **Pembayaran**, **Pengingat**, dan **Setting**.', '• Navigasi bawah RencoPay: **Beranda · Transaksi · Notifikasi**.', '• Di **Lainnya**: Simpanan, Pinjaman, Penarikan Tunai, Bayar Cicilan, Angsuran Renco Capital, Perpanjang Cicilan, Top Up Dompet, Transaksi, dan Menunggu Persetujuan.'],
+  [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }], ['Cara top up RencoPay', 'Cara transfer', 'Redominasi', 'Net worth']);
+F('qr', 'QRIS & QR Saya', '🔳', false, /\b(qris|qr (saya|ku)|kode qr|scan qr|bayar warung|bayar di warung)\b/, '**RencoPay → QRIS** / **Bayar**.',
+  ['• Pakai **QRIS** untuk membayar, dan **QR Saya** untuk menerima pembayaran.', '• Ada juga alur **Bayar Warung** langsung dari dompet RencoPay.'],
+  [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }], ['Menu RencoPay']);
+F('networth', 'Net Worth / Posisi Bersih', '💎', false, /\b(net ?worth|posisi bersih|kekayaan bersih|total kekayaan)\b/, '**RencoPay → Net Worth**, dan **Catat Uang → Kekayaan**.',
+  ['• Menunjukkan **posisi bersih**: total aset dikurangi kewajiban.', '• Total tabungan berjangka aktif ikut dihitung.', '• Di **Catat Uang** ada grafik pertumbuhan kekayaan dan perbandingan antar periode.'],
+  [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }, { t: 'Buka Catat Uang', go: 'keu:catatuang' }], ['Catat uang']);
+F('redominasi', 'Redominasi', '🪙', false, /\bredominasi\b|hilangkan (3|tiga) (angka )?nol|coret nol/, 'Saklar di **Beranda RencoPay**.',
+  ['• Menyederhanakan tampilan rupiah dengan **menghilangkan 3 angka nol**.', '• Bisa dinyalakan dan dimatikan kapan saja; hanya tampil di Beranda RencoPay.'],
+  [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }], ['Menu RencoPay']);
+F('audit', 'Audit Transaksi RencoPay', '🔍', true, /\baudit\b|periksa transaksi rencopay|telusuri transaksi/, '**RencoPay → Lainnya → Audit Transaksi** (admin).',
+  ['• Memudahkan admin **menelusuri dan memeriksa transaksi RencoPay**.', '• Hasil audit bisa diekspor ke **PDF**.', '• Hanya tampil di akun **admin**.'],
+  [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }], ['Menu RencoPay']);
+F('loginCepat', 'Login Cepat & Keamanan RencoPay', '🔐', false, /\b(login cepat|pin rencopay|biometrik|sidik jari|kunci rencopay|gerbang rencopay|keamanan rencopay)\b/, 'Muncul saat membuka **RencoPay**.',
+  ['• Nasabah diminta **PIN atau biometrik** sebelum masuk RencoPay.', '• Kalau offline, RencoPay tetap bisa dibuka dari cache; menu lain **butuh internet**.'],
+  [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }], ['Akun & keamanan']);
+F('profil', 'Profil & Akun', '🪪', false, /\b(profil|profile|ganti password|ganti sandi|riwayat login|log login|aktivitas login)\b/, 'Ikon **akun** di bagian atas (menu header).',
+  ['• Lihat **data akun** dan ganti password.', '• **Riwayat Login** menampilkan catatan akses ke akunmu.'],
+  [{ t: 'Buka Profil', go: 'fn:showProfile' }], ['Akun & keamanan']);
+F('header', 'Menu Atas (Mode Malam, Backup, Notifikasi)', '⚙️', false, /\b(mode malam|dark mode|tema gelap|mode gelap|backup data|cadangkan data|notifikasi aplikasi|panel notifikasi|ikon menu atas)\b/, 'Ikon di **bagian atas** aplikasi.',
+  ['• **Mode Malam** (tema gelap) untuk tampilan yang nyaman di mata.', '• **Backup/Pulihkan** data aplikasi.', '• Panel **Notifikasi** dan **Riwayat Login**, serta akses ke **Profil**.'],
+  [{ t: 'Ganti Mode Malam', go: 'fn:toggleDarkMode' }], ['Peta aplikasi']);
+F('peran', 'Perbedaan Admin & Nasabah', '🧭', false, /\b(admin|pengurus|nasabah|anggota) (bisa|boleh|dapat) (apa|ngapain)|beda (admin|nasabah|akun)|perbedaan (admin|nasabah|peran)|hak akses|peran akun|role/, 'Berlaku di seluruh aplikasi.',
+  ['• **Nasabah/Anggota**: lihat dan kelola simpanan, pinjaman, RencoPay, Catat Uang, forum, dan laporannya sendiri.', '• **Admin**: semua itu ditambah **verifikasi** setoran/penarikan/cicilan, kelola nasabah dan blacklist, **Hasil Usaha**, **Edit Slide/Broadcast**, kebijakan limit kas, **Audit Transaksi**, serta tab **History** dan **Laporan Kerja**.'],
+  [], ['Peta aplikasi']);
+
+function jawabFitur(f){
+  var adm = ADM_ONLY(), t;
+  if (f.adm && !adm) {
+    t = '**' + f.nama + '** ' + f.emo + '\nMenu ini **khusus admin**, jadi nggak muncul di akun Kakak. Fungsinya:\n' + f.isi.join('\n') + '\n\nUntuk kebutuhan terkait, hubungi admin/pengurus ya.';
+    return { text: t, chips: f.chips, actions: [], intent: 'f:' + f.id };
+  }
+  t = '**' + f.nama + '** ' + f.emo + '\n📍 ' + f.lok + '\n' + f.isi.join('\n');
+  return { text: t, chips: f.chips, actions: f.go, intent: 'f:' + f.id };
+}
+F('peta', 'Peta Aplikasi', '🗺️', false, /\b(peta|tur|tour|keliling|jelajah|kenalan|gambaran|overview)\b.*\b(aplikasi|menu|fitur)\b|aplikasi ini (ada|isinya|bisa)|apa saja (yang )?(ada )?(di|dalam) aplikasi|(semua|seluruh) (fitur|menu)|menu apa saja|fitur apa saja|isi aplikasi/, 'Navigasi bawah aplikasi.',
+  [], [], []);
+function jawabPeta(){
+  var adm = ADM_ONLY();
+  var L = ['**Peta Aplikasi Renco** 🗺️', 'Navigasi bawah berisi 6 menu:', '• 🏠 **Beranda**: ringkasan aset, aksi cepat, tagihan, kesehatan kas, Challenge 1 Milyar', '• 👥 **Nasabah**: daftar anggota, kategori, kartu' + (adm ? ', rekap iuran, unduh, blacklist' : ''), '• 💼 **Keuangan**: Simpanan, Koperasi Renco (pinjaman), Renco Capital, Pembayaran, ' + (adm ? 'Hasil Usaha, ' : '') + 'SHU, Aset, Catat Uang, Kalkulator', '• 📊 **Laporan**: Nasabah, Koperasi, Renco Capital, Keseluruhan, Arsip, Tunggakan' + (adm ? ', History, Laporan Kerja' : ''), '• 💬 **Forum**: Join Us, Diskusi, Polling, Games, Arisan, Berita, Kalender, 100 Nasehat', '• 📲 **RencoPay**: dompet digital (Transfer, Bayar, Top Up, QRIS, Net Worth, Riwayat, Pengingat, Setting)', '', 'Di bagian atas ada **Mode Malam**, **Backup**, **Notifikasi**, dan **Profil**. Mau kujelaskan yang mana? Ketuk salah satu di bawah, atau tanya aja pakai bahasamu sendiri 😊'];
+  return { text: L.join('\n'), chips: ['Menu Keuangan', 'Menu RencoPay', 'Menu Forum', 'Menu Laporan', 'Menu Nasabah', 'Perbedaan admin & nasabah'], actions: [], intent: 'f:peta' };
+}
+var TANYA_FITUR = /\b(dimana|letak|menu|fitur|tombol|buka|masuk|akses|fungsi|kegunaan|isinya|ada apa|apa itu|apa saja|untuk apa|cara (pakai|akses|buka|lihat|melihat|menggunakan|ke)|lihat|melihat|temukan|nemu|nemuin|kenalin|jelaskan|jelasin|ceritakan|ceritain|tentang)\b/;
+function cariFitur(t){
+  var short = t.split(' ').length <= 4, i;
+  if (FITUR[FITUR.length - 1].re.test(t)) return FITUR[FITUR.length - 1];
+  for (i = 0; i < FITUR.length - 1; i++) if (FITUR[i].re.test(t) && (short || TANYA_FITUR.test(t))) return FITUR[i];
+  return null;
+}
+
+/* ───────────── wawasan koperasi & literasi keuangan ───────────── */
+var KB = [
+  { id: 'k:koperasi', kw: ['koperasi', 'profil', 'sejarah', 'lokasi', 'alamat'],
+    re: /(apa itu|apa sih|tentang|profil|sejarah|asal usul|siapa).*(koperasi|renco)|koperasi renco itu|^(koperasi|renco)( renco)?$|lokasi koperasi|alamat koperasi|kantor koperasi/,
+    build: function(){ return { text: '**Koperasi Renco** 🌱\nBerawal dari koperasi keluarga di **Renco, Kelurahan Kelayu Jorong, Selong, Lombok Timur, NTB**. Konsepnya simpel: dari anggota, oleh anggota, untuk anggota.\n\n**Yang ada di aplikasi:**\n• **Simpanan** (pokok, wajib, sukarela) + tabungan berjangka\n• **Pinjaman syariah** (Qardh & Murabahah)\n• **RencoPay**, dompet digital koperasi\n• **SHU** tahunan, **Arisan**, **Forum & Polling**\n• **Catat Uang** & **Kalkulator** buat atur keuangan pribadi\n\nMau kupas yang mana dulu?', chips: ['Prinsip koperasi', 'Apa itu SHU?', 'Qardh vs Murabahah', 'Apa itu RencoPay?'] }; } },
+  { id: 'k:gabung', kw: ['gabung', 'daftar', 'anggota'],
+    re: /(cara|syarat|gimana|bagaimana|mau|ingin).*(gabung|daftar|jadi anggota|masuk koperasi|menjadi anggota)|(gabung|daftar) (koperasi|anggota)/,
+    build: function(){ var p = pengaturan(); return { text: '**Mau gabung jadi anggota?** 🙌\n• Simpanan Pokok: **' + rpRaw(p.pokok) + '** (sekali di awal)\n• Simpanan Wajib: **' + rpRaw(p.wajib) + '** per bulan, jatuh tempo tanggal ' + p.hari + '\n• Pendaftaran dan verifikasi lewat **pengurus/admin**, jadi langsung hubungi mereka ya.\n• Setelah aktif, kamu bisa pakai fitur simpanan, pinjaman, RencoPay, dan lainnya.', chips: ['Prinsip koperasi', 'Apa itu SHU?', 'Qardh vs Murabahah'] }; } },
+  { id: 'k:prinsip', kw: ['prinsip', 'asas', 'manfaat', 'keuntungan'],
+    re: /prinsip|asas|ciri.*koperasi|manfaat.*(koperasi|anggota)|untung.*(koperasi|anggota)|kenapa.*(koperasi|anggota)|bedanya koperasi|beda koperasi/,
+    build: function(){ return { text: '**Prinsip koperasi** 🤝\nMenurut UU Perkoperasian No. 25/1992, ada 7 prinsip:\n• Keanggotaan **sukarela dan terbuka**\n• Pengelolaan **demokratis** (1 anggota = 1 suara)\n• Pembagian **SHU adil**, sebanding dengan jasa usaha anggota\n• Balas jasa modal **terbatas**\n• **Kemandirian**\n• **Pendidikan** perkoperasian\n• **Kerja sama** antar koperasi\n\nBedanya dengan perusahaan biasa: di koperasi, **pemiliknya adalah anggota sendiri**, dan tujuannya kesejahteraan bersama, bukan cuma cari untung.', chips: ['Apa itu SHU?', 'Tentang Koperasi Renco', 'Wawasan hari ini'] }; } },
+  { id: 'k:syariah', kw: ['qardh', 'murabahah', 'riba', 'akad', 'syariah', 'margin'],
+    re: /(apa itu|apa sih|apa bedanya|beda|bedanya|maksud|arti|pengertian|jelaskan|jelasin|bagaimana).*(qardh|murabahah|riba|akad|syariah|rahn|margin)|\b(riba|syariah)\b|qardh.*(vs|dan|dengan|atau).*murabahah|murabahah.*(vs|dan|dengan|atau).*qardh/,
+    build: function(){ var a = aturanPinjam(), q = a.q, m = a.m; return { text: '**Akad syariah di Koperasi Renco** 🕌\n• **' + (q.label || 'Qardh') + '** = pinjaman kebajikan. Kamu cuma mengembalikan pokok, margin **' + (q.margin || 0) + '%**, tenor ' + (q.tenors || []).join('/') + ' bulan.\n• **' + (m.label || 'Murabahah') + '** = jual-beli dengan keuntungan (margin) yang **disepakati di awal**: margin ' + (m.margin || 0) + '%, tenor ' + (m.tenors || []).join('/') + ' bulan. Angkanya jelas dari awal, jadi nggak ada kejutan.\n• **Riba** = tambahan yang disyaratkan atas pinjaman uang. Karena itu Qardh di sini dibuat tanpa margin.\n• Biaya admin **' + rpRaw(a.fee) + '**, dipotong dari simpanan sukarela.\n\n_Buat kepastian hukum fikihnya, kamu bisa konsultasi ke pengurus atau ustaz yang dipercaya._', chips: ['Cara ajukan pinjaman', 'Pinjaman saya'], actions: [{ t: 'Buka Pinjaman', go: 'keu:pinjaman' }] }; } },
+  { id: 'k:istilah', kw: ['pokok', 'wajib', 'sukarela', 'tenor', 'plafon', 'tunggakan'],
+    re: /(apa itu|apa sih|arti|maksud|pengertian|beda|bedanya|jelaskan|jelasin).*(simpanan pokok|simpanan wajib|simpanan sukarela|pokok|wajib|sukarela|tenor|plafon|tunggakan|jatuh tempo|angsuran)/,
+    build: function(){ var p = pengaturan(), a = aturanPinjam(); return { text: '**Kamus mini koperasi** 📖\n• **Simpanan Pokok** (' + rpRaw(p.pokok) + '): modal awal, dibayar sekali, tidak bisa ditarik.\n• **Simpanan Wajib** (' + rpRaw(p.wajib) + '/bulan): setoran rutin, tidak bisa ditarik.\n• **Simpanan Sukarela**: setor kapan saja, **bisa ditarik**.\n• **Tenor**: lama cicilan (dalam bulan).\n• **Plafon**: batas maksimal pinjaman, di sini **' + a.plaf + '%** dari basisnya.\n• **Tunggakan**: kewajiban yang lewat jatuh tempo dan belum dibayar.\n• **Margin**: keuntungan yang disepakati di awal pada akad jual-beli.', chips: ['Iuran saya', 'Qardh vs Murabahah'] }; } },
+  { id: 'k:shu', kw: ['shu', 'bagi', 'hasil', 'usaha'],
+    re: /\bshu\b|sisa hasil usaha|bagi hasil/,
+    build: function(){ var d = getDB() || {}, s = d.shuSetting || {};
+      return { text: '**SHU (Sisa Hasil Usaha)** 🎁\nSHU adalah keuntungan koperasi setahun yang dibagikan ke anggota dan lembaga. Menurut UU Perkoperasian, bagian anggota dibagi sebanding dengan **jasa/partisipasi** masing-masing, jadi makin aktif kamu, makin besar peluangnya.\n\n**Pengaturan Renco saat ini** (bisa diubah admin):\n• ' + n0(s.pctSHU, 70) + '% dari keuntungan dijadikan SHU\n• Pembagian SHU: anggota ' + n0(s.pctNasabah, 40) + '% · pengurus ' + n0(s.pctPengurus, 20) + '% · cadangan ' + n0(s.pctCadangan, 20) + '% · sosial ' + n0(s.pctSosial, 10) + '% · pendidikan ' + n0(s.pctPendidikan, 10) + '%\n\nCek rinciannya di **Keuangan → SHU**.', chips: ['Prinsip koperasi', 'Saldo saya'], actions: [{ t: 'Buka SHU', go: 'keu:shu' }] }; } },
+  { id: 'k:rencopay', kw: ['rencopay', 'dompet'],
+    re: /(apa itu|apa sih|tentang|fungsi|gunanya|manfaat).*(rencopay|renco pay)|^(rencopay|renco pay)( itu)?$/,
+    build: function(){ return { text: '**RencoPay** 📲\nDompet digital koperasi. Fungsinya:\n• **Top up** dari simpanan sukarela\n• **Transfer** simpanan sukarela ke sesama anggota (langsung, tanpa nunggu admin)\n• **Tagihan**: cicilan Koperasi Renco dan Renco Capital muncul di sana\n• Dilindungi **PIN atau biometrik**, jadi aktifkan keduanya biar aman ya', chips: ['Cara top up RencoPay', 'Cara transfer ke anggota', 'Bahaya penipuan'], actions: [{ t: 'Buka RencoPay', go: 'nav:rencoPay' }] }; } },
+  { id: 'k:capital', kw: ['capital'],
+    re: /renco capital|apa itu capital/,
+    build: function(){ return { text: '**Renco Capital** 🏦\nPembukuannya **terpisah** dari Koperasi Renco, dan cicilannya ikut muncul di tagihan RencoPay. Buat detail produk dan syaratnya, tanya langsung ke pengurus ya, biar infonya akurat.', chips: ['Apa itu RencoPay?', 'Tentang Koperasi Renco'] }; } },
+  { id: 'k:nonaktif', kw: ['nonaktif', 'aktif', 'keanggotaan'],
+    re: /nonaktif|tidak aktif|aktifkan|diaktifkan|status (anggota|keanggotaan)|keluar (dari )?(koperasi|anggota)|berhenti (jadi )?anggota|akun jadi nonaktif/,
+    build: function(){ return { text: '**Status anggota & nonaktif otomatis** ⏸️\n• Kalau **± 3 bulan (90 hari) tidak ada transaksi**, sistem otomatis menandai statusmu jadi **Tidak Aktif**.\n• Kamu bakal lihat banner di Beranda. Buat aktif lagi, hubungi **admin**.\n• Selama Tidak Aktif, nggak ada kewajiban iuran baru.\n• Tips: usahakan tetap ada transaksi rutin, misalnya bayar simpanan wajib tiap bulan.', chips: ['Iuran saya', 'Cek pengingat'] }; } },
+  { id: 'k:blacklist', kw: ['blacklist'],
+    re: /blacklist|daftar hitam/,
+    build: function(){ return { text: '**Blacklist** 🚫\nStatus dari **admin** buat manajemen risiko. Anggota yang di-blacklist **tidak bisa mengajukan pinjaman**. Kalau kamu merasa ada yang keliru, bicarakan baik-baik dengan pengurus ya.\n\nCara paling aman: bayar cicilan dan iuran tepat waktu ✅', chips: ['Cek pengingat', 'Pinjaman saya'] }; } },
+  { id: 'k:arisan', kw: ['arisan'],
+    re: /arisan/,
+    build: function(){ return { text: '**Arisan Renco** 🎲\nPeserta menyetor iuran tiap putaran, lalu satu peserta dapat giliran menerima dana terkumpul lewat **undian**. Di aplikasi ada daftar peserta, undian (spin), dan **riwayat putaran**. Nominal iuran dan jadwal diatur pengurus, jadi cek bagian Arisan di aplikasi ya.\n\nTips: pilih arisan yang aturannya jelas dan tercatat rapi, dan pastikan iurannya nggak bikin kamu ngutang buat nyetor.', chips: ['Tips berhemat', 'Tentang Koperasi Renco'] }; } },
+  { id: 'k:kartu', kw: ['kartu', 'nomor'],
+    re: /kartu anggota|id card|nomor anggota|no anggota/,
+    build: function(){ return { text: '**Kartu Anggota digital** 🪪\nKartumu tampil di **Beranda**, lengkap dengan nomor anggota. Buat menyimpan atau mengunduhnya, ikuti tombol yang tersedia di kartu itu.', chips: ['Tentang Koperasi Renco'] }; } },
+  { id: 'k:forum', kw: ['forum', 'polling', 'voting', 'musyawarah'],
+    re: /forum|polling|voting|rapat anggota|musyawarah/,
+    build: function(){ return { text: '**Forum & Polling** 🗳️\nRuang buat ngobrol, kasih ide, dan voting bareng sesama anggota. Semangatnya sama dengan prinsip koperasi: **pengelolaan demokratis**. Makin aktif, makin ikut menentukan arah koperasi!', chips: ['Prinsip koperasi', 'Tentang Koperasi Renco'] }; } },
+  { id: 'k:kalkulator', kw: ['kalkulator', 'pph', 'pajak', 'pensiun'],
+    re: /kalkulator|pph|pajak penghasilan|4 ?%|empat persen|pensiun|kebebasan finansial/,
+    build: function(){ return { text: '**Menu Kalkulator** 🧮 (Keuangan → Kalkulator)\n• **Kalkulator 4% Rule**: hitung dana kebebasan finansial. Rumus kasarnya: pengeluaran tahunan × 25. Contoh: butuh Rp5 juta/bulan (Rp60 juta/tahun) → target ± Rp1,5 miliar.\n• **Kalkulator Koperasi**: simulasi hitungan seputar koperasi.\n• **Kalkulator PPh 21**: tarif progresif UU HPP: 5% (sampai Rp60 jt), 15% (sampai Rp250 jt), 25% (sampai Rp500 jt), 30% (sampai Rp5 M), 35% (di atasnya), dikurangi PTKP (dasar Rp54 jt/tahun).\n\n_4% rule berasal dari riset pasar AS dan bukan jaminan hasil. ' + DISCLAIMER + '_', chips: ['Saran menabung', 'Wawasan hari ini'] }; } },
+  { id: 'k:zakat', kw: ['zakat', 'sedekah', 'infak', 'nisab'],
+    re: /zakat|sedekah|infaq|infak|nisab/,
+    build: function(){ return { text: '**Zakat & sedekah** 🌙\n• **Zakat maal** umumnya **2,5%**, dikenakan jika hartamu sudah mencapai **nisab** (setara 85 gram emas) dan tersimpan **setahun** (haul).\n• **Zakat penghasilan** bisa dihitung bulanan atau tahunan, tergantung pendapat yang kamu ikuti.\n• **Sedekah** bebas kapan saja, berapa saja. Sisihkan di awal, bukan dari sisa.\n\n_Untuk hitungan pastinya, konsultasi ke BAZNAS/LAZ atau ustaz yang dipercaya ya._', chips: ['Tips berhemat', 'Saran menabung'] }; } },
+  { id: 'k:inflasi', kw: ['inflasi'],
+    re: /inflasi|harga naik terus|nilai uang turun/,
+    build: function(){ return { text: '**Inflasi** 📈\nInflasi = harga-harga naik dari waktu ke waktu, jadi uang yang sama makin sedikit dapat barangnya. Misal inflasi 4% per tahun, uang Rp100 ribu hari ini setara daya beli ± Rp96 ribu tahun depan.\n\nMakanya dana jangka panjang perlu ditaruh di tempat yang **imbal hasilnya mengejar inflasi**, bukan cuma dibiarkan diam. Dana darurat tetap taruh di tempat yang aman dan gampang dicairkan.', chips: ['Saran menabung', 'Wawasan hari ini'] }; } },
+  { id: 'k:daruratedu', kw: ['darurat'],
+    re: /(apa itu|apa sih|jelaskan|jelasin|maksud|arti|pengertian|kenapa|mengapa|penting).*(dana darurat)|dana darurat itu|^dana darurat\??$|berapa dana darurat|dana darurat (ideal|yang ideal|idealnya)/,
+    build: function(){ return { text: '**Dana darurat** 🛟\nUang cadangan buat kejadian tak terduga (sakit, kehilangan kerja, motor rusak). Idealnya **3–6× pengeluaran bulanan** (6–12× kalau penghasilan tidak tetap).\n\n• Pisahkan dari uang harian, misalnya di **simpanan sukarela** yang bisa ditarik\n• Jangan dipakai buat gaya hidup atau diskon dadakan\n• Isi pelan-pelan, mulai dari 1× pengeluaran dulu', chips: ['Saran menabung', 'Tips berhemat'] }; } },
+  { id: 'k:utang', kw: ['paylater', 'pinjol', 'konsumtif', 'produktif'],
+    re: /paylater|pinjol|pinjaman online|utang (produktif|konsumtif)|hutang (produktif|konsumtif)|gali lubang|riba online/,
+    build: function(){ return { text: '**Utang produktif vs konsumtif** ⚖️\n• **Produktif**: menambah penghasilan atau aset (modal usaha, alat kerja). Masih masuk akal kalau hitungannya jelas.\n• **Konsumtif**: buat gaya hidup atau barang yang nilainya turun. Hindari, apalagi **paylater** dan **pinjol**.\n• Patokan umum: total cicilan sebaiknya **maksimal ± 30%** dari penghasilan bulanan.\n• Waspada pinjol ilegal. Cek izin di **OJK** sebelum meminjam.\n\nKalau butuh dana, pinjaman koperasi dengan akad yang jelas biasanya lebih tenang.', chips: ['Cara ajukan pinjaman', 'Qardh vs Murabahah'] }; } },
+  { id: 'k:investasi', kw: ['investasi', 'saham', 'reksadana', 'emas', 'kripto'],
+    re: /investasi|saham|reksadana|reksa dana|\bemas\b|kripto|crypto|bitcoin|obligasi|sukuk/,
+    build: function(){ return { text: '**Investasi buat pemula** 📊\n• Urutan aman: **dana darurat** dulu, lunasin utang konsumtif, baru investasi.\n• Kenali **risikonya**. Imbal hasil tinggi biasanya berarti risiko tinggi.\n• **Diversifikasi**, jangan taruh semua di satu tempat.\n• Pastikan produknya **legal dan terdaftar di OJK**. Hati-hati janji untung pasti.\n• Hindari FOMO. Pakai uang dingin, bukan uang kebutuhan.\n• Yang syariah, cari yang sesuai prinsip (misalnya sukuk atau reksa dana syariah).\n\n_' + DISCLAIMER + ' Aku nggak merekomendasikan produk tertentu._', chips: ['Saran menabung', 'Bahaya penipuan'] }; } },
+  { id: 'k:penipuan', kw: ['penipuan', 'phishing', 'modus', 'otp'],
+    re: /penipu|scam|phishing|modus|\botp\b|ditipu|tertipu|hoaks|hoax/,
+    build: function(){ return { text: '**Waspada penipuan** 🚨\n• **Jangan pernah** kasih OTP, PIN, atau password ke siapa pun, termasuk yang ngaku pengurus atau admin.\n• Curiga kalau ada yang buru-buru minta transfer atau janji untung besar.\n• Cek ulang nama dan nomor tujuan sebelum transfer. Transfer antar anggota diproses langsung.\n• Aktifkan **PIN dan biometrik** di RencoPay.\n• Kalau ada transaksi yang nggak kamu kenal, segera hubungi pengurus dan ganti password.', chips: ['Apa itu RencoPay?', 'Wawasan hari ini'] }; } }
+];
+/* urutan cek: topik paling spesifik dulu, topik umum (koperasi/prinsip) terakhir */
+var KBORDER = ['k:syariah', 'k:istilah', 'k:shu', 'k:rencopay', 'k:capital', 'k:nonaktif', 'k:blacklist', 'k:arisan', 'k:kartu', 'k:forum', 'k:kalkulator', 'k:zakat', 'k:inflasi', 'k:daruratedu', 'k:utang', 'k:investasi', 'k:penipuan', 'k:gabung', 'k:prinsip', 'k:koperasi'];
+KB.sort(function(x, y){ return KBORDER.indexOf(x.id) - KBORDER.indexOf(y.id); });
+var WAWASAN = [
+  'Hari Koperasi Nasional diperingati tiap **12 Juli**, mengenang Kongres Koperasi pertama di Tasikmalaya tahun 1947. Bung Hatta dijuluki **Bapak Koperasi Indonesia**. 🇮🇩',
+  'Di koperasi, suara dihitung per **orang**, bukan per jumlah uang. Simpananmu kecil atau besar, hak suara di rapat anggota sama: **1 anggota = 1 suara**. 🗳️',
+  'SHU dibagi sebanding dengan **jasa/partisipasi** anggota, bukan cuma besar modal. Makin aktif kamu bertransaksi, makin besar peluang bagianmu. 🎁',
+  'Pola **50/30/20**: 50% kebutuhan, 30% keinginan, 20% tabungan atau lunasin utang. Simpel dan gampang diikuti. 💡',
+  '**Aturan 72**: bagi 72 dengan imbal hasil per tahun buat kira-kira berapa tahun uang berlipat. Imbal hasil 6% → ± 12 tahun. ⏳',
+  'Kebiasaan kecil: sisihkan **10%** duluan pas terima uang. Dari Rp2 juta, itu Rp200 ribu/bulan, setahun Rp2,4 juta tanpa terasa. 🌱',
+  'Dana darurat idealnya **3–6× pengeluaran bulanan**. Mulai dari 1× dulu juga udah keren. 🛟',
+  'Total cicilan sebaiknya **maksimal ± 30%** dari penghasilan bulanan, biar napas keuangan tetap lega. 😮‍💨',
+  '**4% rule**: dana kebebasan finansial ≈ pengeluaran tahunan × 25. Pengeluaran Rp60 juta/tahun → target ± Rp1,5 miliar. Coba di menu Kalkulator. 🧮',
+  'Di **Qardh**, kamu cuma mengembalikan pokok (margin 0%). Itu bedanya dengan pinjaman berbunga. 🕌',
+  'Jangan pernah kasih **OTP, PIN, atau password** ke siapa pun, termasuk yang ngaku pengurus. 🔐',
+  'Simpanan **sukarela** itu fleksibel: bisa disetor kapan aja dan bisa ditarik. Pokok & wajib adalah modal yang tertanam di koperasi. 💰',
+  'Kalau **± 3 bulan** tidak ada transaksi, status anggota bisa otomatis jadi Tidak Aktif. Tetap rutin bayar iuran ya. ⏸️'
+];
+var _wIdx = -1;
+function jawabWawasan(){
+  var i; do { i = Math.floor(Math.random() * WAWASAN.length); } while (i === _wIdx && WAWASAN.length > 1); _wIdx = i;
+  return { text: '**Wawasan hari ini** ✨\n' + WAWASAN[i], chips: ['Wawasan lagi', 'Tentang Koperasi Renco', 'Tips berhemat'] };
+}
+
+/* ───────────── otak belajar: tersimpan di perangkat, per akun ───────────── */
+var LEARN = null;
+var STOP = { yang:1, dan:1, di:1, ke:1, dari:1, untuk:1, ini:1, itu:1, aku:1, saya:1, kamu:1, kak:1, dong:1, sih:1, ya:1, nih:1, tidak:1, mau:1, ada:1, apa:1, bisa:1, dengan:1, atau:1, tolong:1, deh:1, aja:1, saja:1, banget:1, lagi:1, sama:1, gimana:1, bagaimana:1, cara:1, berapa:1, kapan:1, kenapa:1, mengapa:1, yuk:1, min:1, admin:1, bot:1, asisten:1, renco:1, dalam:1, pada:1, juga:1, kalau:1, jadi:1, sudah:1, belum:1, akan:1, punya:1, lah:1, kok:1, tuh:1, dulu:1, coba:1, bantu:1, minta:1, tanya:1, info:1 };
+function learnFresh(){ return { v: 1, tok: {}, taught: [], pop: {}, unk: [], nUp: 0, nDown: 0, nLearn: 0, disc: {}, nDisc: 0, nAuto: 0 }; }
+function ensureLearn(){
+  var o = cuOwner();
+  if (LEARN && LEARN._o === o) return LEARN;
+  var d = null;
+  try { d = JSON.parse(lsGet('raLearn:' + o) || 'null'); } catch(e){}
+  LEARN = (d && d.v === 1 && d.tok && d.taught && d.pop && d.unk) ? d : learnFresh();
+  if (!LEARN.disc) LEARN.disc = {}; if (LEARN.nAuto == null) LEARN.nAuto = 0; if (LEARN.nDisc == null) LEARN.nDisc = Object.keys(LEARN.disc).length;
+  LEARN._o = o; regDisc(LEARN); return LEARN;
+}
+function tokPower(m){ var s = 0; for (var k in m) s += Math.abs(m[k]); return s; }
+function learnSave(){
+  if (!LEARN) return;
+  var keys = Object.keys(LEARN.tok);
+  if (keys.length > 700) {
+    keys.sort(function(a, b){ return tokPower(LEARN.tok[a]) - tokPower(LEARN.tok[b]); });
+    keys.slice(0, keys.length - 600).forEach(function(k){ delete LEARN.tok[k]; });
+  }
+  var copy = {}; for (var k in LEARN) if (k !== '_o') copy[k] = LEARN[k];
+  lsSet('raLearn:' + LEARN._o, JSON.stringify(copy));
+}
+function toks(t){
+  var seen = {}, out = [];
+  String(t).split(' ').forEach(function(w){ w = w.replace(/[^a-z]/g, ''); if (w.length < 3 || STOP[w] || seen[w]) return; seen[w] = 1; out.push(w); });
+  return out.slice(0, 12);
+}
+function learnTok(tk, id, w){
+  if (!id || !tk || !tk.length) return;
+  var L = ensureLearn();
+  tk.forEach(function(x){
+    var m = L.tok[x] || (L.tok[x] = {});
+    var v = Math.max(-6, Math.min(12, (m[id] || 0) + w));
+    if (Math.abs(v) < 0.05) delete m[id]; else m[id] = v;
+  });
+  L.nLearn++;
+}
+function learnedPick(tk){
+  var L = ensureLearn(), sc = {}, any = false;
+  tk.forEach(function(x){
+    var m = L.tok[x]; if (!m) return;
+    var n = 0, k; for (k in m) if (m[k] > 0) n++;
+    for (k in m) if (m[k] > 0) { sc[k] = (sc[k] || 0) + m[k] / (1 + (n - 1) * 0.5); any = true; }
+  });
+  if (!any) return null;
+  var ids = Object.keys(sc).sort(function(a, b){ return sc[b] - sc[a]; });
+  var b = ids[0], s2 = ids[1] ? sc[ids[1]] : 0;
+  return (sc[b] >= 2.5 && sc[b] >= s2 * 1.4) ? b : null;
+}
+function cleanQ(raw){ return String(raw || '').replace(/\d[\d.,]*/g, '#').replace(/\s+/g, ' ').trim().slice(0, 80); }
+function logUnknown(raw){
+  var L = ensureLearn(), q = cleanQ(raw); if (!q) return;
+  var hit = L.unk.filter(function(x){ return x.q === q; })[0];
+  if (hit) { hit.n++; hit.ts = Date.now(); } else L.unk.push({ q: q, n: 1, ts: Date.now() });
+  L.unk.sort(function(a, b){ return b.n - a.n || b.ts - a.ts; });
+  if (L.unk.length > 30) L.unk.length = 30;
+}
+function dropUnknown(q){ var L = ensureLearn(); L.unk = L.unk.filter(function(x){ return x.q !== q; }); }
+function cariTaught(tk){
+  var L = ensureLearn(), best = null, bs = 0;
+  if (!tk.length) return null;
+  L.taught.forEach(function(x){
+    if (!x.tk || !x.tk.length) return;
+    var inter = 0; x.tk.forEach(function(w){ if (tk.indexOf(w) >= 0) inter++; });
+    var j = inter / (x.tk.length + tk.length - inter);
+    var s = Math.max(j, (inter === x.tk.length && tk.length <= x.tk.length + 3) ? 0.8 : 0);
+    if (s > bs) { bs = s; best = x; }
+  });
+  return bs >= 0.6 ? best : null;
+}
+
+/* toleransi typo: hanya dipakai bila jawaban tidak ketemu */
+var VOCAB = null;
+function vocab(){
+  if (VOCAB) return VOCAB;
+  VOCAB = {};
+  'saldo simpanan pinjaman pinjam cicilan angsuran iuran tunggakan tagihan jatuh tempo pengingat menabung nabung tabungan hemat berhemat pengeluaran pemasukan koperasi anggota sukarela wajib pokok transfer tarik setor rencopay syariah murabahah qardh riba arisan kartu forum polling kalkulator zakat sedekah investasi inflasi darurat penipuan blacklist nonaktif profil password biometrik berjangka deposito margin tenor plafon lunas utang hutang capital wawasan bantuan belajar ingatan pensiun gaji bunga pajak'.split(' ').forEach(function(w){ VOCAB[w] = 1; });
+  KB.forEach(function(k){ (k.kw || []).forEach(function(w){ VOCAB[w] = 1; }); });
+  try { var D = ensureLearn().disc || {}; Object.keys(D).forEach(function(g){ toks(norm(D[g].l)).forEach(function(w){ VOCAB[w] = 1; }); }); } catch(e){}
+  return VOCAB;
+}
+function lev(a, b, max){
+  var m = a.length, n = b.length; if (Math.abs(m - n) > max) return max + 1;
+  var prev = [], cur, i, j;
+  for (j = 0; j <= n; j++) prev[j] = j;
+  for (i = 1; i <= m; i++) {
+    cur = [i]; var rowMin = i;
+    for (j = 1; j <= n; j++) { var c = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1; cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + c); if (cur[j] < rowMin) rowMin = cur[j]; }
+    if (rowMin > max) return max + 1;
+    prev = cur;
+  }
+  return prev[n];
+}
+function fixTypos(t){
+  var V = vocab(), L = ensureLearn(), changed = false;
+  var out = t.split(' ').map(function(w){
+    var c = w.replace(/[^a-z]/g, '');
+    if (c.length < 5 || V[c] || L.tok[c]) return w;
+    var best = null, bd = 99, lim = c.length >= 8 ? 2 : 1;
+    for (var v in V) { if (v.charAt(0) !== c.charAt(0) || Math.abs(v.length - c.length) > lim) continue; var d = lev(c, v, lim); if (d <= lim && d < bd) { bd = d; best = v; } }
+    if (best) { changed = true; return best; }
+    return w;
+  }).join(' ');
+  return changed ? out : null;
+}
+
+/* ───────────── belajar sendiri: menemukan menu & fitur dari tampilan aplikasi ───────────── */
+var PAGE_LBL = { home: 'Beranda', nasabah: 'Nasabah', keuangan: 'Keuangan', laporan: 'Laporan', forum: 'Forum', rencoPay: 'RencoPay', pembiayaan: 'Renco Capital', arisan: 'Forum → Arisan' };
+var GENERIK = { menu: 1, fitur: 1, tombol: 1, halaman: 1, buka: 1, dimana: 1, letak: 1, lihat: 1, tab: 1, bagian: 1, akses: 1, masuk: 1, cari: 1, mencari: 1, aplikasi: 1, sistem: 1, tunjukkan: 1, tunjukin: 1 };
+function discGo(el){
+  var oc = el.getAttribute ? el.getAttribute('onclick') : null, m;
+  if (oc) {
+    if ((m = /keuCardTap\(\s*this\s*,\s*'([a-zA-Z0-9_-]+)'\s*,\s*(null|'([a-zA-Z0-9_-]+)')/.exec(oc))) return m[3] ? 'nav:' + m[3] : 'keu:' + m[1];
+    if ((m = /keuanganTab\(\s*'([a-zA-Z0-9_-]+)'/.exec(oc))) return 'keu:' + m[1];
+    if ((m = /forumTab\(\s*'([a-zA-Z0-9_-]+)'/.exec(oc))) return 'forum:' + m[1];
+    if ((m = /laporanTab\(\s*'([a-zA-Z0-9_-]+)'/.exec(oc))) return 'lap:' + m[1];
+    if ((m = /navTo\(\s*'([a-zA-Z0-9_-]+)'/.exec(oc))) return 'nav:' + m[1];
+  }
+  return el.dataset && el.dataset.nav ? 'nav:' + el.dataset.nav : null;
+}
+function discLabel(el){
+  var lab = el.getAttribute && (el.getAttribute('aria-label') || '');
+  var txt = '';
+  try {
+    var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n;
+    while ((n = w.nextNode())) { var s = String(n.nodeValue || '').replace(/\s+/g, ' ').trim(); if (s.replace(/[^A-Za-z]/g, '').length >= 3) { txt = s; break; } }
+  } catch(e){}
+  var out = (txt || lab || '').replace(/[^A-Za-z0-9&+\-\/ ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return out.length >= 3 && out.length <= 40 ? out : '';
+}
+function discPath(go, lab){
+  var p = String(go).split(':'), nm = function(s){ return s.replace(/[-_]+/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); }); };
+  if (p[0] === 'nav') return PAGE_LBL[p[1]] || nm(p[1]);
+  var base = { keu: 'Keuangan', forum: 'Forum', lap: 'Laporan' }[p[0]] || 'Aplikasi';
+  return base + ' → ' + (lab || nm(p[1]));
+}
+function regDisc(L){
+  if (typeof RUN === 'undefined' || !L || !L.disc) return;
+  Object.keys(L.disc).forEach(function(g){ if (!RUN['d:' + g]) RUN['d:' + g] = function(){ return jawabDiscItem(g); }; });
+}
+function scanApp(force){
+  if (typeof document === 'undefined') return;
+  var now = Date.now(); if (!force && UI.scanTs && now - UI.scanTs < 20000) return; UI.scanTs = now;
+  var L = ensureLearn(), els, i;
+  try { els = document.querySelectorAll('[onclick],[data-nav]'); } catch(e){ return; }
+  for (i = 0; i < els.length && i < 5000; i++) {
+    var el = els[i], go = discGo(el); if (!go) continue;
+    if (el.closest && el.closest('#raOverlay,#raFab,[id^="modal"],.modal-overlay')) continue;
+    if (el.style && el.style.display === 'none') continue;
+    var lb = discLabel(el); if (!lb) continue;
+    var it = L.disc[go];
+    if (!it) { it = L.disc[go] = { l: lb, alt: [], g: go, ts: now, n: 0 }; if (L.nDisc != null) L.nDisc++; }
+    it.n++; it.ts = now;
+    if (lb !== it.l && it.alt.indexOf(lb) < 0 && it.alt.length < 4) it.alt.push(lb);
+    if (typeof VOCAB !== 'undefined' && VOCAB) toks(norm(lb)).forEach(function(w){ VOCAB[w] = 1; });
+  }
+  try {
+    var GI = (typeof _keuanganGridItems !== 'undefined' && _keuanganGridItems) ? (typeof isAdmin === 'function' && isAdmin() ? _keuanganGridItems.admin : _keuanganGridItems.nasabah) : null;
+    (GI || []).forEach(function(x){
+      var g2 = x.directNav ? 'nav:' + x.directNav : 'keu:' + x.tab, lb2 = String(x.label || '').trim(); if (!lb2) return;
+      var it2 = L.disc[g2]; if (!it2) { it2 = L.disc[g2] = { l: lb2, alt: [], g: g2, ts: now, n: 0 }; L.nDisc = (L.nDisc || 0) + 1; }
+      it2.ts = now; it2.n++; if (lb2 !== it2.l && it2.alt.indexOf(lb2) < 0 && it2.alt.length < 4) it2.alt.push(lb2);
+      toks(norm(lb2)).forEach(function(w){ if (typeof VOCAB !== 'undefined' && VOCAB) VOCAB[w] = 1; });
+    });
+  } catch(e){}
+  var ks = Object.keys(L.disc);
+  if (ks.length > 200) { ks.sort(function(a, b){ return L.disc[a].ts - L.disc[b].ts; }); ks.slice(0, ks.length - 200).forEach(function(k){ delete L.disc[k]; }); }
+  regDisc(L); learnSave();
+}
+function tokMatch(a, b){ return a === b || (a.length >= 4 && b.length >= 4 && (a.indexOf(b) === 0 || b.indexOf(a) === 0)) || (a.length >= 5 && b.length >= 5 && lev(a, b, 1) <= 1); }
+function cariDisc(tk){
+  var q = tk.filter(function(w){ return !GENERIK[w]; }); if (!q.length) return [];
+  var L = ensureLearn(), res = [];
+  Object.keys(L.disc).forEach(function(g){
+    var it = L.disc[g], best = 0, bm = 0;
+    [it.l].concat(it.alt || []).forEach(function(lab){
+      var lt = toks(norm(lab)); if (!lt.length) return;
+      var mt = 0; lt.forEach(function(w){ if (q.some(function(x){ return tokMatch(x, w); })) mt++; });
+      var sc = mt / lt.length; if (sc > best || (sc === best && mt > bm)) { best = sc; bm = mt; }
+    });
+    if (best >= 0.66 && bm >= 1) res.push({ g: g, s: best + bm * 0.1 });
+  });
+  res.sort(function(a, b){ return b.s - a.s; });
+  return res;
+}
+function jawabDiscItem(g){
+  var it = ensureLearn().disc[g]; if (!it) return { text: 'Hmm, menu itu sepertinya sudah tidak ada di aplikasi 🤔', chips: CHIPS_UTAMA, noFb: true };
+  return { text: '**' + it.l + '** 🔎\n📍 ' + discPath(g, it.l) + '\n_Menu ini kutemukan sendiri dari tampilan aplikasi, jadi infonya selalu mengikuti versi terbaru._', chips: ['Peta aplikasi'], actions: [{ t: 'Buka ' + it.l, go: g }], intent: 'd:' + g };
+}
+function jawabDisc(tk){
+  try { scanApp(); } catch(e){}
+  var res = cariDisc(tk); if (!res.length) return null;
+  var L = ensureLearn(), top = res.filter(function(r){ return r.s >= res[0].s - 0.05; }).slice(0, 3);
+  if (top.length === 1) { var r1 = jawabDiscItem(top[0].g); r1.text = pick(['Kayaknya yang Kakak cari ini 👇', 'Nah, mungkin maksud Kakak ini 👇', 'Aku nemu yang mirip 👇']) + '\n\n' + r1.text; return r1; }
+  return { text: 'Aku nemu beberapa yang mirip 🔎 Maksud Kakak yang mana?\n' + top.map(function(r){ var it = L.disc[r.g]; return '• **' + it.l + '** (' + discPath(r.g, it.l) + ')'; }).join('\n'), chips: ['Peta aplikasi'], actions: top.map(function(r){ return { t: 'Buka ' + L.disc[r.g].l, go: r.g }; }), intent: 'd:' + top[0].g };
+}
+
+function jawabBelajar(){
+  var L = ensureLearn(), out = [];
+  var topFav = Object.keys(L.pop).sort(function(a, b){ return L.pop[b] - L.pop[a]; }).slice(0, 3).map(function(k){ return labelOf(k) + ' (' + L.pop[k] + 'x)'; });
+  out.push('**Perkembangan belajarku** 🧠');
+  out.push('• Kata/istilah yang sudah kupelajari: **' + Object.keys(L.tok).length + '**');
+  out.push('• Catatan yang kamu ajarkan: **' + L.taught.length + '**');
+  out.push('• Menu & fitur aplikasi yang kutemukan sendiri: **' + Object.keys(L.disc || {}).length + '**');
+  out.push('• Pertanyaan yang kupahami sendiri dari percakapan: **' + (L.nAuto || 0) + '**');
+  out.push('• Feedback darimu: 👍 ' + L.nUp + ' · 👎 ' + L.nDown);
+  if (topFav.length) out.push('• Topik favoritmu: ' + topFav.join(', '));
+  if (L.unk.length) {
+    out.push(''); out.push('**Pertanyaan yang belum bisa kujawab:**');
+    L.unk.slice(0, 3).forEach(function(x){ out.push('• "' + x.q + '" (' + x.n + 'x)'); });
+    out.push('Ajarin aku yuk! Ketik _ajari: pertanyaan = jawaban_.');
+  }
+  out.push(''); out.push('_Semua disimpan di perangkat ini saja, bukan di server. Angka di pertanyaanmu disamarkan._');
+  return { text: out.join('\n'), chips: ['Cara ajari asisten', 'Hapus ingatan belajar', 'Wawasan hari ini'], noFb: true };
+}
+function jawabAjari(){
+  return { text: '**Cara ajarin aku** 🎓\nKetik dengan format:\n• _ajari: pertanyaan kamu = jawaban yang kamu mau_\n\nContoh: _ajari: jam buka kantor koperasi = Senin–Jumat jam 08.00–15.00_\n\nLain kali kamu tanya hal yang mirip, aku langsung jawab pakai catatan itu. Catatan ini **pribadi di perangkatmu** dan bukan informasi resmi koperasi, jadi cek ke pengurus buat kepastian ya.', chips: ['Riwayat belajar', 'Wawasan hari ini'], noFb: true };
+}
+function tidakPaham(raw, tk){
+  logUnknown(raw); learnSave();
+  return maksud(tk, cleanQ(raw), pick(['Hmm, aku belum nangkep maksudnya nih 😅 Tapi aku mau belajar!', 'Waduh, yang ini aku belum paham, ' + panggil() + ' 😅 Bantu aku ngerti ya!', 'Maaf, ' + panggil() + ', aku belum yakin maksudnya apa 🙏 Yuk kita luruskan bareng.']));
+}
+function maksud(tk, q, awal){
+  return { text: awal + '\n\nMaksud kamu yang mana? Pilih salah satu di bawah, nanti aku ingat buat next time.\n\nAtau ajarin aku langsung: _ajari: pertanyaanmu = jawabannya_.', chips: PILIHAN_MAKSUD, keep: { unk: { tk: tk || [], q: q || '', ts: Date.now() } }, noFb: true };
+}
 
 function jawabBantuan(){
-  return { text: 'Saya **Asisten Renco**. Saya bisa membantu:\n• **Data pribadi**: saldo, pinjaman, iuran/tunggakan\n• **Pengingat**: cicilan dan iuran yang perlu diperhatikan\n• **Saran menabung**: hitung setoran bulanan untuk target Anda\n• **Tips berhemat** dan saran keuangan dari data Catat Uang\n• **Panduan aplikasi**: tarik tunai, transfer, pinjaman, dan lainnya\n\nSemua dihitung di perangkat ini dan hanya memakai data akun Anda.', chips: CHIPS_UTAMA };
+  return { text: 'Aku **Asisten Renco** 🤖 Ini yang bisa kubantu:\n• **Data pribadi**: saldo, pinjaman, iuran/tunggakan\n• **Pengingat**: cicilan dan iuran yang perlu diperhatikan\n• **Saran menabung**: hitung setoran bulanan buat targetmu\n• **Tips berhemat** dari data Catat Uang\n• **Wawasan koperasi**: SHU, akad syariah, RencoPay, Arisan, prinsip koperasi, zakat, dan lainnya\n• **Panduan aplikasi**: tarik tunai, transfer, pinjaman, dan lainnya\n• **Peta aplikasi**: aku tahu semua menu dan fiturnya, tinggal tanya "menu apa saja" atau "di mana fitur X"\n• **Belajar bareng**: kalau aku belum paham, kamu bisa ajarin aku\n\nSemua dihitung di perangkat ini dan cuma pakai data akunmu.', chips: CHIPS_UTAMA };
 }
-function jawabSapaan(){
-  var n = firstName(), p = kumpulPengingat().length;
-  var t = pick(['Assalamualaikum', 'Halo']) + (n ? ', ' + n : '') + '! 👋 Ada yang bisa saya bantu?';
-  if (kkId() && p) t += '\n\nOh ya, ada **' + p + ' hal** yang perlu Anda perhatikan. Ketik **"cek pengingat"** untuk melihatnya.';
-  return { text: t, chips: CHIPS_UTAMA };
-}
-function jawabTidakPaham(){
-  return { text: 'Maaf, saya belum paham maksudnya. Coba pertanyaan seperti:\n• _"Berapa saldo saya?"_\n• _"Kapan pinjaman saya lunas?"_\n• _"Saya mau nabung 10 juta dalam 12 bulan"_\n• _"Bagaimana cara tarik tunai?"_', chips: CHIPS_UTAMA };
+function salamWaktu(){ var h = new Date().getHours(); return h < 4 ? 'dini hari' : h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 18 ? 'sore' : 'malam'; }
+var EMO_WAKTU = { 'dini hari': '🌙', pagi: '☀️', siang: '🌤️', sore: '🌇', malam: '🌙' };
+function jawabSapaan(t){
+  var n = firstName(), p = kumpulPengingat().length, kak = n ? 'Kak ' + n : 'Kak', w = salamWaktu(), m = /^selamat (pagi|siang|sore|malam)/.exec(t || '');
+  var buka;
+  if (/^assalam/.test(t || '')) buka = 'Wa\'alaikumussalam warahmatullahi wabarakatuh, ' + kak + '! 🤲';
+  else if (m) buka = 'Selamat ' + m[1] + (m[1] === w ? ' juga' : '') + ', ' + kak + '! ' + (EMO_WAKTU[m[1]] || '😊');
+  else buka = pick(['Halo', 'Hai', 'Halo halo']) + ', ' + kak + '! 👋 ' + 'Selamat ' + w + ' ' + EMO_WAKTU[w];
+  var t2 = buka + '\n' + pick(['Lagi pengin cek apa hari ini?', 'Ada yang bisa kubantu?', 'Mau ngobrolin apa nih?', 'Cerita aja, aku dengerin 😊']);
+  if (kkId() && p) t2 += '\n\nOh ya, ada **' + p + ' hal** yang perlu kamu perhatikan. Ketik **"cek pengingat"** buat lihat.';
+  return { text: t2, chips: CHIPS_UTAMA, noFb: true };
 }
 
-function answer(text, ctx){
-  if (!me()) return belumLogin();
-  var raw = String(text || '').slice(0, 300), t = norm(raw);
-  if (!t) return jawabBantuan();
+/* ───────────── obrolan ringan (small talk) ───────────── */
+function obrolan(t, raw){
+  var wc = t.split(' ').length, n = firstName(), kak = n ? 'Kak ' + n : 'Kak';
+  var C = { chips: CHIPS_UTAMA, noFb: true };
+  function R(txt){ return { text: txt, chips: C.chips, noFb: true, small: true }; }
+  if (wc > 7) return null;
+  if (/^(apa kabar|gimana kabar|bagaimana kabar|how are you|lagi apa|sedang apa|lagi ngapain|lagi sibuk)( kamu| kak| nih| hari ini| sekarang| bot| asisten| renco| mu)*$/.test(t))
+    return R(pick(['Alhamdulillah baik, ' + kak + ' 😊 Aku standby terus di sini. ' + kak + ' sendiri gimana kabarnya?', 'Baik banget, ' + kak + '! Siap bantu kapan aja 😄 Kakak lagi gimana nih?']));
+  if (/^(baik|alhamdulillah|alhamdulillah baik|baik baik|sehat|sehat sehat|lumayan|biasa aja|capek|lelah)( kok| juga| nih| kak| alhamdulillah| sehat)?$/.test(t))
+    return R(/capek|lelah|biasa/.test(t) ? 'Semangat ya, ' + kak + ' 💪 Pelan-pelan aja. Kalau ada urusan keuangan yang bikin kepikiran, sini aku bantu cek bareng.' : pick(['Alhamdulillah, ikut senang dengernya 😊 Ada yang bisa kubantu hari ini?', 'Syukurlah 😊 Terus, ada yang mau dicek atau ditanyain?']));
+  if (/(siapa (kamu|namamu|nama kamu|kau|anda)|kamu siapa|nama kamu|perkenalkan diri)/.test(t))
+    return R('Aku **Asisten Renco** 🤖 teman ngobrol soal keuangan di Koperasi Renco. Aku bisa cek saldo, pinjaman, iuran, bantu hitung nabung, sampai jelasin istilah koperasi. Santai aja nanyanya, kayak ke teman 😊');
+  if (/(kamu|anda|asisten) (itu |ini )?(manusia|robot|bot|ai|orang|asli)|manusia (atau|bukan)|robot (atau|bukan)/.test(t))
+    return R('Aku asisten virtual, bukan manusia, ' + kak + ' 😊 Tapi kuusahakan ngobrolnya senyaman ngobrol sama teman. Semua hitungan jalan di perangkat ini dan cuma pakai data akunmu.');
+  if (/(jam berapa|pukul berapa|hari apa|tanggal berapa|tanggal sekarang|sekarang tanggal)/.test(t)) {
+    var d = new Date(), HR = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    return R('Sekarang **' + HR[d.getDay()] + ', ' + tglId(d) + '**, pukul **' + ('0' + d.getHours()).slice(-2) + '.' + ('0' + d.getMinutes()).slice(-2) + '** ⏰ (sesuai jam di perangkatmu).');
+  }
+  if (/^(wk\w*|ha(ha)+\w*|he(he)+\w*|hi(hi)+\w*|lol|xi(xi)+\w*|wkwk\w*)( kak| juga)?$/.test(t))
+    return R(pick(['Hehe 😄 Kakak bisa aja.', 'Wkwk 😄 Seru juga ya ngobrol begini. Ada yang mau dicek?', 'Hehe, senang kalau Kakak terhibur 😊']));
+  if (/^(maaf|sorry|sori|afwan|maaf ya|maaf kak)( ya| kak| tadi)?$/.test(t))
+    return R('Nggak apa-apa, ' + kak + ' 🙏 Santai aja. Ada yang bisa kubantu?');
+  if (/(dadah|daah|bye|sampai jumpa|sampai nanti|sampai ketemu|pamit|sudah dulu|cukup dulu|wassalam|waalaikumsalam|wa alaikum)/.test(t))
+    return R(/salam/.test(t) ? 'Wa\'alaikumussalam, ' + kak + ' 🤲 Semoga harimu berkah.' : pick(['Siap, ' + kak + '! Hati-hati ya, semoga rezekinya lancar dan berkah 🤲', 'Oke, ' + kak + '! Kapan pun butuh, ketuk aku lagi ya 👋', 'Dadah, ' + kak + '! Jaga kesehatan ya 😊']));
+  if (/^(kamu |asisten |anda )?(pintar|pinter|keren|hebat|mantap|bagus|top|jos|joss|membantu|helpful)( banget| sekali| deh| juga| ya)?( kak)?$/.test(t) || /(kamu|asisten|jawabanmu|jawaban kamu|jawabannya).*(pintar|keren|hebat|membantu|bagus|mantap)/.test(t))
+    return R(pick(['Aduh, makasih ' + kak + ' 🥰 Seneng bisa membantu. Aku juga terus belajar dari pertanyaan Kakak 🧠', 'Makasih banyak, ' + kak + '! 😊 Kalau ada yang masih kurang pas, kasih tahu ya biar aku makin pinter.']));
+  if (/(bodoh|goblok|ngaco|salah semua|tidak berguna|tidak jelas|jelek|payah|ga guna)/.test(t))
+    return R('Maaf ya, ' + kak + ' 🙏 Kayaknya jawabanku belum pas. Coba tanya dengan kata lain, atau ajari aku langsung: _ajari: pertanyaanmu = jawabannya_. Aku mau belajar kok.');
+  if (/^(ok|oke|okey|okay|okee|siap|sip|sipp|noted|baiklah|oke deh|oke siap|oke sip|ya|iya|yoi|yap|yup|oh|ooh|oh gitu|oh begitu|owh|ohh|nah|gitu|begitu|paham|mengerti|ngerti|sudah|cukup)( kak| deh| siap| makasih| ya| mengerti| paham)?$/.test(t))
+    return R(pick(['Siap, ' + kak + ' 👍 Kalau ada yang mau ditanyain lagi, tinggal ketik ya.', 'Sip! Aku di sini kalau butuh apa-apa lagi 😊', 'Oke 😊 Mau lanjut bahas yang lain?', 'Baik, ' + kak + '. Tinggal bilang aja kalau butuh bantuan lagi ya.']));
+  return null;
+}
+
+/* ───────────── router ───────────── */
+var SLANG = { gak: 'tidak', ga: 'tidak', nggak: 'tidak', ngga: 'tidak', gk: 'tidak', tdk: 'tidak', enggak: 'tidak', udh: 'sudah', udah: 'sudah', sdh: 'sudah', blm: 'belum', blom: 'belum', gmn: 'gimana', gmna: 'gimana', brp: 'berapa', brapa: 'berapa', utk: 'untuk', buat: 'untuk', dgn: 'dengan', yg: 'yang', dlm: 'dalam', bgt: 'banget', bngt: 'banget', tf: 'transfer', trf: 'transfer', duit: 'uang', doku: 'uang', minjem: 'pinjam', minjam: 'pinjam', ngutang: 'pinjam', nyimpen: 'simpan', jajan: 'belanja', boncos: 'boros', lg: 'lagi', krn: 'karena', jgn: 'jangan', bs: 'bisa', sy: 'saya', aq: 'aku', kpn: 'kapan', dmn: 'dimana', wd: 'tarik', ttg: 'tentang', tau: 'tahu', pls: 'tolong', plis: 'tolong', makasi: 'makasih', thx: 'makasih', tengkyu: 'makasih' };
+function norm(s){
+  var t = String(s || '').toLowerCase().replace(/[“”"']/g, ' ').replace(/[^a-z0-9.,%\/\s?-]/g, ' ').replace(/([a-z])\1{2,}/g, '$1').replace(/\s+/g, ' ').trim();
+  return t.split(' ').map(function(w){ return SLANG[w] || w; }).join(' ');
+}
+function sc(t, list){ var s = 0; list.forEach(function(x){ if (x[0].test(t)) s += x[1]; }); return s; }
+
+function pilihIntent(t, tk, ctx){
+  if (/riwayat belajar|kemajuan belajar|ingatan (belajar|asisten)|sudah belajar|makin pintar|apa yang kamu pelajari|statistik asisten|belajar apa/.test(t)) return 'belajar';
+  if (/cara.*(ajari|ajarin|mengajari)|(ajari|ajarin) (asisten|kamu)/.test(t)) return 'ajariInfo';
+  if (/\b(dimana|letak|menu|tombol|buka|akses|masuk ke|ada apa)\b/.test(t)) { var f0 = cariFitur(t); if (f0) return 'f:' + f0.id; }
+  for (var i = 0; i < KB.length; i++) if (KB[i].re.test(t)) return KB[i].id;
+  if (/wawasan|fakta|fun fact|tahu tidak|tahukah|info menarik|edukasi|literasi/.test(t)) return 'wawasan';
+
   var wordCount = t.split(' ').length;
-
-  /* lanjutan percakapan menabung: jawaban singkat berisi angka/durasi saja */
-  if (ctx && ctx.nabung && wordCount <= 6) {
-    var d0 = parseDurasi(t), u0 = parseUang(d0.sisa);
-    if ((d0.bulan != null || u0 != null) && !/saldo|pinjam|iuran|hemat|ingat/.test(t)) return jawabNabung(t, ctx);
-  }
-
-  var SAPA = /^(halo|hai|hi|hello|hallo|hey|assalamu?alaikum( wr\.? ?wb\.?)?|assalam|selamat (pagi|siang|sore|malam)|permisi|p)\b[ ,]*/;
-  if (SAPA.test(t)) {
-    var sisaSapa = t.replace(SAPA, '').replace(/\b(kak|kakak|admin|renco|bot|asisten|min)\b/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!sisaSapa) return jawabSapaan();
-    t = sisaSapa; wordCount = t.split(' ').length;
-  }
-  if (/terima kasih|makasih|thanks|thank you|jazakallah|syukron/.test(t)) return { text: 'Sama-sama! 😊 Semoga keuangan Anda makin berkah. Kalau ada yang lain, tanya saja.', chips: CHIPS_UTAMA };
-  if (/bantuan|bisa apa|fitur|^menu$|^help$|apa saja yang bisa/.test(t)) return jawabBantuan();
-
+  var fz = cariFitur(t); if (fz) return 'f:' + fz.id;
   var g = cariPanduan(t, false);
   var dur = parseDurasi(t), uang = parseUang(dur.sisa);
   var nabungKw = /nabung|menabung|target|kumpul|mengumpulkan|menyisihkan|sisihkan|dana darurat/.test(t);
@@ -75377,33 +75860,138 @@ function answer(text, ctx){
   };
   if (nabungKw && skor.hemat) skor.nabung += 2;
   if (/pinjam|cicil|angsur|utang|hutang/.test(t) && !/iuran|wajib/.test(t)) skor.pinjaman += 3;
-  if (g && !nabungKw) {
-    /* panduan menang bila ada kata tanya 'cara' atau topik panduan sangat spesifik */
-    return g.build();
-  }
+  if (g && !nabungKw) return 'g:' + g.id;
   var best = null, bs = 0;
   ['pengingat', 'iuran', 'pinjaman', 'nabung', 'hemat', 'saldo'].forEach(function(k){ if (skor[k] > bs) { bs = skor[k]; best = k; } });
-  if (!best || bs < 3) {
-    var g2 = cariPanduan(t, true); if (g2) return g2.build();
-    if (wordCount <= 4 && (uang != null || dur.bulan != null)) return jawabNabung(t, ctx);
-    return jawabTidakPaham();
+  if (best && bs >= 3) return best;
+
+  var lp = learnedPick(tk); if (lp && RUN[lp]) return lp;
+  var g2 = cariPanduan(t, true); if (g2) return 'g:' + g2.id;
+  if (wordCount <= 4 && (uang != null || dur.bulan != null)) return 'nabung';
+  return null;
+}
+
+var RUN = {
+  saldo: function(){ return jawabSaldo(); },
+  pinjaman: function(){ return jawabPinjaman(); },
+  iuran: function(){ return jawabIuran(); },
+  pengingat: function(){ return jawabPengingat(); },
+  nabung: function(t, ctx){ return jawabNabung(t, ctx); },
+  hemat: function(){ return jawabHemat(); },
+  wawasan: function(){ return jawabWawasan(); },
+  belajar: function(){ return jawabBelajar(); },
+  ajariInfo: function(){ return jawabAjari(); }
+};
+GUIDES.forEach(function(g){ RUN['g:' + g.id] = function(){ return g.build(); }; });
+KB.forEach(function(k){ RUN[k.id] = function(){ return k.build(); }; });
+FITUR.forEach(function(f){ RUN['f:' + f.id] = f.id === 'peta' ? function(){ return jawabPeta(); } : function(){ return jawabFitur(f); }; });
+function run(id, t, ctx){ var r = RUN[id](t, ctx); r.intent = id; return r; }
+
+/* perintah khusus: ajari / hapus ingatan */
+function perintah(raw, t){
+  var m = raw.match(/^\s*(?:ajari|ajarin|ingat)(?:\s+(?:aku|kamu|asisten))?\s*[:,]?\s*(.{3,80}?)\s*(?:=>|->|=)\s*(.{3,400}?)\s*$/i);
+  if (m) {
+    var L = ensureLearn(), q = m[1].trim(), a = m[2].trim(), tk = toks(norm(q));
+    if (!tk.length) return { text: 'Pertanyaannya terlalu pendek nih, Kak. Coba pakai kalimat yang lebih jelas ya.', chips: ['Cara ajari asisten'], noFb: true };
+    L.taught = L.taught.filter(function(x){ return x.tk.join(' ') !== tk.join(' '); });
+    L.taught.unshift({ q: q, a: a, tk: tk, ts: Date.now() });
+    if (L.taught.length > 25) L.taught.length = 25;
+    learnSave();
+    return { text: 'Siap, udah kucatat! 🧠\n• Kalau kamu tanya: **' + q + '**\n• Aku jawab: ' + a + '\n\nCoba tanya lagi dengan kalimat yang mirip ya.', chips: ['Riwayat belajar', 'Wawasan hari ini'], noFb: true };
   }
-  switch (best) {
-    case 'saldo': return jawabSaldo();
-    case 'pinjaman': return jawabPinjaman();
-    case 'iuran': return jawabIuran();
-    case 'pengingat': return jawabPengingat();
-    case 'nabung': return jawabNabung(t, ctx);
-    case 'hemat': return jawabHemat();
+  if (/(hapus|reset|lupakan|bersihkan).*(ingatan|belajar|memori)/.test(t)) {
+    LEARN = learnFresh(); LEARN._o = cuOwner(); learnSave();
+    return { text: 'Beres, semua ingatan belajarku di perangkat ini sudah dihapus 🧹 Kita mulai dari nol lagi ya!', chips: CHIPS_UTAMA, noFb: true };
   }
-  return jawabTidakPaham();
+  return null;
+}
+
+function rute(t, raw, tk, ctx){
+  var wordCount = t.split(' ').length;
+  /* pilihan "maksud kamu yang mana?" → pelajari pemetaannya */
+  if (ctx && ctx.unk) {
+    var pid = TOPIC_MAP[raw.trim()];
+    if (pid && RUN[pid]) {
+      var rp0 = run(pid, t, {});
+      learnTok(ctx.unk.tk, pid, 3); if (ctx.unk.q) dropUnknown(ctx.unk.q);
+      rp0.text += '\n\n🧠 _Oke, dicatat! Lain kali kalau kamu nanya kayak tadi, aku langsung ngerti._';
+      rp0.byLearn = true; return rp0;
+    }
+  }
+  /* lanjutan percakapan menabung */
+  if (ctx && ctx.nabung && wordCount <= 6) {
+    var d0 = parseDurasi(t), u0 = parseUang(d0.sisa);
+    if ((d0.bulan != null || u0 != null) && !/saldo|pinjam|iuran|hemat|ingat/.test(t)) return run('nabung', t, ctx);
+  }
+  var SAPA = /^(halo|hai|hi|hello|hallo|hey|assalamu?alaikum( wr\.? ?wb\.?)?|assalam|selamat (pagi|siang|sore|malam)|permisi|p)\b[ ,]*/;
+  if (SAPA.test(t)) {
+    var sisaSapa = t.replace(SAPA, '').replace(/\b(kak|kakak|admin|renco|bot|asisten|min)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!sisaSapa) return jawabSapaan(t);
+    var sapaAwal = t;
+    t = sisaSapa; tk = toks(t); wordCount = t.split(' ').length;
+    var obr0 = obrolan(t, raw);
+    if (obr0) { obr0.text = jawabSapaan(sapaAwal).text.split('\n')[0] + '\n' + obr0.text; return obr0; }
+  }
+  if (/terima kasih|makasih|thanks|thank you|jazakallah|syukron|tengkyu|thx/.test(t)) return { text: pick(['Sama-sama, ' + panggil() + '! 😊 Semoga keuanganmu makin berkah dan aman jaya.', 'Sama-sama! Senang bisa bantu 🤗 Kalau ada yang bikin penasaran lagi, tanya aja ya.', 'Dengan senang hati, ' + panggil() + ' 🙏 Aku di sini kalau butuh lagi.']), chips: CHIPS_UTAMA, noFb: true };
+  var obr = obrolan(t, raw); if (obr) return obr;
+  if (/bantuan|bisa apa|^fitur$|^menu$|^help$|apa saja yang bisa/.test(t)) return jawabBantuan();
+
+  /* catatan yang pernah diajarkan pengguna */
+  var tg = cariTaught(tk);
+  if (tg) return { text: '**Catatan yang kamu ajarkan** 🧠\n' + tg.a + '\n\n_Ini catatan pribadimu di perangkat ini, bukan informasi resmi koperasi._', chips: ['Riwayat belajar', 'Tentang Koperasi Renco'], intent: 'taught', noFb: true };
+
+  var id = pilihIntent(t, tk, ctx), t2 = t, viaLearn = false;
+  if (id && !RUN[id]) id = null;
+  if (!id) {
+    var fx = fixTypos(t);
+    if (fx) { id = pilihIntent(fx, toks(fx), ctx); if (id && RUN[id]) t2 = fx; else id = null; }
+  }
+  if (!id) { var dsc = jawabDisc(tk); if (dsc) return dsc; }
+  if (!id) return tidakPaham(raw, tk);
+  var r = run(id, t2, ctx);
+  return r;
+}
+
+var LEAD_OK = { saldo: 1, pinjaman: 1, iuran: 1, pengingat: 1, nabung: 1, hemat: 1 };
+var LEAD_KATA = ['Siap, ini ya 👇', 'Oke, aku cek dulu… ini hasilnya 👇', 'Boleh! Ini yang kutemukan 👇', 'Sip, langsung ya 👇', 'Sebentar ya… nah, ini 👇'];
+function answer(text, ctx){
+  if (!me()) return belumLogin();
+  ensureLearn();
+  var raw = String(text || '').slice(0, 300), t = norm(raw);
+  if (!t) return jawabBantuan();
+  var cmd = perintah(raw, t); if (cmd) return cmd;
+  var tk = toks(t);
+  var r = rute(t, raw, tk, ctx || {});
+  r.qtok = tk;
+  /* belajar sendiri: kalau pertanyaan yang tadi tak dipahami lalu diulang dengan kata lain dan sekarang paham, hubungkan keduanya */
+  if (ctx && ctx.unk && ctx.unk.tk && ctx.unk.tk.length && (Date.now() - (ctx.unk.ts || 0)) < 120000 && !r.byLearn && !r.keep && r.intent && r.intent !== 'taught' && RUN[r.intent]) {
+    learnTok(ctx.unk.tk, r.intent, 1.4); if (ctx.unk.q) dropUnknown(ctx.unk.q);
+    var La = ensureLearn(); La.nAuto = (La.nAuto || 0) + 1; learnSave();
+    r.text += '\n\n🧠 _Oh, jadi yang tadi maksudnya ini ya. Sudah kucatat sendiri, lain kali aku langsung paham._';
+  }
+  /* kalimat pembuka biar terasa ngobrol, bukan sekadar menyodorkan data */
+  if (r.intent && LEAD_OK[r.intent] && !r.byLearn && !(ctx && ctx.nabung) && !/^Data pribadi cuma/.test(r.text)) {
+    if (/capek|pusing|pening|stres|stress|bingung|khawatir|takut|galau|sedih|kewalahan|panik|cemas|gelisah|tertekan|susah/.test(t)) {
+      r.text = pick(['Tenang ya, ' + panggil() + ', pelan-pelan kita lihat bareng 🤝', 'Aku ngerti kok, ' + panggil() + '. Yuk kita cek dulu biar lebih jelas 🌿', 'Nggak apa-apa, ' + panggil() + '. Kita lihat datanya bareng-bareng ya 🤗']) + '\n\n' + r.text;
+    } else if (Math.random() < 0.6) {
+      var ld = pick(LEAD_KATA); if (ld === UI.lastLead) ld = LEAD_KATA[(LEAD_KATA.indexOf(ld) + 1) % LEAD_KATA.length];
+      UI.lastLead = ld; r.text = ld + '\n\n' + r.text;
+    }
+  }
+  if (r.intent && r.intent !== 'taught') {
+    var L = ensureLearn();
+    if (TOPIC_ID[r.intent]) L.pop[r.intent] = (L.pop[r.intent] || 0) + 1;
+    if (!r.byLearn) learnTok(tk, r.intent, 0.6);
+    learnSave();
+  }
+  return r;
 }
 
 /* ───────────── antarmuka ───────────── */
 var UI = { built: false, open: false, ctx: {}, owner: null, quick: null };
 var NAV_H = 84, FABS = 58;
 var FABST = { x: 0, y: 0, down: false, moved: false, pid: null, sx: 0, sy: 0, ox: 0, oy: 0, nx: 0, ny: 0, raf: 0, idleT: 0 };
-var EMO = { 'Saldo saya': '💰', 'Pinjaman saya': '💳', 'Iuran saya': '🧾', 'Cek pengingat': '🔔', 'Saran menabung': '🎯', 'Tips berhemat': '💡', 'Cara tarik tunai': '🏧', 'Cara ajukan pinjaman': '📝', 'Cara bayar iuran': '🧾', 'Cara setor simpanan': '➕', 'Cara transfer ke anggota': '🔁', 'Cara top up RencoPay': '📲', 'Kenapa sukarela saya minus?': '❓' };
+var EMO = { 'Saldo saya': '💰', 'Pinjaman saya': '💳', 'Iuran saya': '🧾', 'Cek pengingat': '🔔', 'Saran menabung': '🎯', 'Tips berhemat': '💡', 'Cara tarik tunai': '🏧', 'Cara ajukan pinjaman': '📝', 'Cara bayar iuran': '🧾', 'Cara setor simpanan': '➕', 'Cara transfer ke anggota': '🔁', 'Cara top up RencoPay': '📲', 'Kenapa sukarela saya minus?': '❓', 'Tentang Koperasi Renco': '🌱', 'Wawasan hari ini': '✨', 'Wawasan lagi': '✨', 'Apa itu SHU?': '🎁', 'Prinsip koperasi': '🤝', 'Apa itu RencoPay?': '📲', 'Qardh vs Murabahah': '🕌', 'Tentang Arisan': '🎲', 'Kalkulator': '🧮', 'Bahaya penipuan': '🚨', 'Riwayat belajar': '🧠', 'Cara ajari asisten': '🎓', 'Hapus ingatan belajar': '🧹', 'Iuran saya': '🧾', 'Kenapa akun jadi nonaktif?': '⏸️' };
 function $(i){ return document.getElementById(i); }
 function reduceMotion(){ try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){ return false; } }
 function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
@@ -75510,6 +76098,8 @@ var CSS = '' +
 '#raForm{display:flex;gap:8px;padding:6px 12px calc(12px + env(safe-area-inset-bottom,0px));flex-shrink:0}' +
 '#raIn{flex:1;min-width:0;border:1.5px solid rgba(45,106,79,.28);border-radius:99px;padding:11px 16px;font-size:14px;font-family:inherit;background:#fff;color:#1c3025;outline:none;transition:border-color .2s,box-shadow .2s}#raIn:focus{border-color:#40916c;box-shadow:0 0 0 3px rgba(64,145,108,.18)}' +
 '#raSend{width:44px;height:44px;border-radius:50%;border:none;background:#2d6a4f;color:#ffd166;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .2s,opacity .2s,background .2s;opacity:.55}#raSend.ready{opacity:1;background:linear-gradient(135deg,#2d6a4f,#40916c);box-shadow:0 3px 10px rgba(45,106,79,.4)}#raSend:active{transform:scale(.9) rotate(-12deg)}' +
+'.ra-fb{display:flex;align-items:center;gap:6px;margin:5px 4px 0;font-size:11px}.ra-fb span{opacity:.65;margin-right:2px}.ra-fb button{border:1px solid rgba(45,106,79,.25);background:rgba(255,255,255,.8);border-radius:99px;padding:2px 10px;font-size:13px;line-height:1.5;cursor:pointer;font-family:inherit;transition:transform .15s}.ra-fb button:active{transform:scale(.86)}.ra-fb.done{opacity:.65}' +
+'html.renco-dark .ra-fb button{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16)}' +
 '@media (min-width:700px){#raOverlay{align-items:center}#raPanel{border-radius:26px;height:min(80vh,700px)}}' +
 '@media (prefers-reduced-motion:reduce){#raPanel,#raOverlay,.ra-row,.ra-chip,.ra-bar-t i,#raHead{animation:none!important;transition:none!important}#raFab .ic *,#raFab{animation:none!important}}' +
 /* ── mode gelap ── */
@@ -75563,7 +76153,7 @@ function bindFab(f){
   f.addEventListener('pointermove', function(e){
     if (!FABST.down || e.pointerId !== FABST.pid) return;
     var dx = e.clientX - FABST.sx, dy = e.clientY - FABST.sy;
-    if (!FABST.moved) { if (Math.hypot(dx, dy) < 6) return; FABST.moved = true; f.classList.remove('press'); f.classList.add('dragging'); }
+    if (!FABST.moved) { if (Math.hypot(dx, dy) < (e.pointerType === 'mouse' ? 6 : 14)) return; FABST.moved = true; f.classList.remove('press'); f.classList.add('dragging'); }
     FABST.nx = FABST.ox + dx; FABST.ny = FABST.oy + dy;
     if (!FABST.raf) FABST.raf = requestAnimationFrame(fabFrame);
     e.preventDefault();
@@ -75573,6 +76163,10 @@ function bindFab(f){
     FABST.down = false; f.classList.remove('press', 'dragging');
     try { f.releasePointerCapture(e.pointerId); } catch(_){}
     if (FABST.raf) { cancelAnimationFrame(FABST.raf); FABST.raf = 0; }
+    /* geseran sangat kecil (jari goyang saat mengetuk) tetap dihitung sebagai ketukan → langsung buka */
+    if (FABST.moved && e.type === 'pointerup' && Math.hypot(e.clientX - FABST.sx, e.clientY - FABST.sy) < 20) {
+      FABST.moved = false; fabPlace(FABST.ox, FABST.oy, false);
+    }
     if (FABST.moved) {
       var b = fabBounds();
       fabPlace(FABST.x + FABS / 2 < window.innerWidth / 2 ? b.minX : b.maxX, clamp(FABST.y, b.minY, b.maxY), true);
@@ -75596,11 +76190,11 @@ function build(){
   document.body.appendChild(fab); bindFab(fab); fabRestore(false); wake();
   var ov = document.createElement('div'); ov.id = 'raOverlay';
   ov.innerHTML = '<div id="raPanel" role="dialog" aria-modal="true" aria-label="Asisten Keuangan Renco">' +
-    '<div id="raHead"><div class="av">' + ICON_AV + '</div><div class="tt"><b>Asisten Renco</b><span>Online · dihitung di perangkat Anda</span></div>' +
+    '<div id="raHead"><div class="av">' + ICON_AV + '</div><div class="tt"><b>Asisten Renco</b><span>Online · makin pintar tiap kamu nanya</span></div>' +
     '<button type="button" id="raClear" title="Mulai ulang" aria-label="Mulai ulang"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
     '<button type="button" id="raClose" aria-label="Tutup"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>' +
     '<div id="raLog" aria-live="polite"></div><div id="raQuick"></div>' +
-    '<form id="raForm" autocomplete="off"><input id="raIn" type="text" maxlength="300" placeholder="Tanya saldo, pinjaman, tips hemat…" enterkeyhint="send" autocomplete="off" autocapitalize="sentences"><button id="raSend" type="submit" aria-label="Kirim"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z" fill="currentColor"/></svg></button></form></div>';
+    '<form id="raForm" autocomplete="off"><input id="raIn" type="text" maxlength="300" placeholder="Tanya apa aja soal koperasi…" enterkeyhint="send" autocomplete="off" autocapitalize="sentences"><button id="raSend" type="submit" aria-label="Kirim"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z" fill="currentColor"/></svg></button></form></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click', function(e){ if (e.target === ov) toggle(false); });
   $('raClose').onclick = function(){ toggle(false); };
@@ -75638,7 +76232,10 @@ function botShell(){
 }
 function setQuick(list){
   var q = $('raQuick'); if (!q) return; q.innerHTML = '';
-  var all = (list || []).slice(); CHIPS_UTAMA.forEach(function(x){ if (all.indexOf(x) < 0) all.push(x); });
+  var all = (list || []).slice(), pop = ensureLearn().pop;
+  var rest = CHIPS_UTAMA.filter(function(x){ return all.indexOf(x) < 0; }).map(function(x, i){ return { x: x, i: i, p: pop[TOPIC_MAP[x]] || 0 }; })
+    .sort(function(a, b){ return b.p - a.p || a.i - b.i; }).map(function(o){ return o.x; });
+  all = all.concat(rest);
   all.forEach(function(x, i){
     var b = document.createElement('button'); b.type = 'button'; b.className = 'ra-chip'; b.style.animationDelay = (i * 40) + 'ms';
     b.textContent = (EMO[x] ? EMO[x] + ' ' : '') + x; b.onclick = function(){ ask(x); }; q.appendChild(b);
@@ -75661,11 +76258,29 @@ function fillBot(sh, r){
   if (r.viz && r.viz.length) sh.bubble.appendChild(barsEl(r.viz));
   if (r.actions && r.actions.length) {
     var a = document.createElement('div'); a.className = 'ra-acts';
-    r.actions.forEach(function(x){ var b = document.createElement('button'); b.type = 'button'; b.className = 'ra-act'; b.textContent = x.t + ' →'; b.onclick = function(){ go(x.go); }; a.appendChild(b); });
+    r.actions.forEach(function(x){ var b = document.createElement('button'); b.type = 'button'; b.className = 'ra-act'; b.textContent = x.t + ' →'; b.onclick = function(){ try { if (r.intent && r.qtok) { learnTok(r.qtok, r.intent, 1.2); learnSave(); } } catch(e){} go(x.go); }; a.appendChild(b); });
     sh.bubble.appendChild(a);
   }
   var tm = document.createElement('div'); tm.className = 'ra-time'; tm.textContent = hhmm(); sh.col.appendChild(tm);
+  if (r.intent && !r.noFb && r.qtok) addFb(sh, r);
   setQuick(r.chips); scrollEnd();
+}
+function addFb(sh, r){
+  var f = document.createElement('div'); f.className = 'ra-fb';
+  var s = document.createElement('span'); s.textContent = 'Jawabannya membantu?';
+  var up = document.createElement('button'); up.type = 'button'; up.textContent = '👍'; up.setAttribute('aria-label', 'Membantu');
+  var dn = document.createElement('button'); dn.type = 'button'; dn.textContent = '👎'; dn.setAttribute('aria-label', 'Kurang pas');
+  function done(msg){ f.className = 'ra-fb done'; f.textContent = msg; }
+  up.onclick = function(){ done('Makasih, aku catat ya 🧠'); feedback(r, true); };
+  dn.onclick = function(){ done('Siap, aku koreksi dulu 🙏'); feedback(r, false); };
+  f.appendChild(s); f.appendChild(up); f.appendChild(dn); sh.col.appendChild(f);
+}
+function feedback(r, ok){
+  var L = ensureLearn();
+  if (ok) { learnTok(r.qtok, r.intent, 2); L.nUp++; learnSave(); return; }
+  learnTok(r.qtok, r.intent, -2.5); L.nDown++; learnSave();
+  var m = maksud(r.qtok, '', 'Yah, maaf ya, kayaknya jawabanku kurang pas 🙏');
+  UI.ctx = m.keep; addBot(m);
 }
 function addBot(r){ var sh = botShell(); fillBot(sh, r); }
 function go(code){
@@ -75674,6 +76289,8 @@ function go(code){
     toggle(false);
     if (p[0] === 'nav' && typeof navTo === 'function') navTo(p[1]);
     else if (p[0] === 'keu' && typeof navTo === 'function') { navTo('keuangan'); setTimeout(function(){ try { if (typeof keuanganTab === 'function') keuanganTab(p[1]); } catch(e){} }, 150); }
+    else if (p[0] === 'forum' && typeof navTo === 'function') { navTo('forum'); setTimeout(function(){ try { if (typeof forumTab === 'function') forumTab(p[1]); } catch(e){} }, 150); }
+    else if (p[0] === 'lap' && typeof navTo === 'function') { navTo('laporan'); setTimeout(function(){ try { if (typeof laporanTab === 'function') laporanTab(p[1]); } catch(e){} }, 150); }
     else if (p[0] === 'fn' && typeof window[p[1]] === 'function') window[p[1]]();
   } catch(e){}
 }
@@ -75683,14 +76300,19 @@ function ask(text){
   var sh = botShell(); sh.bubble.innerHTML = '<span class="ra-typing"><i></i><i></i><i></i></span>'; scrollEnd();
   var r; try { r = answer(text, UI.ctx); } catch(e){ r = { text: 'Maaf, terjadi kendala saat menghitung jawaban. Coba lagi ya.', chips: CHIPS_UTAMA }; }
   UI.ctx = r.keep ? r.keep : {};
-  var wait = reduceMotion() ? 0 : Math.min(950, 380 + String(r.text).length * 0.9);
+  var wait = reduceMotion() ? 0 : Math.min(1500, (r.small ? 450 : 650) + String(r.text).length * 1.1 + Math.random() * 350);
   setTimeout(function(){ if (!sh.row.parentNode) return; fillBot(sh, r); }, wait);
 }
 function greet(){
-  var n = firstName(), p = kumpulPengingat();
-  var t = 'Assalamualaikum' + (n ? ', ' + n : '') + '! Saya **Asisten Renco** 👋\nSaya bisa cek saldo, pinjaman, dan iuran Anda, menghitung rencana menabung, memberi tips berhemat, serta memandu cara memakai aplikasi.';
-  if (p.length) t += '\n\n🔔 Ada **' + p.length + ' hal** yang perlu diperhatikan. Ketuk **Pengingat** di bawah.';
-  addBot({ text: t, tiles: tilesData(), chips: p.length ? ['Cek pengingat'].concat(CHIPS_UTAMA.filter(function(x){ return x !== 'Cek pengingat'; })) : CHIPS_UTAMA });
+  var n = firstName(), p = kumpulPengingat(), L = ensureLearn();
+  var w = salamWaktu();
+  var t = 'Assalamualaikum' + (n ? ', Kak ' + n : '') + '! Selamat ' + w + ' ' + EMO_WAKTU[w] + '\nAku **Asisten Renco**, teman ngobrol soal keuangan kamu. Mau cek saldo, pinjaman, iuran, hitung rencana nabung, atau sekadar tanya-tanya soal **Koperasi Renco**? Tulis aja pakai bahasa sehari-hari, nggak perlu kaku 😊';
+  var fav = Object.keys(L.pop).sort(function(a, b){ return L.pop[b] - L.pop[a]; })[0];
+  if (fav && L.pop[fav] >= 3) t += '\n\nBiasanya kamu sering nanya **' + labelOf(fav) + '**. Mau lanjut yang itu? Ketuk di bawah ya.';
+  if (p.length) t += '\n\n🔔 Ada **' + p.length + ' hal** yang perlu diperhatikan. Ketuk **Cek pengingat** di bawah.';
+  var chips = p.length ? ['Cek pengingat'].concat(CHIPS_UTAMA.filter(function(x){ return x !== 'Cek pengingat'; })) : CHIPS_UTAMA.slice();
+  if (fav && L.pop[fav] >= 3 && TOPIC_ID[fav]) chips = [TOPIC_ID[fav]].concat(chips.filter(function(x){ return x !== TOPIC_ID[fav]; }));
+  addBot({ text: t, tiles: tilesData(), chips: chips });
 }
 function reset(){ if (log()) log().innerHTML = ''; UI.ctx = {}; }
 function toggle(on){
@@ -75698,14 +76320,14 @@ function toggle(on){
   UI.open = on === undefined ? !UI.open : !!on;
   ov.classList.toggle('open', UI.open);
   var fab = $('raFab'); if (fab) { fab.style.display = UI.open ? 'none' : (me() && !window._rencoPayOnly ? 'flex' : 'none'); }
-  if (UI.open) { if (!log().children.length) greet(); setTimeout(function(){ var i = $('raIn'); if (i && window.innerWidth > 700) i.focus(); }, 120); }
+  if (UI.open) { try { scanApp(); } catch(e){} if (!log().children.length) greet(); setTimeout(function(){ var i = $('raIn'); if (i && window.innerWidth > 700) i.focus(); }, 120); }
   else wake();
 }
 function sync(){
   if (typeof document === 'undefined') return;
   var u = me(), fab = $('raFab');
   var owner = u ? String(u.nasabahId || u.id || u.username || '') : null;
-  if (UI.owner !== owner) { UI.owner = owner; if (UI.built) { reset(); if (UI.open) toggle(false); } }
+  if (UI.owner !== owner) { UI.owner = owner; LEARN = null; if (UI.built) { reset(); if (UI.open) toggle(false); } }
   if (!u) { if (fab) fab.style.display = 'none'; return; }
   build(); fab = $('raFab');
   if (window._rencoPayOnly) { fab.style.display = 'none'; return; }
@@ -75719,7 +76341,7 @@ function sync(){
   }
 }
 
-window.RencoAsisten = { answer: answer, open: function(){ toggle(true); }, close: function(){ toggle(false); }, _parse: { uang: parseUang, durasi: parseDurasi } };
+window.RencoAsisten = { belumTerjawab: function(){ return ensureLearn().unk.slice(); }, ingatan: function(){ var L = ensureLearn(); return { kata: Object.keys(L.tok).length, catatan: L.taught.length, up: L.nUp, down: L.nDown }; }, answer: answer, open: function(){ toggle(true); }, close: function(){ toggle(false); }, _parse: { uang: parseUang, durasi: parseDurasi } };
 if (typeof document !== 'undefined') {
   var start = function(){ sync(); setInterval(sync, 3000); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
