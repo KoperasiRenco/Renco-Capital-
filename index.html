@@ -1004,6 +1004,12 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch(safetyNetErr) {
       console.warn('[RENCO☁] Safety-net generik gagal:', safetyNetErr.message);
     }
+    // Tiket komplain: gabungkan percakapan/riwayat lokal yang belum sempat sync ke tiket yang sudah ada di cloud
+    try {
+      if (localDBSnapshot && Array.isArray(localDBSnapshot.tiket) && window.DB && Array.isArray(window.DB.tiket) && typeof window._tiketMerge === 'function') {
+        window._tiketMerge(localDBSnapshot.tiket, window.DB.tiket);
+      }
+    } catch(tktErr) { console.warn('[RENCO☁] Merge tiket gagal:', tktErr.message); }
 
     // ── JARING PENGAMAN GENERIK (level-2): struktur object-of-array bersarang ──
     // Beberapa field bukan array langsung, tapi OBJECT yang tiap key-nya berisi
@@ -2157,6 +2163,25 @@ document.addEventListener('DOMContentLoaded', function() {
       } catch(masterMergeErr) {
         console.warn('[RENCO☁] Master device: gagal merge pendingTransaksi baru:', masterMergeErr.message);
       }
+      // Tiket komplain transaksi: tiket baru & balasan nasabah tetap diterima di Master Device
+      try {
+        if (cloudData && Array.isArray(cloudData.tiket) && typeof window._tiketMergeMaster === 'function' && window._tiketMergeMaster(cloudData.tiket)) {
+          if (typeof window._tiketSegarkan === 'function') setTimeout(window._tiketSegarkan, 200);
+        }
+      } catch(tktMErr) { console.warn('[RENCO☁] Master device: gagal merge tiket:', tktMErr.message); }
+      // Komplain Skor Kepercayaan BARU dari nasabah (id belum ada lokal) tetap diterima di Master Device
+      try {
+        if (cloudData && Array.isArray(cloudData.komplainSkor) && window.DB) {
+          if (!Array.isArray(window.DB.komplainSkor)) window.DB.komplainSkor = [];
+          var _kmsIds = new Set(window.DB.komplainSkor.map(function(k){ return k && k.id; }));
+          var _kmsBaru = cloudData.komplainSkor.filter(function(k){ return k && k.id && !_kmsIds.has(k.id); });
+          if (_kmsBaru.length) {
+            _kmsBaru.forEach(function(k){ window.DB.komplainSkor.push(k); });
+            if (typeof saveDB === 'function') saveDB();
+            if (typeof window._kmsUpdateBanner === 'function') setTimeout(window._kmsUpdateBanner, 200);
+          }
+        }
+      } catch(kmsErr) { console.warn('[RENCO☁] Master device: gagal merge komplainSkor:', kmsErr.message); }
       try { if (window.TagihanApp && typeof window.TagihanApp.reloadFromDB === 'function') window.TagihanApp.reloadFromDB(); } catch(e2) {}
 
       console.log('[RENCO☁] Master device: cloud data lainnya diabaikan — device ini adalah sumber kebenaran (kecuali pendingTransaksi baru)');
@@ -7725,7 +7750,8 @@ function _applyNasabahDataIsolation() {
             +'</div>'
           +'</div>'
         +'</div>'
-      +'</div>';
+      +'</div>'
+      +((typeof _renderSkorKepercayaanAnggotaHTML === 'function') ? (function(){ try { return _renderSkorKepercayaanAnggotaHTML(a.id); } catch(e){ console.warn('[skor anggota]', e); return ''; } })() : '');
   };
 
   /* 3. keuanganTab → izinkan Simpanan/Pinjaman/Pembiayaan/Pembayaran/SHU/Aset, filter ke nasabah sendiri */
@@ -8070,20 +8096,53 @@ function _renderNasabahDashboard(kkId) {
           '</div>' +
         '</div>' +
       '</div>';
+    var _hsIdx = 0;
+    try { var _ot = heroEl.querySelector('#heroSlides'); if (_ot) _hsIdx = Math.round(_ot.scrollLeft / Math.max(1, _ot.clientWidth)); } catch(e) {}
+    var _bankRowOnly = _hbExtraHTML.replace(/<div class="hb-row" data-hb="net">[\s\S]*$/, '</div>');
+    var _chipBersih = function(ic, l, v){ return '<div class="hs-ck-i"><span>' + ic + '</span><em>' + l + '</em><b class="hb-mask">' + fmtFn(v) + '</b></div>'; };
     heroEl.innerHTML =
-      '<div class="hb-top">' +
-        '<div class="hb-main">' +
-          '<h3>SIMPANAN SAYA</h3>' +
-          '<div class="amount">' + fmtFn(mySimpanan) + '</div>' +
-          '<div class="sub" style="display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap">' +
-            '<span>' + (a ? a.nama : 'Anggota') + '</span>' +
-            '<span style="opacity:0.4">\u00b7</span>' +
-            '<span>' + _hbDate + '</span>' +
-            '<span style="flex-basis:100%;height:0"></span>' +
-            '<span class="hb-mask" style="background:' + (mySukarela<0 ? 'rgba(230,57,70,0.2)' : 'rgba(244,169,34,0.2)') + ';color:' + (mySukarela<0 ? '#e63946' : '#ffd166') + ';padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">' + (mySukarela<0 ? '⚠️ Utang: ' + fmtFn(Math.abs(mySukarela)) : 'Sukarela: ' + fmtFn(mySukarela)) + '</span>' +
-          '</div>' +
+      '<div class="hs-track" id="heroSlides">' +
+        '<div class="hs-pane">' +
+          '<div class="hb-top"><div class="hb-main">' +
+            '<h3>SIMPANAN SAYA</h3>' +
+            '<div class="amount">' + fmtFn(mySimpanan) + '</div>' +
+            '<div class="sub" style="display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap">' +
+              '<span>' + (a ? a.nama : 'Anggota') + '</span>' +
+              '<span style="opacity:0.4">\u00b7</span>' +
+              '<span>' + _hbDate + '</span>' +
+              '<span style="flex-basis:100%;height:0"></span>' +
+              '<span class="hb-mask" style="background:' + (mySukarela<0 ? 'rgba(230,57,70,0.2)' : 'rgba(244,169,34,0.2)') + ';color:' + (mySukarela<0 ? '#e63946' : '#ffd166') + ';padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">' + (mySukarela<0 ? '⚠️ Utang: ' + fmtFn(Math.abs(mySukarela)) : 'Sukarela: ' + fmtFn(mySukarela)) + '</span>' +
+            '</div>' +
+          '</div></div>' + _bankRowOnly +
         '</div>' +
-      '</div>' + _hbExtraHTML;
+        '<div class="hs-pane hs-bank">' +
+          '<h3>SALDO POSISI BERSIH</h3>' +
+          '<div class="amount hb-mask"' + (myBersih < 0 ? ' style="color:#ff9b9b"' : '') + '>' + _hbNetTxt + '</div>' +
+          '<div class="hs-ck">' + _chipBersih('💰','Simpanan',mySimpanan) + _chipBersih('🔒','Berjangka',myBerjangka) + _chipBersih('➖','Pinjaman',mySisaPokok) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="hs-dots" id="heroDots"><button type="button" class="' + (_hsIdx === 0 ? 'on' : '') + '" aria-label="Banner 1" onclick="event.stopPropagation();_hsGo(0)"></button><button type="button" class="' + (_hsIdx === 1 ? 'on' : '') + '" aria-label="Banner 2" onclick="event.stopPropagation();_hsGo(1)"></button></div>';
+    if (_hsIdx > 0) { var _nt = heroEl.querySelector('#heroSlides'); if (_nt) _nt.scrollLeft = _hsIdx * _nt.clientWidth; }
+
+    // Kartu statistik + donat (data pribadi anggota)
+    try {
+      var _wrapN = heroEl.parentNode, _cardN = document.getElementById('heroStatNasabah');
+      if (_wrapN && _wrapN.parentNode) {
+        if (!_cardN) { _cardN = document.createElement('div'); _cardN.id = 'heroStatNasabah'; _wrapN.insertAdjacentElement('afterend', _cardN); }
+        _cardN.style.display = '';
+        var _tdN = (typeof hitungTransparansiDanaNasabah === 'function') ? hitungTransparansiDanaNasabah(kkId) : { pokok:0, wajib:0, sukarelaBebas:mySukarela, tbLocked:myBerjangka };
+        var _lain = mySimpanan - (_tdN.pokok||0) - (_tdN.wajib||0) - Math.max(0, _tdN.sukarelaBebas||0);
+        var _rowsN = [
+          { l:'Simpanan Pokok',  v:_tdN.pokok||0,                  c:'#2d6a4f' },
+          { l:'Simpanan Wajib',  v:_tdN.wajib||0,                  c:'#40916c' },
+          { l:'Simpanan Sukarela', v:Math.max(0, _tdN.sukarelaBebas||0), c:'#74c69d' },
+          { l:'Berjangka', v:myBerjangka,                        c:'#9d4edd' }
+        ];
+        if (Math.abs(_lain) >= 1) _rowsN.push({ l:'Simpanan Lain', v:Math.max(0, _lain), c:'#95d5b2' });
+        _rowsN.push({ l:'Sisa Pinjaman', v:mySisaPokok, c:'#16a34a' });
+        window._sbsBuild(_cardN, _rowsN, { tabSaldo:'Posisi Bersih', centerLabel:'Total Dana', net:myBersih, trxRows:function(){ return window._sbsTrxRows(kkId); } });
+      }
+    } catch(e) { console.warn('[statNasabah]', e); }
   }
 
   /* --- Stat cards --- */
@@ -8100,6 +8159,7 @@ function _renderNasabahDashboard(kkId) {
     sA.style.fontSize = '13px';
     var sC=sA.closest&&sA.closest('.stat-slide'); if(sC){var lC=sC.querySelector('.stat-lbl');if(lC)lC.textContent='Saldo Sukarela';}
   }
+  try { var _scN = document.getElementById('statCarousel'), _srN = _scN && _scN.closest('.stats-row'); if (_srN) _srN.style.display = 'none'; } catch(e) {}
   if (typeof window._applySaldoVisibility === 'function') window._applySaldoVisibility();
 
   /* --- Sembunyikan widget kas koperasi --- */
@@ -12050,11 +12110,279 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
           z-index:3;
         }
       </style>
+      <style id="heroSlidesCSS">
+        /* Multi-banner beranda admin: geser kiri/kanan (scroll-snap) */
+        #page-home .hero-banner:has(> #heroSlides){ padding:0 !important; }
+        #page-home .hs-track{
+          flex:1 1 auto; min-height:0; display:flex; overflow-x:auto; overflow-y:hidden;
+          scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain;
+          scrollbar-width:none; position:relative; z-index:1;
+        }
+        #page-home .hs-track::-webkit-scrollbar{ display:none; }
+        #page-home .hs-pane{
+          flex:0 0 100%; min-width:0; box-sizing:border-box; scroll-snap-align:start; scroll-snap-stop:always;
+          padding:20px 22px 34px; display:flex; flex-direction:column; justify-content:flex-start; position:relative;
+        }
+        #page-home .hs-pane > .sub{
+          margin-top:auto; align-self:flex-start; display:inline-flex; align-items:center; gap:6px;
+          padding:4px 11px; border-radius:99px; opacity:1; font-size:12px; font-weight:600; letter-spacing:.3px;
+          color:rgba(255,255,255,.78); background:rgba(244,214,122,.10); border:1px solid rgba(244,214,122,.35);
+        }
+        #page-home .hs-bank{
+          background:
+            radial-gradient(120% 95% at 100% 0%, rgba(244,214,122,.26) 0%, rgba(244,214,122,0) 56%),
+            linear-gradient(135deg,#08202e 0%,#0f4560 55%,#1d6c88 100%);
+        }
+        html.renco-dark #page-home .hs-bank{
+          background:
+            radial-gradient(120% 95% at 100% 0%, rgba(244,201,66,.20) 0%, rgba(244,201,66,0) 56%),
+            linear-gradient(135deg,#000 0%,#0b1a22 55%,#10303f 100%);
+        }
+        #page-home .hs-kas{
+          align-self:flex-start; margin:6px 0 8px; padding:7px 11px 8px; min-width:190px; max-width:100%; box-sizing:border-box;
+          border-radius:14px; background:rgba(244,214,122,.10); border:0;
+          cursor:pointer; transition:background .2s, transform .15s; -webkit-tap-highlight-color:transparent;
+        }
+        #page-home .hs-kas:active{ transform:scale(.97); background:rgba(244,214,122,.18); }
+        #page-home .hs-kas-top{ display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:rgba(255,255,255,.85); }
+        #page-home .hs-kas-top b{ margin-left:auto; font-size:14px; font-weight:800; color:#f4d67a; letter-spacing:.2px; }
+        #page-home .hs-kas-chev{ opacity:.7; transition:transform .25s; }
+        #page-home .hs-kas.open .hs-kas-chev{ transform:rotate(180deg); }
+        #page-home .hs-kas-bar{ height:5px; border-radius:99px; background:rgba(255,255,255,.16); margin-top:6px; overflow:hidden; }
+        #page-home .hs-kas-bar i{ display:block; height:100%; width:0; border-radius:99px; background:linear-gradient(90deg,#f4a922,#ffe08a); transition:width .8s cubic-bezier(.2,.8,.2,1); }
+        #page-home .hs-kas-more{
+          display:flex; justify-content:space-between; gap:12px; font-size:10.5px; font-weight:600; color:rgba(255,255,255,.75);
+          max-height:0; opacity:0; overflow:hidden; transition:max-height .25s ease, opacity .25s ease, margin-top .25s ease;
+        }
+        #page-home .hs-kas.open .hs-kas-more{ max-height:24px; opacity:1; margin-top:6px; }
+        #page-home .hs-ck{ display:flex; gap:6px; margin-top:auto; }
+        #page-home .hs-ck-i{ flex:1; min-width:0; text-align:center; padding:7px 4px; border-radius:12px; background:rgba(255,255,255,.08); display:flex; flex-direction:column; gap:1px; }
+        #page-home .hs-ck-i span{ font-size:14px; line-height:1.2; }
+        #page-home .hs-ck-i em{ font-style:normal; font-size:9.5px; font-weight:700; opacity:.75; text-transform:uppercase; letter-spacing:.4px; }
+        #page-home .hs-ck-i b{ font-size:11px; font-weight:800; color:#f4d67a; white-space:nowrap; }
+        #page-home .sbs-card{ box-sizing:border-box; max-width:428px; width:calc(100% - 32px); margin:8px auto 0; padding:9px 12px 10px; border-radius:16px; background:var(--card,#fff); color:var(--text,#111); border:1px solid rgba(128,128,128,.18); box-shadow:0 2px 10px rgba(26,71,42,.07); }
+        #page-home .sbs-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; }
+        #page-home .sbs-title{ font-size:11.5px; font-weight:800; }
+        #page-home .sbs-dual{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        #page-home .sbs-panel{ min-width:0; }
+        #page-home .sbs-dual .sbs-head{ margin-bottom:2px; flex-wrap:wrap; }
+        #page-home .sbs-dual .sbs-title{ font-size:10.5px; }
+        #page-home .sbs-dual .sbs-head b{ font-size:10.5px; }
+        #page-home .sbs-dual .sbs-body{ flex-direction:column; gap:4px; align-items:stretch; }
+        #page-home .sbs-dual .sbs-donut{ align-self:center; width:96px; height:96px; flex-basis:96px; }
+        #page-home .sbs-dual .sbs-lg{ font-size:9.5px; padding:2px 3px; gap:3px; }
+        #page-home .sbs-dual .sbs-lg b{ font-size:9px; }
+        #page-home .sbs-dual .sbs-lgl i{ width:7px; height:7px; margin-right:4px; flex-basis:7px; }
+        #page-home .sbs-tabs{ display:inline-flex; padding:2px; border-radius:99px; background:rgba(128,128,128,.16); margin-left:auto; }
+        #page-home .sbs-tabs button{ border:0; background:transparent; color:inherit; font:inherit; font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:99px; cursor:pointer; opacity:.7; transition:background .2s, opacity .2s, color .2s; white-space:nowrap; }
+        #page-home .sbs-tabs button.on{ background:#2d6a4f; color:#fff; opacity:1; }
+        #page-home .sbs-head b{ font-size:12px; font-weight:800; }
+        #page-home .sbs-body{ display:flex; align-items:center; gap:12px; }
+        #page-home .sbs-donut{ position:relative; width:104px; height:104px; flex:0 0 104px; }
+        #page-home .sbs-donut > svg{ width:100%; height:100%; display:block; overflow:visible; }
+        #page-home .sbs-card b svg{ width:.72em; height:.72em; display:inline-block; vertical-align:baseline; margin:0 .5px; }
+        #page-home .sbs-pop{ cursor:pointer; transition:transform .35s cubic-bezier(.3,1.6,.5,1); transform:translate(0,0); }
+        #page-home .sbs-pop.on{ transform:translate(var(--dx),var(--dy)); }
+        #page-home .sbs-seg{ transition:opacity .25s, stroke-width .25s; }
+        #page-home .sbs-seg.anim{ animation:sbsDraw .9s cubic-bezier(.2,.8,.2,1) both; }
+        #page-home .sbs-donut.has-sel .sbs-pop .sbs-seg{ opacity:.28; }
+        #page-home .sbs-donut.has-sel .sbs-pop.on .sbs-seg{ opacity:1; stroke-width:14; }
+        @keyframes sbsDraw{ from{ stroke-dasharray:0 var(--c); } to{ stroke-dasharray:var(--len) var(--c); } }
+        #page-home .sbs-pulse{ transform-origin:50px 50px; }
+        #page-home .sbs-pulse.go{ animation:sbsPulse .7s ease-out; }
+        @keyframes sbsPulse{ 0%{ opacity:.8; transform:scale(.9); } 100%{ opacity:0; transform:scale(1.22); } }
+        #page-home .sbs-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; cursor:pointer; border-radius:50%; margin:18px; padding:0; }
+        #page-home .sbs-center span{ font-size:8.5px; font-weight:700; opacity:.65; text-transform:uppercase; letter-spacing:.3px; }
+        #page-home .sbs-center b{ font-size:9px; font-weight:800; line-height:1.2; white-space:nowrap; }
+        #page-home .sbs-legend{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+        #page-home .sbs-lg{ display:flex; justify-content:space-between; gap:6px; align-items:center; font-size:11px; padding:3px 6px; border-radius:8px; cursor:pointer; transition:background .15s; -webkit-tap-highlight-color:transparent; }
+        #page-home .sbs-lg.on{ background:rgba(128,128,128,.16); transform:translateX(3px); }
+        #page-home .sbs-lg{ transition:background .15s, transform .25s cubic-bezier(.3,1.6,.5,1); }
+        @media (prefers-reduced-motion:reduce){ #page-home .sbs-seg.anim, #page-home .sbs-pulse.go{ animation:none !important; } #page-home .sbs-pop, #page-home .sbs-lg{ transition:none; } }
+        #page-home .sbs-lgl{ display:flex; align-items:center; font-weight:600; white-space:nowrap; }
+        #page-home .sbs-lgl i{ width:8px; height:8px; border-radius:50%; margin-right:6px; flex:0 0 8px; }
+        #page-home .sbs-lg b{ font-weight:800; font-size:10.5px; white-space:nowrap; }
+        #page-home .hs-dots{
+          position:absolute; left:0; right:0; bottom:9px; z-index:2; display:flex; justify-content:center; gap:6px; pointer-events:none;
+        }
+        #page-home .hs-dots button{
+          pointer-events:auto; width:6px; height:6px; padding:0; border:0; border-radius:99px; cursor:pointer;
+          background:rgba(255,255,255,.4); transition:width .2s, background .2s;
+        }
+        #page-home .hs-dots button.on{ width:18px; background:#f4d67a; }
+      </style>
+      <script>
+        (function(){
+          /* Rekap nominal transaksi per jenis (warna mengikuti kode warna jenis transaksi di daftar transaksi) */
+          window._sbsTrxRows = function(kkId){
+            var list = (window.DB && DB.transaksi) || [];
+            if (kkId) list = list.filter(function(t){ return t.kkId === kkId; });
+            var G = {}, order = [];
+            function add(key, label, color, v){ if (!G[key]) { G[key] = { l:label, v:0, c:color, n:0 }; order.push(key); } G[key].v += Math.abs(v || 0); G[key].n++; }
+            list.forEach(function(t){
+              var ty = t.type || '', j = t.jenis || '', v = t.jumlah || 0;
+              if (ty === 'simpanan') {
+                if (j === 'pokok') add('s-pokok', 'Simpanan Pokok', '#2d6a4f', v);
+                else if (j === 'wajib') add('s-wajib', 'Simpanan Wajib', '#40916c', v);
+                else if (j === 'sukarela') add('s-suk', 'Simpanan Sukarela', '#74c69d', v);
+                else add('s-lain', 'Simpanan Lain', '#95d5b2', v);
+              }
+              else if (ty === 'tarik-sukarela') add('tarik', 'Tarik Tunai', '#b07a00', v);
+              else if (ty === 'cicilan') add('cicilan', 'Bayar Cicilan', '#0f766e', v);
+              else if (ty === 'pinjaman') add('pinjaman', 'Pencairan Pinjaman', '#16a34a', v);
+              else if (ty === 'pembiayaan') add('pembiayaan', 'Pembiayaan', '#4d7c0f', v);
+              else if (ty === 'angsuran-rc' || ty === 'angsuran') add('angsuran', 'Angsuran RC', '#6b21a8', v);
+              else if (ty.indexOf('ujrah') === 0 || ty === 'perpanjang') add('ujrah', 'Ujrah / Biaya', '#14b8a6', v);
+              else if (ty.indexOf('transfer') === 0) add('transfer', 'Transfer', '#4361ee', v);
+              else add('lain', 'Lainnya', '#9ca3af', v);
+            });
+            var rows = order.map(function(k){ return G[k]; }).sort(function(a, b){ return b.v - a.v; });
+            if (rows.length > 6) {
+              var rest = rows.slice(5), sum = rest.reduce(function(a, r){ return a + r.v; }, 0);
+              rows = rows.slice(0, 5).concat([{ l:'Lainnya', v:sum, c:'#9ca3af', n:0 }]);
+            }
+            return rows;
+          };
+          /* ===== Donat statistik: bisa banyak instance (id) dalam satu kartu ===== */
+          var INST = window._sbsInst = {}, _cu = {};
+          function shortLbl(l){ return l.replace(/^Simpanan /, '').replace('Pencairan Pinjaman', 'Pinjaman').replace('Bayar Cicilan', 'Cicilan'); }
+          function compute(C){
+            var o = C.o, trx = (C.view === 'trx');
+            var rows = trx ? (o.trxRows ? o.trxRows() : []) : C.rows;
+            var nOut = trx ? 0 : (o.nOut || 1), nIn = rows.length - nOut;
+            var masuk = rows.slice(0, nIn).reduce(function(a,r){ return a + Math.max(0, r.v); }, 0);
+            var net = trx ? masuk : ((o.net != null) ? o.net : masuk - rows.slice(nIn).reduce(function(a,r){ return a + r.v; }, 0));
+            C.d = { rows:rows, nIn:nIn, masuk:masuk, net:net, trx:trx, sel:-1, cl:(trx ? 'Total Transaksi' : (o.centerLabel || 'Total')) };
+          }
+          function donutHtml(id, C, anim){
+            var d = C.d, CIRC = 2 * Math.PI * 40, off = 0, segs = '';
+            d.rows.slice(0, d.nIn).forEach(function(r, k){
+              if (r.v <= 0 || d.masuk <= 0) return;
+              var len = r.v / d.masuk * CIRC, mid = (off + len / 2) / CIRC * 2 * Math.PI;
+              var dx = (Math.sin(mid) * 4.5).toFixed(2), dy = (-Math.cos(mid) * 4.5).toFixed(2), dash = Math.max(0, len - 1.5).toFixed(2);
+              segs += '<g class="sbs-pop" data-k="' + k + '" style="--dx:' + dx + 'px;--dy:' + dy + 'px" onclick="_sbsSel(\'' + id + '\',' + k + ')">'
+                + '<circle class="sbs-seg' + (anim ? ' anim' : '') + '" transform="rotate(-90 50 50)" cx="50" cy="50" r="40" fill="none" stroke="' + r.c + '" stroke-width="11"'
+                + ' style="--len:' + dash + ';--c:' + CIRC.toFixed(2) + ';animation-delay:' + (k * 0.16).toFixed(2) + 's"'
+                + ' stroke-dasharray="' + dash + ' ' + CIRC.toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '"/></g>';
+              off += len;
+            });
+            return '<div class="sbs-donut"><svg viewBox="-6 -6 112 112"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(128,128,128,.18)" stroke-width="11"/>' + segs
+              + '<circle class="sbs-pulse" id="sbsPulse_' + id + '" cx="50" cy="50" r="40" fill="none" stroke-width="3" opacity="0"/></svg>'
+              + '<div class="sbs-center" onclick="_sbsReplay(\'' + id + '\')"><span id="sbsCL_' + id + '">' + d.cl + '</span><b id="sbsCV_' + id + '">' + fmt(anim ? 0 : d.masuk) + '</b></div></div>';
+          }
+          function legendHtml(id, C){
+            var d = C.d, dual = !!C.o.dual;
+            var h = d.rows.map(function(r, k){
+              return '<div class="sbs-lg" data-k="' + k + '" onclick="_sbsSel(\'' + id + '\',' + k + ')"><span class="sbs-lgl"><i style="background:' + r.c + '"></i>' + (k >= d.nIn ? '− ' : '') + (dual ? shortLbl(r.l) : r.l) + '</span><b id="sbsV' + k + '_' + id + '">' + fmt(r.v) + '</b></div>';
+            }).join('');
+            return '<div class="sbs-legend">' + (h || '<div class="sbs-lg" style="opacity:.6">Belum ada transaksi</div>') + '</div>';
+          }
+          function netHtml(id, d){ return '<b id="sbsNet_' + id + '" style="color:' + (d.net < 0 ? '#e63946' : '#2d6a4f') + '">' + (d.net < 0 ? '-' : '') + fmt(Math.abs(d.net)) + '</b>'; }
+          function paintSingle(anim){
+            var C = INST.s; compute(C);
+            var tabs = '<div class="sbs-tabs"><button type="button" class="' + (C.d.trx ? '' : 'on') + '" onclick="_sbsView(\'s\',\'saldo\')">' + (C.o.tabSaldo || 'Saldo') + '</button><button type="button" class="' + (C.d.trx ? 'on' : '') + '" onclick="_sbsView(\'s\',\'trx\')">Transaksi</button></div>';
+            C.card.innerHTML = '<div class="sbs-card"><div class="sbs-head"><span class="sbs-title">📊 Statistik</span>' + tabs + netHtml('s', C.d) + '</div>'
+              + '<div class="sbs-body">' + donutHtml('s', C, anim) + legendHtml('s', C) + '</div></div>';
+            if (anim) _sbsCount('s', C.d.masuk, 1100);
+            if (window._applySaldoVisibility) window._applySaldoVisibility();
+          }
+          function paintDual(anim){
+            var A = INST.a, B = INST.b; compute(A); compute(B);
+            function panel(id, C, title){
+              return '<div class="sbs-panel"><div class="sbs-head"><span class="sbs-title">' + title + '</span>' + netHtml(id, C.d) + '</div><div class="sbs-body">' + donutHtml(id, C, anim) + legendHtml(id, C) + '</div></div>';
+            }
+            A.card.innerHTML = '<div class="sbs-card dual"><div class="sbs-dual">' + panel('a', A, '📊 ' + (A.o.tabSaldo || 'Saldo')) + panel('b', B, '🧾 Transaksi') + '</div></div>';
+            if (anim) { _sbsCount('a', A.d.masuk, 1100); _sbsCount('b', B.d.masuk, 1100); }
+            if (window._applySaldoVisibility) window._applySaldoVisibility();
+          }
+          window._sbsBuild = function(card, rows, o){
+            o = o || {};
+            var first = !window._sbsPlayed; window._sbsPlayed = true;
+            if (o.dual) {
+              INST = window._sbsInst = {
+                a: { card:card, rows:rows, o:o, view:'saldo' },
+                b: { card:card, rows:rows, o:o, view:'trx' }
+              };
+              paintDual(first);
+            } else {
+              INST = window._sbsInst = { s: { card:card, rows:rows, o:o, view:'saldo' } };
+              paintSingle(first);
+            }
+          };
+          window._sbsView = function(id, v){
+            var C = INST[id]; if (!C || C.view === v) return;
+            C.view = v; window._sbsFmtOverride = null; paintSingle(true);
+          };
+          window._sbsCount = function(id, to, dur, from, pct){
+            var V = document.getElementById('sbsCV_' + id); if (!V) return;
+            cancelAnimationFrame(_cu[id]);
+            var fv = pct ? function(n){ return n.toFixed(1) + '%'; } : function(n){ return fmt(Math.round(n)); };
+            if (window._saldoHidden) { V.textContent = fv(to); if (window._applySaldoVisibility) window._applySaldoVisibility(); return; }
+            var t0 = performance.now(), a0 = from || 0;
+            (function step(t){
+              var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+              V.textContent = fv(a0 + (to - a0) * e);
+              if (k < 1) _cu[id] = requestAnimationFrame(step);
+              else if (window._applySaldoVisibility) window._applySaldoVisibility();
+            })(t0);
+          };
+          window._sbsSel = function(id, k){
+            var C = INST[id], D = C && C.d; if (!D || k >= D.nIn) return;
+            D.sel = (D.sel === k) ? -1 : k;
+            try { if (navigator.vibrate) navigator.vibrate(8); } catch(e){}
+            var root = document.getElementById('sbsCL_' + id); root = root && root.closest('.sbs-donut'); if (!root) return;
+            var scope = root.parentNode;
+            root.classList.toggle('has-sel', D.sel >= 0);
+            Array.prototype.forEach.call(scope.querySelectorAll('.sbs-pop, .sbs-lg'), function(e){ e.classList.toggle('on', +e.getAttribute('data-k') === D.sel); });
+            var L = document.getElementById('sbsCL_' + id), P = document.getElementById('sbsPulse_' + id);
+            if (P && D.sel >= 0) { P.setAttribute('stroke', D.rows[D.sel].c); P.classList.remove('go'); void P.getBoundingClientRect(); P.classList.add('go'); }
+            if (D.sel < 0) { L.textContent = D.cl; _sbsCount(id, D.masuk, 500, 0, false); }
+            else { var r = D.rows[D.sel]; L.textContent = shortLbl(r.l); _sbsCount(id, D.masuk > 0 ? r.v / D.masuk * 100 : 0, 600, 0, true); }
+            if (window._applySaldoVisibility) window._applySaldoVisibility();
+          };
+          window._sbsReplay = function(id){
+            var C = INST[id], D = C && C.d; if (!D) return;
+            if (D.sel >= 0) { _sbsSel(id, D.sel); return; }
+            var root = document.getElementById('sbsCL_' + id); root = root && root.closest('.sbs-donut'); if (!root) return;
+            Array.prototype.forEach.call(root.querySelectorAll('.sbs-seg'), function(c){ c.classList.remove('anim'); void c.getBoundingClientRect(); c.classList.add('anim'); });
+            _sbsCount(id, D.masuk, 1100, 0, false);
+          };
+          window._hsGo = function(i){
+            var t = document.getElementById('heroSlides'); if (!t) return;
+            t.scrollTo({ left: i * t.clientWidth, behavior: 'smooth' });
+          };
+          document.addEventListener('scroll', function(e){
+            var t = e.target; if (!t || t.id !== 'heroSlides') return;
+            var i = Math.round(t.scrollLeft / Math.max(1, t.clientWidth));
+            var d = document.querySelectorAll('#heroDots button');
+            for (var k = 0; k < d.length; k++) d[k].classList.toggle('on', k === i);
+          }, true);
+        })();
+      </script>
       <div style="position:relative;max-width:460px;margin:0 auto">
-        <div class="hero-banner">
-          <h3>TOTAL ASET KOPERASI</h3>
+        <div class="hero-banner hs">
+         <div class="hs-track" id="heroSlides">
+          <div class="hs-pane" onclick="showHeroRincian()" style="cursor:pointer" title="Ketuk untuk melihat rincian">
+          <h3>DANA KELOLA</h3>
           <div class="amount" id="heroTotal">Rp 0</div>
+          <div id="heroKasRow" class="hs-kas" role="button" tabindex="0" title="Ketuk untuk detail" onclick="event.stopPropagation();this.classList.toggle('open')">
+            <div class="hs-kas-top"><span class="hs-kas-lbl">Kas tersedia</span><b id="heroKas">Rp 0</b><svg class="hs-kas-chev" width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div class="hs-kas-bar"><i id="heroKasBar"></i></div>
+            <div class="hs-kas-more"><span>Tersalur <b id="heroTersalur">Rp 0</b></span><span id="heroKasPct">0% tersedia</span></div>
+          </div>
           <div class="sub"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="15" r="1.3" fill="currentColor" opacity="0.8"/><circle cx="12" cy="15" r="1.3" fill="currentColor"/><circle cx="16" cy="15" r="1.3" fill="currentColor" opacity="0.6"/></svg> <span id="heroDate"></span></div>
+          </div>
+          <div class="hs-pane hs-bank" onclick="showHeroBankRincian()" style="cursor:pointer" title="Ketuk untuk melihat rincian">
+          <h3>SALDO BANK</h3>
+          <div class="amount" id="heroBank">Rp 0</div>
+          <div class="hs-ck">
+            <div class="hs-ck-i"><span>🤲</span><em>Sukarela</em><b id="ckSuk">Rp 0</b></div>
+            <div class="hs-ck-i"><span>🔒</span><em>Berjangka</em><b id="ckTB">Rp 0</b></div>
+            <div class="hs-ck-i"><span>📈</span><em>PHU Bersih</em><b id="ckPHU">Rp 0</b></div>
+          </div>
+          </div>
+         </div>
+         <div class="hs-dots" id="heroDots"><button type="button" class="on" aria-label="Banner 1" onclick="event.stopPropagation();_hsGo(0)"></button><button type="button" aria-label="Banner 2" onclick="event.stopPropagation();_hsGo(1)"></button></div>
         </div>
         <button id="saldoToggleBtn" onclick="toggleSaldoVisibility()" title="Tampilkan/sembunyikan nominal saldo" style="position:absolute;top:16px;right:16px;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.1);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:rgba(255,255,255,0.85);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:3"></button>
       </div>
@@ -12071,8 +12399,9 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
             return out;
           }
           window._applySaldoVisibility = function(){
-            var ids = ['statSimpanan','statPinjaman','statArisan'];
+            var ids = ['statSimpanan','statPinjaman','statArisan','heroKas','heroTersalur','heroBank','ckSuk','ckTB','ckPHU'];
             var targets = ids.map(function(id){ return document.getElementById(id); }).filter(Boolean);
+            Array.prototype.forEach.call(document.querySelectorAll('[id^="sbsV"],[id^="sbsNet_"],[id^="sbsCV_"]'), function(e){ targets.push(e); });
             var heroAmt = document.querySelector('#page-home .hero-banner .amount');
             if (heroAmt) targets.push(heroAmt);
             // Nominal di rincian Posisi Bersih (kartu saldo anggota) ikut disamarkan
@@ -12604,7 +12933,7 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
         <div class="card" id="nasabahListCard">
           <div id="nasabahList"></div>
         </div>
-        <!-- Statistik Anggota: Skor Kepercayaan, Pertumbuhan Tabungan, Net Worth (hanya user anggota) -->
+        <!-- Statistik Anggota: Grafik Pertumbuhan Tabungan (hanya user anggota) -->
         <div id="nsMemberStats"></div>
         <!-- Kartu Anggota Otomatis (hanya untuk nasabah/user, bukan admin) -->
         <div id="kartuAnggotaInlineDaftar" style="display:none;padding:0 14px 20px"></div>
@@ -17024,9 +17353,12 @@ function _skorTotalKontribusi(kkId) {
   return Math.max(0, simpanan) + Math.max(0, suk) + berjangka;
 }
 
-function hitungSkorKepercayaan(kkId) {
+function hitungSkorKepercayaan(kkId, opsi) {
   var a = (typeof getNasabah === 'function') ? getNasabah(kkId) : null;
   if (!a) return null;
+  // Koreksi admin (hasil tindak lanjut komplain Skor Kepercayaan) — opsi.abaikanKoreksi dipakai
+  // layar admin untuk menampilkan nilai OTOMATIS sebagai pembanding.
+  var koreksiAdm = (opsi && opsi.abaikanKoreksi) ? {} : (a.skorKoreksi || {});
   var today = new Date(); today.setHours(0,0,0,0);
 
   var pinjamanList = _skorKumpulkanPinjaman(kkId);
@@ -17088,6 +17420,19 @@ function hitungSkorKepercayaan(kkId) {
     { key:'pelunasan',  label:'Rekam Jejak Pelunasan',    icon:'📜', bobot:25, skor:skorD, ket:ketD }
   ];
 
+  // ── Koreksi admin per komponen (dari tindak lanjut komplain) ──
+  var adaKoreksi = false;
+  breakdown.forEach(function(b){
+    var k = koreksiAdm[b.key];
+    if (k && typeof k.skor === 'number' && isFinite(k.skor)) {
+      b.skorAsli = b.skor;
+      b.skor = Math.max(0, Math.min(100, Math.round(k.skor)));
+      b.koreksi = { alasan: k.alasan || '', tanggal: k.tanggal || '', oleh: k.oleh || '' };
+      b.ket = b.ket + ' · dikoreksi admin';
+      adaKoreksi = true;
+    }
+  });
+
   // Hanya komponen yang PUNYA bukti yang dihitung; bobotnya dinormalisasi ulang.
   // Tidak ada nilai "netral" bawaan yang menggelembungkan skor nasabah baru.
   var terNilai = breakdown.filter(function(b){ return b.skor !== null; });
@@ -17106,6 +17451,15 @@ function hitungSkorKepercayaan(kkId) {
     if (adaPinjamanMenunggak && total > 54) { total = 54; batas.push('Sedang memiliki cicilan menunggak — skor dibatasi maksimal 54.'); }
     else if (a.iuranMenunggak && total > 69) { total = 69; batas.push('Iuran wajib sedang menunggak — skor dibatasi maksimal 69.'); }
     if (belumTeruji && total > 84) { total = 84; batas.push('Belum pernah teruji lewat pinjaman/pembiayaan — "Sangat Dipercaya" baru bisa dicapai setelah ada riwayat pelunasan.'); }
+  }
+
+  // ── Koreksi admin atas skor akhir (mengesampingkan hitungan otomatis & batas) ──
+  var koreksiTotal = null;
+  var kt = koreksiAdm.total;
+  if (kt && typeof kt.skor === 'number' && isFinite(kt.skor)) {
+    total = Math.max(0, Math.min(100, Math.round(kt.skor)));
+    belumCukupData = false; batas = []; adaKoreksi = true;
+    koreksiTotal = { alasan: kt.alasan || '', tanggal: kt.tanggal || '', oleh: kt.oleh || '' };
   }
 
   var grade, warna, rekomendasi;
@@ -17130,7 +17484,8 @@ function hitungSkorKepercayaan(kkId) {
   return {
     kkId: kkId, total: total, grade: grade, warna: warna, breakdown: breakdown,
     blacklist: diblacklist, belumCukupData: belumCukupData, belumAdaAktivitas: belumCukupData,
-    observasi: observasi, keyakinan: keyakinan, batas: batas, belumTeruji: belumTeruji, rekomendasi: rekomendasi
+    observasi: observasi, keyakinan: keyakinan, batas: batas, belumTeruji: belumTeruji, rekomendasi: rekomendasi,
+    koreksiAda: adaKoreksi, koreksiTotal: koreksiTotal
   };
 }
 window.hitungSkorKepercayaan = hitungSkorKepercayaan;
@@ -17151,13 +17506,14 @@ function _skorIconSVG(size, color) {
 function _renderSkorKepercayaanHTML(kkId) {
   var s = hitungSkorKepercayaan(kkId);
   if (!s) return '';
+  if (typeof isNasabah === 'function' && isNasabah() && typeof _renderSkorKepercayaanAnggotaHTML === 'function') return _renderSkorKepercayaanAnggotaHTML(kkId, s);
   var warnaBar = function(v){ return v>=85?'#16a34a':v>=70?'#2563eb':v>=55?'#d97706':v>=40?'#ea580c':'#dc2626'; };
   var barsHTML = s.breakdown.map(function(b){
     var ada = b.skor !== null;
     var bc = ada ? warnaBar(b.skor) : '#9ca3af';
     return '<div style="margin-bottom:11px">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">'
-      + '<span style="font-size:11px;color:var(--text-soft);font-weight:600">'+b.icon+' '+b.label+' <span style="opacity:.6;font-weight:500">· bobot '+b.bobot+'%</span></span>'
+      + '<span style="font-size:11px;color:var(--text-soft);font-weight:600">'+b.icon+' '+b.label+' <span style="opacity:.6;font-weight:500">· bobot '+b.bobot+'%</span>'+(b.koreksi?' <span title="Dikoreksi admin" style="font-size:9px;font-weight:800;color:#7b2d8b;background:rgba(123,45,139,.12);border-radius:99px;padding:1px 7px;margin-left:3px">✎ dikoreksi</span>':'')+'</span>'
       + '<span style="font-size:11px;font-weight:800;color:'+bc+'">'+(ada?b.skor:'–')+'</span>'
       + '</div>'
       + '<div style="height:6px;border-radius:99px;background:rgba(0,0,0,0.06);overflow:hidden">'
@@ -17184,6 +17540,7 @@ function _renderSkorKepercayaanHTML(kkId) {
     + '<div style="font-size:11px;color:var(--text);background:'+s.warna+'12;border-left:3px solid '+s.warna+';border-radius:8px;padding:9px 11px;margin-bottom:14px;line-height:1.55"><b>Saran untuk pengurus:</b> '+s.rekomendasi+'</div>'
     + barsHTML
     + batasHTML
+    + ((typeof window._kmsBlokAdmin === 'function') ? window._kmsBlokAdmin(kkId, s) : '')
     + '<div style="font-size:10px;color:var(--text-soft);border-top:1px solid rgba(0,0,0,0.06);padding-top:9px;line-height:1.6">'
     +   'Dasar penilaian: <b>'+s.observasi+'</b> pengamatan (iuran &amp; angsuran jatuh tempo) · Keyakinan data: <b>'+s.keyakinan+'</b>.<br>'
     +   'Jumlah tabungan/dana <b>tidak</b> memengaruhi skor. Komponen tanpa data tidak dihitung, bukan diberi nilai bawaan.'
@@ -17191,6 +17548,205 @@ function _renderSkorKepercayaanHTML(kkId) {
     + '</div>';
 }
 window._renderSkorKepercayaanHTML = _renderSkorKepercayaanHTML;
+
+/* ═══════════════════════════════════════════════════════════════
+   KARTU SKOR KEPERCAYAAN — TAMPILAN ANGGOTA (friendly & kekinian)
+   Dipakai di halaman Nasabah & Detail Nasabah saat login sebagai anggota.
+   Angka/penilaian tetap berasal dari hitungSkorKepercayaan() — hanya
+   tampilan & bahasa yang diubah (tanpa istilah "saran untuk pengurus").
+════════════════════════════════════════════════════════════════ */
+function _skorEnsureStyleAnggota() {
+  if (document.getElementById('skorFriendlyCSS')) return;
+  var st = document.createElement('style');
+  st.id = 'skorFriendlyCSS';
+  st.textContent = [
+    '.skf-wrap{margin:14px 16px 18px;font-family:inherit}',
+    '.skf-hero{position:relative;overflow:hidden;border-radius:26px;padding:16px 18px 16px;color:#fff;background:linear-gradient(135deg,var(--skf-a),var(--skf-b));box-shadow:0 16px 30px -14px var(--skf-glow);animation:skfPop .45s cubic-bezier(.22,1,.36,1) both}',
+    '.skf-hero::before,.skf-hero::after{content:"";position:absolute;border-radius:50%;background:rgba(255,255,255,.14);pointer-events:none}',
+    '.skf-hero::before{width:160px;height:160px;right:-48px;top:-56px}',
+    '.skf-hero::after{width:96px;height:96px;left:-32px;bottom:-38px;background:rgba(255,255,255,.1)}',
+    '.skf-eyebrow{position:relative;display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;letter-spacing:.3px;padding:4px 11px 4px 8px;border-radius:99px;background:rgba(255,255,255,.22);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}',
+    '.skf-main{position:relative;display:flex;align-items:center;gap:16px;margin-top:12px}',
+    '.skf-ring{position:relative;width:98px;height:98px;flex-shrink:0}',
+    '.skf-ring svg{width:100%;height:100%;transform:rotate(-90deg);display:block}',
+    '.skf-ring .trk{stroke:rgba(255,255,255,.28)}',
+    '.skf-ring .bar{stroke:#fff;stroke-linecap:round;stroke-dasharray:314.16;animation:skfRing 1.2s cubic-bezier(.22,1,.36,1) both}',
+    '.skf-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}',
+    '.skf-num b{font-size:30px;font-weight:900;letter-spacing:-1px}',
+    '.skf-num small{font-size:9px;font-weight:700;opacity:.85;margin-top:3px}',
+    '.skf-txt{min-width:0}',
+    '.skf-title{font-size:18px;font-weight:900;line-height:1.2}',
+    '.skf-sapa{font-size:11.5px;line-height:1.5;opacity:.96;margin-top:5px}',
+    '.skf-lv{position:relative;display:flex;gap:5px;margin-top:14px}',
+    '.skf-lv i{flex:1;height:6px;border-radius:99px;background:rgba(255,255,255,.28)}',
+    '.skf-lv i.on{background:#fff}',
+    '.skf-lvl{position:relative;display:flex;gap:5px;font-size:8.5px;font-weight:700;opacity:.88;margin-top:5px}',
+    '.skf-lvl span{flex:1;text-align:center}',
+    '.skf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}',
+    '.skf-tile{background:#fff;border:1px solid rgba(0,0,0,.05);border-radius:20px;padding:12px;box-shadow:0 8px 20px -14px rgba(0,0,0,.35);animation:skfPop .5s cubic-bezier(.22,1,.36,1) both}',
+    '.skf-th{display:flex;align-items:center;justify-content:space-between;gap:6px}',
+    '.skf-ic{width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}',
+    '.skf-sc{font-size:17px;font-weight:900;letter-spacing:-.5px}',
+    '.skf-lb{font-size:11.5px;font-weight:800;color:var(--text,#1c3025);margin-top:9px}',
+    '.skf-bar{height:6px;border-radius:99px;background:rgba(0,0,0,.07);overflow:hidden;margin-top:6px}',
+    '.skf-bar span{display:block;height:100%;border-radius:99px;transform-origin:left;animation:skfBar .9s cubic-bezier(.22,1,.36,1) both}',
+    '.skf-kt{font-size:9.5px;line-height:1.45;color:var(--text-soft,#4a7c59);margin-top:6px}',
+    '.skf-tips{margin-top:12px;border-radius:20px;padding:13px 14px;background:rgba(244,169,34,.13);border:1px solid rgba(244,169,34,.28)}',
+    '.skf-tips.ok{background:rgba(22,163,74,.10);border-color:rgba(22,163,74,.25)}',
+    '.skf-tips h4{margin:0 0 7px;font-size:12px;font-weight:900;color:var(--text,#1c3025)}',
+    '.skf-tip{display:flex;gap:8px;align-items:flex-start;font-size:11px;line-height:1.5;color:var(--text,#1c3025);margin-top:5px}',
+    '.skf-tip em{font-style:normal;flex-shrink:0}',
+    '.skf-warn{margin-top:10px;font-size:10.5px;line-height:1.55;color:#92400e;background:#fef3c7;border-radius:14px;padding:9px 12px}',
+    '.skf-foot{font-size:9.5px;line-height:1.6;color:var(--text-soft,#4a7c59);text-align:center;margin-top:12px;padding:0 6px}',
+    '.skf-tg{position:relative;display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:13px;padding:9px 10px 0;border:0;border-top:1px dashed rgba(255,255,255,.4);background:none;color:#fff;font:inherit;font-size:11px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+    '.skf-tg svg{flex-shrink:0;transition:transform .35s cubic-bezier(.22,1,.36,1);animation:skfNudge 1.6s ease-in-out infinite}',
+    '.skf-tg[aria-expanded="true"] svg{transform:rotate(180deg);animation:none}',
+    '.skf-detail{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .45s cubic-bezier(.22,1,.36,1),opacity .3s ease}',
+    '.skf-detail.open{grid-template-rows:1fr;opacity:1}',
+    '.skf-detail>div{overflow:hidden;min-height:0;padding:0 4px 10px;margin:0 -4px}',
+    '@keyframes skfNudge{0%,100%{transform:translateY(-1px)}50%{transform:translateY(3px)}}',
+    '@keyframes skfRing{from{stroke-dashoffset:314.16}}',
+    '@keyframes skfBar{from{transform:scaleX(0)}}',
+    '@keyframes skfPop{from{opacity:0;transform:translateY(10px) scale(.98)}}',
+    '@media (prefers-reduced-motion:reduce){.skf-hero,.skf-tile,.skf-ring .bar,.skf-bar span,.skf-tg svg{animation:none!important}.skf-detail{transition:none}}',
+    '@media (max-width:340px){.skf-grid{grid-template-columns:1fr}}',
+    'html.renco-dark .skf-tile{background:#15231b;border-color:rgba(255,255,255,.07);box-shadow:none}',
+    'html.renco-dark .skf-lb,html.renco-dark .skf-tips h4,html.renco-dark .skf-tip{color:#e8f3ec}',
+    'html.renco-dark .skf-kt,html.renco-dark .skf-foot{color:#9db8a8}',
+    'html.renco-dark .skf-bar{background:rgba(255,255,255,.1)}'
+  ].join('');
+  document.head.appendChild(st);
+}
+
+function _renderSkorKepercayaanAnggotaHTML(kkId, skorSudahHitung) {
+  var s = skorSudahHitung || hitungSkorKepercayaan(kkId);
+  if (!s) return '';
+  _skorEnsureStyleAnggota();
+
+  // Palet gradien & bahasa ramah per level
+  var tema;
+  if (s.blacklist) {
+    tema = { a:'#ef4444', b:'#be123c', glow:'rgba(190,18,60,.45)', emoji:'🔒', judul:'Akun Dibatasi',
+             sapa:'Pengajuan pinjaman baru sedang dikunci sementara. Yuk, hubungi pengurus koperasi untuk bantuan.', lv:1 };
+  } else if (s.belumCukupData) {
+    tema = { a:'#8b5cf6', b:'#6366f1', glow:'rgba(99,102,241,.45)', emoji:'🌱', judul:'Anggota Baru',
+             sapa:'Skormu akan muncul setelah beberapa bulan iuran & angsuran tercatat. Tenang, tinggal jalan terus!', lv:0 };
+  } else if (s.total >= 85) {
+    tema = { a:'#10b981', b:'#0d9488', glow:'rgba(16,185,129,.5)', emoji:'🌟', judul:'Anggota Andalan',
+             sapa:'Keren banget! Kamu konsisten memenuhi kewajiban. Pertahankan ya!', lv:5 };
+  } else if (s.total >= 70) {
+    tema = { a:'#3b82f6', b:'#06b6d4', glow:'rgba(59,130,246,.45)', emoji:'😎', judul:'Anggota Terpercaya',
+             sapa:'Mantap! Kewajibanmu terpenuhi dengan baik. Sedikit lagi menuju level Andalan.', lv:4 };
+  } else if (s.total >= 55) {
+    tema = { a:'#f59e0b', b:'#fb923c', glow:'rgba(245,158,11,.45)', emoji:'🚀', judul:'Terus Naik!',
+             sapa:'Kamu di jalur yang benar. Rapikan beberapa catatan di bawah ini biar skormu melesat.', lv:3 };
+  } else if (s.total >= 40) {
+    tema = { a:'#f97316', b:'#ef4444', glow:'rgba(249,115,22,.45)', emoji:'💪', judul:'Yuk Perbaiki Bareng',
+             sapa:'Masih ada kewajiban yang tertunda. Pelan-pelan dibereskan, skormu pasti naik lagi.', lv:2 };
+  } else {
+    tema = { a:'#ef4444', b:'#e11d48', glow:'rgba(225,29,72,.45)', emoji:'🌿', judul:'Mulai Lagi Yuk',
+             sapa:'Setiap pembayaran tepat waktu akan memperbaiki skormu. Pengurus siap membantu kalau perlu.', lv:1 };
+  }
+
+  var C = 314.16;
+  var ada = s.total !== null;
+  var offset = ada ? (C * (1 - Math.max(0, Math.min(100, s.total)) / 100)) : C;
+
+  var warnaBar = function(v){ return v>=85?'#16a34a':v>=70?'#2563eb':v>=55?'#d97706':v>=40?'#ea580c':'#dc2626'; };
+  var meta = {
+    iuran:     { ic:'💰', lb:'Iuran Wajib' },
+    angsuran:  { ic:'🗓️', lb:'Angsuran Tepat' },
+    telat:     { ic:'⏱️', lb:'Bebas Telat' },
+    pelunasan: { ic:'🏁', lb:'Pelunasan' }
+  };
+
+  var tiles = s.breakdown.map(function(b, i){
+    var m = meta[b.key] || { ic:'✅', lb:b.label };
+    var has = b.skor !== null;
+    var c = has ? warnaBar(b.skor) : '#9ca3af';
+    return '<div class="skf-tile" style="animation-delay:'+(0.06*i+0.1)+'s">'
+      + '<div class="skf-th"><div class="skf-ic" style="background:'+c+'1f">'+m.ic+'</div>'
+      + '<div class="skf-sc" style="color:'+c+'">'+(has?b.skor:'–')+'</div></div>'
+      + '<div class="skf-lb">'+m.lb+'</div>'
+      + '<div class="skf-bar">'+(has?'<span style="width:'+Math.max(3,b.skor)+'%;background:'+c+';animation-delay:'+(0.06*i+0.25)+'s"></span>':'')+'</div>'
+      + '<div class="skf-kt">'+b.ket+'</div>'
+      + '</div>';
+  }).join('');
+
+  // Tips naik level — diambil dari komponen yang masih di bawah 100
+  var tipTeks = {
+    iuran:     'Bayar iuran wajib tepat waktu setiap bulan.',
+    angsuran:  'Bayar angsuran sebelum tanggal jatuh tempo.',
+    telat:     'Hindari menunggak supaya catatanmu tetap bersih.',
+    pelunasan: 'Selesaikan pinjaman sampai lunas untuk bukti terkuat.'
+  };
+  var tipEmoji = { iuran:'💰', angsuran:'🗓️', telat:'⏱️', pelunasan:'🏁' };
+  var kandidat = s.breakdown.filter(function(b){ return b.skor !== null && b.skor < 100; })
+    .sort(function(x, y){ return x.skor - y.skor; }).slice(0, 2);
+  var tipsHTML;
+  if (s.blacklist) {
+    tipsHTML = '';
+  } else if (s.belumCukupData) {
+    tipsHTML = '<div class="skf-tips"><h4>✨ Biar skormu cepat terbentuk</h4>'
+      + '<div class="skf-tip"><em>💰</em><span>Bayar iuran wajib tiap bulan tanpa terlewat.</span></div>'
+      + '<div class="skf-tip"><em>🗓️</em><span>Kalau punya pinjaman, bayar angsuran tepat waktu.</span></div></div>';
+  } else if (kandidat.length) {
+    tipsHTML = '<div class="skf-tips"><h4>✨ Biar skormu makin naik</h4>'
+      + kandidat.map(function(b){ return '<div class="skf-tip"><em>'+tipEmoji[b.key]+'</em><span>'+tipTeks[b.key]+'</span></div>'; }).join('')
+      + '</div>';
+  } else {
+    tipsHTML = '<div class="skf-tips ok"><h4>🎉 Semua komponen sempurna!</h4>'
+      + '<div class="skf-tip"><em>👏</em><span>Terus pertahankan kebiasaan baikmu ya.</span></div></div>';
+  }
+
+  var warnHTML = (!s.blacklist && s.batas && s.batas.length)
+    ? '<div class="skf-warn">'+s.batas.map(function(t){ return '💡 '+t; }).join('<br>')+'</div>' : '';
+
+  var lvLabels = ['Mulai','Bina','Cukup','Percaya','Andalan'];
+  var lvBars = ''; for (var i = 1; i <= 5; i++) lvBars += '<i class="'+(i <= tema.lv ? 'on' : '')+'"></i>';
+
+  return '<div class="skf-wrap" style="--skf-a:'+tema.a+';--skf-b:'+tema.b+';--skf-glow:'+tema.glow+'">'
+    + '<div class="skf-hero">'
+    +   '<span class="skf-eyebrow">'+_skorIconSVG(13,'#fff')+' Skor Kepercayaanmu</span>'
+    +   '<div class="skf-main">'
+    +     '<div class="skf-ring">'
+    +       '<svg viewBox="0 0 120 120" fill="none">'
+    +         '<circle class="trk" cx="60" cy="60" r="50" stroke-width="11"/>'
+    +         (ada ? '<circle class="bar" cx="60" cy="60" r="50" stroke-width="11" style="stroke-dashoffset:'+offset.toFixed(2)+'"/>' : '')
+    +       '</svg>'
+    +       '<div class="skf-num">'+(ada ? '<b>'+s.total+'</b><small>dari 100</small>' : '<b style="font-size:24px">'+tema.emoji+'</b><small>belum ada skor</small>')+'</div>'
+    +     '</div>'
+    +     '<div class="skf-txt">'
+    +       '<div class="skf-title">'+(ada ? tema.emoji+' ' : '')+tema.judul+'</div>'
+    +       '<div class="skf-sapa">'+tema.sapa+'</div>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="skf-lv">'+lvBars+'</div>'
+    +   '<div class="skf-lvl">'+lvLabels.map(function(t){ return '<span>'+t+'</span>'; }).join('')+'</div>'
+    +   (s.blacklist ? '' : '<button type="button" class="skf-tg" aria-expanded="false" onclick="_skorToggleAnggota(this)">'
+    +     '<span class="skf-tgt">Ketuk untuk lihat detail 4 komponen</span>'
+    +     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    +   '</button>')
+    + '</div>'
+    + (s.blacklist ? '' : '<div class="skf-detail"><div><div class="skf-grid">'+tiles+'</div></div></div>')
+    + tipsHTML
+    + warnHTML
+    + ((typeof window._kmsBlokNasabah === 'function') ? window._kmsBlokNasabah(kkId, s) : '')
+    + '<div class="skf-foot">Skor dinilai dari rekam jejakmu sendiri — <b>tidak dibandingkan</b> dengan anggota lain, dan jumlah tabungan <b>tidak</b> memengaruhi skor. Dihitung dari '+s.observasi+' catatan iuran &amp; angsuran.</div>'
+    + '</div>';
+}
+window._renderSkorKepercayaanAnggotaHTML = _renderSkorKepercayaanAnggotaHTML;
+function _skorToggleAnggota(btn) {
+  var wrap = btn.closest('.skf-wrap'); if (!wrap) return;
+  var d = wrap.querySelector('.skf-detail'); if (!d) return;
+  var open = d.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  var t = btn.querySelector('.skf-tgt'); if (t) t.textContent = open ? 'Tutup detail' : 'Ketuk untuk lihat detail 4 komponen';
+  if (open) { // putar ulang animasi bar tiap kali dibuka
+    d.querySelectorAll('.skf-bar span').forEach(function(el){ el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; });
+  }
+}
+window._skorToggleAnggota = _skorToggleAnggota;
 
 /* ═══════════════════════════════════════════════════════════════
    FITUR BLACKLIST NASABAH — Manajemen Risiko
@@ -17434,6 +17990,8 @@ let DB = {
   laporanKerja: [],      // catatan kegiatan pengurus (Laporan Kerja)
   laporanKerjaRencana: [], // rencana kerja bulan depan / tahun depan
   laporanKerjaMeta: {},  // kendala & rencana per bulan { 'YYYY-MM': {kendala, rencana} }
+  komplainSkor: [],      // komplain nasabah atas Skor Kepercayaan (ditinjau & dikoreksi admin)
+  tiket: [],             // tiket komplain transaksi (manajemen issue: status, prioritas, petugas, percakapan)
   auditLog: [] // Audit Log permanen — tidak boleh direset/dihapus di mana pun dalam kode ini
 };
 
@@ -17467,6 +18025,8 @@ function _dbMigrate() {
     'users',  // akun nasabah & admin — disimpan di DB agar sync ke Supabase
     'laporanKerja',  // catatan kegiatan pengurus
     'laporanKerjaRencana',  // rencana kerja pengurus
+    'komplainSkor',  // komplain Skor Kepercayaan nasabah
+    'tiket',  // tiket komplain transaksi
     'pengurusList',  // struktur pengurus koperasi (nama, jabatan, pendidikan, pengalaman, foto)
     'auditLog'  // jejak audit permanen — TIDAK PERNAH direset/dihapus oleh migrasi ini
   ];
@@ -21624,6 +22184,64 @@ function checkKasLimit(kkId, jumlahBaru) {
 // ========== NAVIGATION ==========
 let currentPage = 'home';
 
+
+/* Rincian Dana Kelola Koperasi (banner beranda admin) */
+function showHeroRincian(){
+  var R = window._heroRincian; if (!R) return;
+  if (window._saldoHidden) { if (typeof showToast === 'function') showToast('Tampilkan nominal dulu (ikon mata) untuk melihat rincian'); return; }
+  var old = document.getElementById('heroRincianOv'); if (old) old.remove();
+  function row(l, v, sg, note){ return '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(128,128,128,.18)"><div><div style="font-weight:700;font-size:13px">' + sg + ' ' + l + '</div><div style="font-size:10.5px;opacity:.65;margin-top:2px">' + note + '</div></div><div style="font-weight:800;font-size:13px;white-space:nowrap">' + fmt(v) + '</div></div>'; }
+  function tot(l, v){ return '<div style="display:flex;justify-content:space-between;padding:10px 0 4px;font-weight:800;font-size:14px"><span>' + l + '</span><span>' + fmt(v) + '</span></div>'; }
+  function hd(t){ return '<div style="font-weight:800;font-size:12px;margin:12px 0 2px;color:#b07a00">' + t + '</div>'; }
+  var ov = document.createElement('div'); ov.id = 'heroRincianOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick = function(e){ if (e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:var(--card,#fff);color:var(--text,#111);border-radius:18px;max-width:420px;width:100%;padding:18px;max-height:85vh;overflow:auto">'
+    + '<div style="font-weight:800;font-size:15px">Rincian Dana Kelola Koperasi</div>'
+    + hd('DANA KELOLA (hanya Pokok + Wajib)')
+    + row('Simpanan Pokok', R.pokok, '＋', 'Seluruh setoran simpanan pokok')
+    + row('Simpanan Wajib', R.wajib, '＋', 'Seluruh setoran simpanan wajib')
+    + tot('Dana Kelola', R.total)
+    + row('Pinjaman Aktif', R.pinjaman, '－', 'Sisa pokok pinjaman aktif/menunggak')
+    + row('Pembiayaan Aktif', R.pembiayaan, '－', 'Pembiayaan aktif/disetujui/menunggak')
+    + tot('Kas Tersedia', R.kas)
+    + hd('CATATAN KHUSUS (di luar dana kelola)')
+    + row('Simpanan Sukarela', R.sukarela, '🤲', 'Saldo bebas anggota (setor dikurangi tarik)')
+    + row('Tabungan Berjangka', R.berjangka, '🔒', 'Berjangka Syariah (BERKAH) yang aktif/terkunci')
+    + row('PHU Bersih', R.phu, '📈', 'Pendapatan ' + fmt(R.phuMasuk) + ' − pengeluaran ' + fmt(R.phuKeluar))
+    + '<button type="button" onclick="document.getElementById(\'heroRincianOv\').remove()" style="width:100%;margin-top:12px;padding:10px;border:0;border-radius:12px;background:#0f7a43;color:#fff;font-weight:700">Tutup</button></div>';
+  document.body.appendChild(ov);
+}
+window.showHeroRincian = showHeroRincian;
+
+/* Rincian "Seharusnya ada di Bank" (banner ke-2 beranda admin) */
+function showHeroBankRincian(){
+  var R = window._heroRincian && window._heroRincian.bank; if (!R) return;
+  if (window._saldoHidden) { if (typeof showToast === 'function') showToast('Tampilkan nominal dulu (ikon mata) untuk melihat rincian'); return; }
+  var old = document.getElementById('heroRincianOv'); if (old) old.remove();
+  function row(l, v, sg, note){ return '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(128,128,128,.18)"><div><div style="font-weight:700;font-size:13px">' + sg + ' ' + l + '</div><div style="font-size:10.5px;opacity:.65;margin-top:2px">' + note + '</div></div><div style="font-weight:700;font-size:13px;white-space:nowrap">' + fmt(v) + '</div></div>'; }
+  function tot(l, v){ return '<div style="display:flex;justify-content:space-between;padding:10px 0 4px;font-weight:800;font-size:14px"><span>' + l + '</span><span' + (v < 0 ? ' style="color:#dc2626"' : '') + '>' + fmt(v) + '</span></div>'; }
+  function hd(t){ return '<div style="font-weight:800;font-size:12px;margin:12px 0 2px;color:#b07a00">' + t + '</div>'; }
+  var ov = document.createElement('div'); ov.id = 'heroRincianOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick = function(e){ if (e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:var(--card,#fff);color:var(--text,#111);border-radius:18px;max-width:420px;width:100%;padding:18px;max-height:85vh;overflow:auto">'
+    + '<div style="font-weight:800;font-size:15px">Uang Koperasi yang Seharusnya Ada di Bank</div>'
+    + hd('DANA MASUK')
+    + row('Simpanan Pokok', R.pokok, '＋', 'Seluruh setoran simpanan pokok')
+    + row('Simpanan Wajib', R.wajib, '＋', 'Seluruh setoran simpanan wajib')
+    + row('Simpanan Sukarela', R.sukarela, '＋', 'Saldo bebas anggota (setor dikurangi tarik)')
+    + row('Tabungan Berjangka', R.berjangka, '＋', 'Berjangka Syariah yang aktif/terkunci')
+    + row('PHU Bersih', R.phu, '＋', 'Pendapatan dikurangi pengeluaran PHU')
+    + hd('DANA KELUAR (sedang tersalur)')
+    + row('Pinjaman Aktif', R.pinjaman, '－', 'Sisa pokok pinjaman aktif/menunggak')
+    + row('Pembiayaan Aktif', R.pembiayaan, '－', 'Pembiayaan aktif/disetujui/menunggak')
+    + tot('Seharusnya di Bank', R.total)
+    + '<div style="font-size:10.5px;opacity:.65;margin-top:6px">Bandingkan dengan saldo rekening bank koperasi yang sebenarnya; selisihnya perlu ditelusuri.</div>'
+    + '<button type="button" onclick="document.getElementById(\'heroRincianOv\').remove()" style="width:100%;margin-top:12px;padding:10px;border:0;border-radius:12px;background:#0f7a43;color:#fff;font-weight:700">Tutup</button></div>';
+  document.body.appendChild(ov);
+}
+window.showHeroBankRincian = showHeroBankRincian;
 function navTo(page) {
   // Mode RencoPay mandiri (aplikasi terpisah): halaman koperasi lain tidak dibuka dari sini
   if (window._rencoPayOnly && page !== 'rencoPay') page = 'rencoPay';
@@ -27650,9 +28268,57 @@ function renderHome() {
   const totalPinjaman = DB.pinjaman.filter(p=>p.status==='aktif'||p.status==='menunggak').reduce((a,b)=>a+b.sisaPokok,0);
   const totalAset = DB.aset.reduce((a,b)=>a+b.nilai,0);
   const totalPHU = Math.max(0, (DB.phuPendapatan||[]).reduce((a,b)=>a+(b.jumlah||0),0) - (DB.phuPengeluaran||[]).reduce((a,b)=>a+(b.jumlah||0),0));
-  const total = totalSimpanan + totalAset + totalPHU - totalPinjaman;
+  // Dana Kelola = HANYA Simpanan Pokok + Wajib. Kas tersedia = dana kelola dikurangi dana tersalur
+  // (pinjaman + pembiayaan aktif). Sukarela, Berjangka, dan PHU dicatat terpisah.
+  var _td = { pokok:0, wajib:0, sukarelaBebas:0, tbLocked:0, totalDisalurkan:totalPinjaman };
+  try { if (typeof hitungTransparansiDana === 'function') _td = hitungTransparansiDana(); } catch(e) {}
+  const total = (_td.pokok || 0) + (_td.wajib || 0);
+  const kasKelola = Math.max(0, total - (_td.totalDisalurkan || 0));
+  const phuMasuk = (DB.phuPendapatan||[]).reduce((a,b)=>a+(b.jumlah||0),0), phuKeluar = (DB.phuPengeluaran||[]).reduce((a,b)=>a+(b.jumlah||0),0);
+  window._heroRincian = { pokok: _td.pokok || 0, wajib: _td.wajib || 0, total: total, disalurkan: _td.totalDisalurkan || 0, pinjaman: totalPinjaman,
+    pembiayaan: _td.totalPembiayaan || 0, kas: kasKelola, sukarela: _td.sukarelaBebas || 0, berjangka: _td.tbLocked || 0, phu: totalPHU, phuMasuk: phuMasuk, phuKeluar: phuKeluar };
+  var _kasEl = document.getElementById('heroKas'); if (_kasEl) _kasEl.textContent = fmt(kasKelola);
+  (function(){
+    var pct = total > 0 ? Math.max(0, Math.min(100, Math.round(kasKelola / total * 100))) : 0;
+    var b = document.getElementById('heroKasBar'); if (b) b.style.width = pct + '%';
+    var t = document.getElementById('heroTersalur'); if (t) t.textContent = fmt(_td.totalDisalurkan || 0);
+    var c = document.getElementById('heroKasPct'); if (c) c.textContent = pct + '% tersedia';
+  })();
+  (function(){
+    var hero = document.querySelector('#page-home .hero-banner'), wrapEl = hero && hero.parentNode, card = document.getElementById('heroCatatanKhusus');
+    var adm = (typeof isAdmin === 'function' && isAdmin());
+    // Catatan Khusus kini ada di dalam banner Saldo Bank; isi nominalnya di sini
+    var _ck = { ckSuk:_td.sukarelaBebas || 0, ckTB:_td.tbLocked || 0, ckPHU:totalPHU };
+    Object.keys(_ck).forEach(function(k){ var e = document.getElementById(k); if (e) e.textContent = fmt(_ck[k]); });
+    if (!adm || !wrapEl || !wrapEl.parentNode || !document.getElementById('heroTotal')) { if (card) card.style.display = 'none'; return; }
+    if (!card) { card = document.createElement('div'); card.id = 'heroCatatanKhusus'; wrapEl.insertAdjacentElement('afterend', card); }
+    card.style.display = '';
+    // Grafik statistik banner Saldo Bank: komposisi dana masuk vs dana tersalur
+    var pw = (_td.pokok || 0) + (_td.wajib || 0);
+    var _rowsA = [
+      { l:'Simpanan Pokok',  v:_td.pokok||0,          c:'#2d6a4f' },
+      { l:'Simpanan Wajib',  v:_td.wajib||0,          c:'#40916c' },
+      { l:'Simpanan Sukarela', v:_td.sukarelaBebas||0, c:'#74c69d' },
+      { l:'Berjangka',       v:_td.tbLocked||0,       c:'#9d4edd' },
+      { l:'PHU Bersih',      v:totalPHU,              c:'#f4a922' },
+      { l:'Pinjaman Aktif',  v:totalPinjaman,         c:'#16a34a' },
+      { l:'Pembiayaan Aktif',v:_td.totalPembiayaan||0,c:'#4d7c0f' }
+    ];
+    window._sbsBuild(card, _rowsA, { tabSaldo:'Saldo Bank', centerLabel:'Dana Masuk', nOut:2, trxRows:function(){ return window._sbsTrxRows(null); } });
+  })();
 
   document.getElementById('heroTotal').textContent = fmt(total);
+  // Banner ke-2: uang koperasi yang seharusnya ada di Bank
+  // = dana anggota (Pokok + Wajib + Sukarela bebas + Berjangka terkunci) + PHU bersih − dana tersalur (pinjaman + pembiayaan aktif)
+  (function(){
+    var bEl = document.getElementById('heroBank'); if (!bEl) return;
+    var danaAnggota = (_td.pokok || 0) + (_td.wajib || 0) + (_td.sukarelaBebas || 0) + (_td.tbLocked || 0);
+    var bank = danaAnggota + totalPHU - (_td.totalDisalurkan || 0);
+    window._heroRincian.bank = { pokok:_td.pokok || 0, wajib:_td.wajib || 0, sukarela:_td.sukarelaBebas || 0, berjangka:_td.tbLocked || 0,
+      danaAnggota:danaAnggota, phu:totalPHU, pinjaman:totalPinjaman, pembiayaan:_td.totalPembiayaan || 0, disalurkan:_td.totalDisalurkan || 0, total:bank };
+    bEl.textContent = fmt(bank);
+    bEl.style.color = bank < 0 ? '#ff9b9b' : '';
+  })();
   if (typeof window._applySaldoVisibility === 'function') window._applySaldoVisibility();
   document.getElementById('statNasabah').textContent = DB.nasabah.length;
   document.getElementById('statSimpanan').textContent = fmt(totalSimpanan);
@@ -27937,6 +28603,9 @@ window._homeRiwayatRender = function() {
     }).replace(/"/g, '&quot;');
     var shareBtn = '<button data-share="' + shareData + '" onclick="event.stopPropagation();var d=this.getAttribute(\'data-share\');if(d&&typeof window.rencoOpenShare===\'function\')window.rencoOpenShare(JSON.parse(d));" style="padding:5px 14px;border-radius:99px;border:none;background:linear-gradient(135deg,#25d366,#128c7e);color:white;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">Bagikan</button>';
 
+    var tktBtn = (typeof window._tiketBtn === 'function')
+      ? window._tiketBtn({ id: t.id || null, src: t._src === 'rencopay' ? 'rencopay' : 'koperasi', type: t.type || '', tipe: t.tipe || '', jumlah: t.jumlah || 0, keterangan: t.keterangan || t.judul || '', tanggal: t.tanggal || t.createdAt || '', kkId: t.kkId || null })
+      : '';
     var dayHdr = '';
     if (t._key !== _lastKey) { dayHdr = '<div class="hrw-day">' + _hariLabel(t._key) + '</div>'; _lastKey = t._key; }
 
@@ -27945,7 +28614,7 @@ window._homeRiwayatRender = function() {
       + '<div class="rp-txn-item" onclick="var r=document.getElementById(\'rwshare_' + tid + '\');if(r)r.style.display=(r.style.display===\'none\'?\'flex\':\'none\');" style="cursor:pointer">'
         + renderTxnItemInner(t, '')
       + '</div>'
-      + '<div id="rwshare_' + tid + '" class="txn-share-row" style="display:none;justify-content:flex-end;gap:8px;padding:3px 16px 8px">' + editBtn + shareBtn + '</div>'
+      + '<div id="rwshare_' + tid + '" class="txn-share-row" style="display:none;justify-content:flex-end;gap:8px;padding:3px 16px 8px">' + editBtn + tktBtn + shareBtn + '</div>'
       + '</div>';
   }).join('');
 
@@ -30262,6 +30931,7 @@ function buildRiwayatPanel(nasabahSimpanan) {
               <div class="txn-row-amount ${isTarik?'minus':'plus'}" style="${isTarik?'color:var(--danger)':''}">${isTarik?'−':'+'}${fmt(t.jumlah)}</div>
               <div class="txn-row-actions">
                 ${t.type==='tarik-sukarela' ? `<button class="txn-act-btn" onclick="event.stopPropagation();_bukaLaporanTarikLalu('${t.id}')" title="Laporan / Kirim WhatsApp">${window._ico('doc')}</button>` : ''}
+                ${(typeof window._tiketBtn==='function') ? window._tiketBtn({id:t.id,src:'koperasi'},'icon') : ''}
                 <button class="txn-act-btn edit" onclick="event.stopPropagation();openEditTxnRiwayat('${t.id}')" title="Edit">${window._ico('edit')}</button>
                 <button class="txn-act-btn del" onclick="event.stopPropagation();hapusTxnRiwayat('${t.id}')" title="Hapus">${window._ico('trash')}</button>
               </div>
@@ -40588,7 +41258,7 @@ function _pdfGenKoperasi(jsPDFCls) {
   var pinDitolak = pinAll.filter(function (p) { return p.status === 'ditolak'; });
   var pinBerjalan = pinAktif.concat(pinMenunggak); // aktif + menunggak = masih piutang koperasi
   var totalPiutang = pinBerjalan.reduce(function (a, b) { return a + (b.sisaPokok || 0); }, 0);
-  var kasKoperasi = saldoSimpanan - totalPiutang;
+  var kasKoperasi = kasKelolaDari(txnAll, totalPiutang);
   var totalAset = (DB.aset || []).reduce(function (a, b) { return a + (b.nilai || 0); }, 0);
   var totalAktiva = saldoSimpanan + totalPiutang + totalAset;
   var totalBungaEstimasi = pinBerjalan.reduce(function (a, p) { return a + Math.round(p.jumlah * ((p.bunga || 0) / 100) * ((p.tenor || 12) / 12)); }, 0);
@@ -41252,7 +41922,7 @@ function _renderLaporanKoperasiNasabahView() {
   var pinAktif       = (DB.pinjaman||[]).filter(function(p){return p.status==='aktif'||p.status==='menunggak';});
   var pinMenunggakCount = pinAktif.filter(function(p){return p.status==='menunggak';}).length;
   var totalPiutang   = pinAktif.reduce(function(a,b){return a+(b.sisaPokok||0);},0);
-  var kasKoperasi    = totalSimpanan - totalPiutang;
+  var kasKoperasi    = kasKelolaDari(DB.transaksi, totalPiutang);
   var phuTotal       = (DB.phuPendapatan||[]).reduce(function(a,b){return a+(b.jumlah||0);},0)
                      - (DB.phuPendapatan||[]).reduce(function(a,b){return a;},0);
   var phuBersih      = (DB.phuPendapatan||[]).reduce(function(a,b){return a+(b.jumlah||0);},0)
@@ -53150,6 +53820,7 @@ function buildRiwayatPanelForMember(kkId) {
           + '<div class="txn-row-right">'
             + '<div class="txn-row-amount plus">+'+fmt(t.jumlah)+'</div>'
             + '<div class="txn-row-actions">'
+              + ((typeof window._tiketBtn==='function') ? window._tiketBtn({id:t.id,src:'koperasi'},'icon') : '')
               + '<button class="txn-act-btn edit" onclick="event.stopPropagation();openEditTxnRiwayat(\''+t.id+'\')" title="Edit">'+window._ico('edit')+'</button>'
               + '<button class="txn-act-btn del" onclick="event.stopPropagation();hapusTxnRiwayat(\''+t.id+'\')" title="Hapus">'+window._ico('trash')+'</button>'
             + '</div>'
@@ -55565,23 +56236,30 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
 
     return `
       <!-- Header -->
-      <div style="background:linear-gradient(135deg,#1a472a,#2d6a4f);padding:9px 12px;margin:8px 12px;border-radius:14px;color:white">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
-          <div style="font-size:9px;color:rgba(255,255,255,0.6);font-weight:700;text-transform:uppercase;letter-spacing:.6px">Laporan Nasabah · ${_nowLabel()}</div>
-          <div style="font-size:15px;font-weight:800;color:#e8c97e;white-space:nowrap">${nasabah.length} Anggota</div>
+      <div class="lap-banner" style="background:linear-gradient(135deg,#1a472a,#2d6a4f 70%,#3a7d5c);padding:18px 16px 16px;margin:12px 14px;border-radius:22px;color:white;position:relative;overflow:hidden">
+        <div style="position:absolute;right:-14px;top:-18px;font-size:104px;opacity:0.07;line-height:1">👥</div>
+        <div style="position:relative;font-size:10.5px;color:rgba(255,255,255,0.78);font-weight:800;text-transform:uppercase;letter-spacing:.9px">Laporan Nasabah · ${_nowLabel()}</div>
+        <div style="position:relative;display:flex;align-items:baseline;gap:8px;margin-top:8px">
+          <span style="font-size:34px;font-weight:900;color:#e8c97e;line-height:1;letter-spacing:-.5px">${nasabah.length}</span>
+          <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.88)">Anggota terdaftar</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:7px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;background:rgba(255,255,255,0.1);border-radius:8px;padding:4px 8px">
-            <span style="font-size:9px;color:rgba(255,255,255,0.7);font-weight:700">✅ Sehat</span>
-            <span style="font-size:14px;font-weight:800;color:#6ee87a">${sehat}</span>
+        <div style="position:relative;display:flex;height:7px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,0.14);margin:14px 0 12px">
+          <span style="width:${nasabah.length?Math.round(sehat/nasabah.length*100):0}%;background:#6ee87a"></span>
+          <span style="width:${nasabah.length?Math.round(stabil/nasabah.length*100):0}%;background:#ffd166"></span>
+          <span style="width:${nasabah.length?Math.round(perhatian/nasabah.length*100):0}%;background:#ff7070"></span>
+        </div>
+        <div style="position:relative;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div style="text-align:center;background:rgba(255,255,255,0.1);border-radius:14px;padding:9px 4px">
+            <div style="font-size:20px;font-weight:900;color:#6ee87a;line-height:1.1">${sehat}</div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,0.8);font-weight:700;margin-top:3px">✅ Sehat</div>
           </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;background:rgba(255,255,255,0.1);border-radius:8px;padding:4px 8px">
-            <span style="font-size:9px;color:rgba(255,255,255,0.7);font-weight:700">🟡 Stabil</span>
-            <span style="font-size:14px;font-weight:800;color:#ffd166">${stabil}</span>
+          <div style="text-align:center;background:rgba(255,255,255,0.1);border-radius:14px;padding:9px 4px">
+            <div style="font-size:20px;font-weight:900;color:#ffd166;line-height:1.1">${stabil}</div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,0.8);font-weight:700;margin-top:3px">🟡 Stabil</div>
           </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;background:rgba(255,255,255,0.1);border-radius:8px;padding:4px 8px">
-            <span style="font-size:9px;color:rgba(255,255,255,0.7);font-weight:700">⚠️ Perhatian</span>
-            <span style="font-size:14px;font-weight:800;color:#ff7070">${perhatian}</span>
+          <div style="text-align:center;background:rgba(255,255,255,0.1);border-radius:14px;padding:9px 4px">
+            <div style="font-size:20px;font-weight:900;color:#ff7070;line-height:1.1">${perhatian}</div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,0.8);font-weight:700;margin-top:3px">⚠️ Perhatian</div>
           </div>
         </div>
       </div>
@@ -55858,7 +56536,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     const totalAset = (DB.aset||[]).reduce((a,b)=>a+(b.nilai||0),0);
 
     // ── Neraca ──
-    const kasKoperasi = saldoSimpanan - totalPiutang;
+    const kasKoperasi = kasKelolaDari(txnAll, totalPiutang);
     const totalAktiva = saldoSimpanan + totalPiutang + totalAset;
 
     // ── Data bulan ini ──
@@ -62151,6 +62829,14 @@ window.renderTabunganBerjangkaHTML = function() {
 // ═══════════════════════════════════════════════
 //  RINCIAN PENGELOLAAN DANA (TRANSPARANSI)
 // ═══════════════════════════════════════════════
+// Kas koperasi (kebijakan baru): hanya dari Simpanan Pokok + Wajib, dikurangi pinjaman & pembiayaan aktif.
+// txns = daftar transaksi yang dipakai (boleh sudah difilter tanggal), piutang = sisa pokok pinjaman aktif/menunggak.
+function kasKelolaDari(txns, piutang) {
+  var pw = (txns || []).filter(function(t){ return t.type === 'simpanan' && (t.jenis === 'pokok' || t.jenis === 'wajib'); }).reduce(function(a,b){ return a + (b.jumlah || 0); }, 0);
+  var pemb = 0; try { pemb = hitungTransparansiDana().totalPembiayaan || 0; } catch(e) {}
+  return Math.max(0, pw - (piutang || 0) - pemb);
+}
+window.kasKelolaDari = kasKelolaDari;
 function hitungTransparansiDana() {
   ensureTBList();
   var pokok = DB.transaksi.filter(function(t){ return t.type === 'simpanan' && t.jenis === 'pokok'; }).reduce(function(a,b){ return a+b.jumlah; }, 0);
@@ -62167,7 +62853,9 @@ function hitungTransparansiDana() {
   // PENTING: tbLocked sudah termasuk di dalam totalDanaAnggota, jadi harus
   // dikurangkan lagi di sini agar dana Berjangka Syariah tidak terhitung
   // dobel (sekali sebagai "Terkunci BERKAH", sekali lagi nyangkut di "Kas Tersedia").
-  var kasTersedia = Math.max(0, totalDanaAnggota - totalDisalurkan - tbLocked);
+  // Kebijakan baru: dana kelola & kas tersedia HANYA bersumber dari Simpanan Pokok + Wajib.
+  // Sukarela dan Berjangka dicatat terpisah (tidak ikut menjadi kas / basis plafon).
+  var kasTersedia = Math.max(0, pokok + wajib - totalDisalurkan);
 
   return { pokok:pokok, wajib:wajib, sukarelaBebas:sukarelaBebas, tbLocked:tbLocked, totalDanaAnggota:totalDanaAnggota,
     totalPinjaman:totalPinjaman, totalPembiayaan:totalPembiayaan, totalDisalurkan:totalDisalurkan, kasTersedia:kasTersedia };
@@ -62187,7 +62875,7 @@ window.hitungTransparansiDanaNasabah = hitungTransparansiDanaNasabah;
 window.renderTransparansiDanaHTML = function() {
   var d = hitungTransparansiDana();
   var pct = function(v) { return d.totalDanaAnggota > 0 ? (v / d.totalDanaAnggota * 100) : 0; };
-  var pctPinjaman = pct(d.totalPinjaman), pctPembiayaan = pct(d.totalPembiayaan), pctTB = pct(d.tbLocked), pctKas = pct(d.kasTersedia);
+  var pctPinjaman = pct(d.totalPinjaman), pctPembiayaan = pct(d.totalPembiayaan), pctTB = pct(d.tbLocked), pctKas = pct(d.kasTersedia), pctSuk = pct(d.sukarelaBebas);
 
   var barSeg = function(v, color, label) { return v <= 0 ? '' : '<div style="width:' + v.toFixed(1) + '%;background:' + color + '" title="' + label + ' ' + v.toFixed(1) + '%"></div>'; };
   var barHTML = '<div style="display:flex;height:14px;border-radius:8px;overflow:hidden;margin:12px 0 8px">'
@@ -62195,6 +62883,7 @@ window.renderTransparansiDanaHTML = function() {
     + barSeg(pctPembiayaan, '#7b2d8b', 'Pembiayaan Syariah')
     + barSeg(pctTB, '#b07a00', 'Berjangka Syariah')
     + barSeg(pctKas, '#94a3b8', 'Kas Tersedia')
+    + barSeg(pctSuk, '#d9b44a', 'Sukarela (dicatat terpisah)')
     + '</div>';
 
   var legend = function(color, label, val, p) {
@@ -62208,7 +62897,8 @@ window.renderTransparansiDanaHTML = function() {
   var legendHTML = legend('#1a6640', 'Disalurkan — Pinjaman', d.totalPinjaman, pctPinjaman)
     + legend('#7b2d8b', 'Disalurkan — Pembiayaan Syariah', d.totalPembiayaan, pctPembiayaan)
     + legend('#b07a00', 'Terkunci — Berjangka Syariah', d.tbLocked, pctTB)
-    + legend('#94a3b8', 'Kas Tersedia / Cadangan', d.kasTersedia, pctKas);
+    + legend('#94a3b8', 'Kas Tersedia (Pokok + Wajib)', d.kasTersedia, pctKas)
+    + legend('#d9b44a', 'Sukarela — dicatat terpisah', d.sukarelaBebas, pctSuk);
 
   // ── Pie/Donut chart alokasi dana DIHAPUS (dobel dengan bar+legend di bawah) ──
 
@@ -62278,7 +62968,7 @@ window.downloadTransparansiDanaPDF = downloadTransparansiDanaPDF;
 function _pdfGenTransparansiDana(jsPDFCls) {
   var d = hitungTransparansiDana();
   var pct = function(v) { return d.totalDanaAnggota > 0 ? (v / d.totalDanaAnggota * 100) : 0; };
-  var pctPinjaman = pct(d.totalPinjaman), pctPembiayaan = pct(d.totalPembiayaan), pctTB = pct(d.tbLocked), pctKas = pct(d.kasTersedia);
+  var pctPinjaman = pct(d.totalPinjaman), pctPembiayaan = pct(d.totalPembiayaan), pctTB = pct(d.tbLocked), pctKas = pct(d.kasTersedia), pctSuk = pct(d.sukarelaBebas);
 
   var doc = new jsPDFCls({ orientation: 'p', unit: 'mm', format: 'a4' });
   var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
@@ -62319,7 +63009,8 @@ function _pdfGenTransparansiDana(jsPDFCls) {
     { label: 'Disalurkan — Pinjaman', nilaiF: _pdfFmt(d.totalPinjaman), pctF: pctPinjaman.toFixed(1) + '%' },
     { label: 'Disalurkan — Pembiayaan Syariah', nilaiF: _pdfFmt(d.totalPembiayaan), pctF: pctPembiayaan.toFixed(1) + '%' },
     { label: 'Terkunci — Berjangka Syariah', nilaiF: _pdfFmt(d.tbLocked), pctF: pctTB.toFixed(1) + '%' },
-    { label: 'Kas Tersedia / Cadangan', nilaiF: _pdfFmt(d.kasTersedia), pctF: pctKas.toFixed(1) + '%' },
+    { label: 'Kas Tersedia (Pokok + Wajib)', nilaiF: _pdfFmt(d.kasTersedia), pctF: pctKas.toFixed(1) + '%' },
+    { label: 'Sukarela — dicatat terpisah', nilaiF: _pdfFmt(d.sukarelaBebas), pctF: pctSuk.toFixed(1) + '%' },
     { label: 'TOTAL', nilaiF: _pdfFmt(d.totalDanaAnggota), pctF: '100%', _total: true }
   ];
   y = _pdfTabel(doc, y, margin, usableW, pageH, colsAlok, rowsAlok);
@@ -70684,6 +71375,8 @@ html.renco-dark #keuanganContent > .hero-banner:first-child{ margin-top:12px; }
       if(_arisan){ _arisan.style.color=_arColor0; _arisan.style.fontSize=_arSize0; }
       if(_arLbl&&_arTxt0!==null) _arLbl.textContent=_arTxt0;
       var bn=document.getElementById('_akunNonaktifBanner'); if(bn) bn.style.display='none';
+      var sn=document.getElementById('heroStatNasabah'); if(sn) sn.style.display='none';
+      var sc=document.getElementById('statCarousel'), sr=sc&&sc.closest('.stats-row'); if(sr) sr.style.display='';
     }catch(e){ console.warn('[pulihBerandaAdmin]',e); }
   }
   window._pulihBerandaAdmin=pulihBerandaAdmin;
@@ -75444,8 +76137,8 @@ var FITUR = [];
 function F(id, nama, emo, adm, re, lok, isi, go, chips){ FITUR.push({ id: id, nama: nama, emo: emo, adm: adm, re: re, lok: lok, isi: isi, go: go || [], chips: chips || [] }); }
 var ADM_ONLY = function(){ return typeof isAdmin === 'function' && isAdmin(); };
 
-F('beranda', 'Beranda', '🏠', false, /\b(beranda|halaman utama|home|dashboard|total aset koperasi)\b/, 'Tombol **Beranda** di navigasi bawah.',
-  ['• Ringkasan: **total aset koperasi**, jumlah nasabah, total simpanan, total pinjaman, dan pembiayaan.', '• **Aksi cepat**: Simpanan, Tarik Tunai, Transfer, Pinjaman, RencoPay, Laporan.', '• **Transaksi Terkini**, **Tagihan & Cicilan**, **Kesehatan Kas**, **Prediksi Kas Bulan Depan**, dan **Challenge 1 Milyar**.', '• Ada slide/banner info koperasi di bagian atas.'],
+F('beranda', 'Beranda', '🏠', false, /\b(beranda|halaman utama|home|dashboard|total aset koperasi|dana kelola|catatan khusus)\b/, 'Tombol **Beranda** di navigasi bawah.',
+  ['• Ringkasan: **Dana Kelola Koperasi** (hanya Simpanan Pokok + Wajib) dan **Kas Tersedia** (setelah dikurangi pinjaman & pembiayaan aktif), jumlah nasabah, total simpanan, total pinjaman, dan pembiayaan.', '• **Catatan Khusus** (khusus admin) mencatat **Simpanan Sukarela, Tabungan Berjangka, dan PHU** secara terpisah dari dana kelola. Ketuk banner untuk rinciannya.', '• **Aksi cepat**: Simpanan, Tarik Tunai, Transfer, Pinjaman, RencoPay, Laporan.', '• **Transaksi Terkini**, **Tagihan & Cicilan**, **Kesehatan Kas**, **Prediksi Kas Bulan Depan**, dan **Challenge 1 Milyar**.', '• Ada slide/banner info koperasi di bagian atas.'],
   [{ t: 'Buka Beranda', go: 'nav:home' }], ['Tagihan & cicilan', 'Kesehatan kas', 'Peta aplikasi']);
 F('tagihan', 'Tagihan & Cicilan', '🧾', false, /\b(tagihan (dan )?cicilan|daftar tagihan|kartu tagihan|menunggak di beranda)\b|tagihan.*beranda/, 'Di **Beranda**, kartu **Tagihan & Cicilan**.',
   ['• Menampilkan tagihan **pinjaman** dan **angsuran** yang perlu dibayar.', '• Bisa disaring: **Semua**, **Menunggak**, atau **Mendatang**.', '• Mau lihat versi pribadimu? Ketik **"cek pengingat"** atau **"iuran saya"**.'],
@@ -75537,6 +76230,18 @@ F('profil', 'Profil & Akun', '🪪', false, /\b(profil|profile|ganti password|ga
 F('header', 'Menu Atas (Mode Malam, Backup, Notifikasi)', '⚙️', false, /\b(mode malam|dark mode|tema gelap|mode gelap|backup data|cadangkan data|notifikasi aplikasi|panel notifikasi|ikon menu atas)\b/, 'Ikon di **bagian atas** aplikasi.',
   ['• **Mode Malam** (tema gelap) untuk tampilan yang nyaman di mata.', '• **Backup/Pulihkan** data aplikasi.', '• Panel **Notifikasi** dan **Riwayat Login**, serta akses ke **Profil**.'],
   [{ t: 'Ganti Mode Malam', go: 'fn:toggleDarkMode' }], ['Peta aplikasi']);
+F('stempel', 'Stempel Dokumen Asli (PDF)', '📄', false, /\b(stempel|dokumen asli|kode verifikasi|keaslian (dokumen|pdf)|pdf (asli|resmi)|pengesahan dokumen|cap koperasi)\b/, 'Otomatis di **setiap file PDF** yang diunduh dari aplikasi.',
+  ['• Semua PDF (riwayat, laporan, kartu anggota, cicilan, rekap iuran, dan lainnya) otomatis dibubuhi **stempel Pengesahan Dokumen** Koperasi Renco beserta **kode verifikasi**.', '• Stempel ada di **pojok kanan-bawah**, jadi tidak perlu minta cap manual untuk dokumen dari aplikasi.', '• Dokumen tanpa stempel atau tanpa kode verifikasi patut dicurigai. Untuk memastikan keasliannya, tanyakan ke admin/pengurus.'],
+  [], ['Menu Laporan', 'Kartu anggota', 'Hubungi Admin']);
+F('updateapp', 'Update Aplikasi', '🔄', false, /\b(update aplikasi|perbarui aplikasi|versi (lama|terbaru|baru)|aplikasi (masih )?(lama|jadul|nggak update|tidak update|belum update)|data (belum|tidak|nggak) (berubah|update|muncul)|hapus cache|bersihkan cache|clear cache|aplikasi (error|macet|hang|nyangkut))\b/, 'Tombol **Update Aplikasi** di **halaman login** (ikon menu ☰ di pojok).',
+  ['• Menghapus **cache dan penyimpanan lokal** di perangkat ini, lalu memuat ulang versi terbaru dari server.', '• **Data aman**: semua data asli tersimpan di cloud, yang dihapus hanya salinan di perangkat.', '• Pakai kalau tampilan atau data terasa **lama**, ada fitur baru yang belum muncul, atau aplikasi terasa nyangkut.', '• Butuh **koneksi internet** aktif. Setelah selesai, masuk lagi seperti biasa.'],
+  [], ['Peta aplikasi', 'Hubungi Admin']);
+F('saldooffline', 'Saldo Offline & Transfer Offline', '💼', false, /\b(saldo offline|transfer offline|bayar offline|tanpa (internet|sinyal|koneksi)|kantong offline|pouch|qr offline|lagi offline|nggak ada sinyal|tidak ada sinyal)\b/, '**RencoPay** (tombol **Siapkan** pada kartu **Saldo Offline**).',
+  ['• Saat masih **online**, kamu bisa **menyiapkan Saldo Offline** (min. **Rp 10.000**, maks. **Rp 500.000**). Nominalnya langsung dipotong dari saldo utama.', '• Saldo ini bisa dipakai **transfer lewat QR** walau tanpa internet, **hanya di perangkat yang sama** dan berlaku **7 hari**.', '• Penerima yang sedang online akan **meneruskan** transfer itu ke cloud lewat scan QR.', '• Sisa yang tidak terpakai bisa **dikembalikan** ke saldo utama lewat tombol **Kembalikan**.', '• Demi keamanan, ada batas nominal per transfer dan jumlah antrean transfer offline.'],
+  [{ t: 'Buka RencoPay', go: 'nav:rencoPay', na: true }], ['Menu RencoPay', 'QRIS & QR Saya', 'Cara transfer']);
+F('masterdevice', 'Master Device (Admin)', '🛰️', true, /\b(master device|perangkat master|tombol master|sync master|sumber data utama)\b/, 'Tombol **Master** di **bagian atas** aplikasi (khusus admin).',
+  ['• Saat aktif, perangkat admin menjadi **satu-satunya sumber kebenaran**: setiap perubahan langsung dikirim ke cloud **tanpa digabung**, dan perangkat lain mengikuti data dari sini.', '• Pengajuan dari nasabah tetap masuk, tetapi data lain dari perangkat lain **diabaikan** selama Master aktif.', '• Matikan tombolnya untuk kembali ke mode normal (cloud-first dengan penggabungan).', '• Aktifkan hanya di **satu perangkat** admin yang datanya paling mutakhir, supaya data tidak tertimpa data lama.'],
+  [], ['Peta aplikasi', 'Update Aplikasi']);
 F('catatuang', 'Catat Uang', '📒', false, /\b(catat ?uang|pencatatan (harian|keuangan)|catatan harian|saldo harian|tab harian|tab assets?|input cepat|catat cepat|smart (input|entry)|target tabungan|cadangan catat uang)\b/, '**Keuangan → Catat Uang**.',
   ['• Atas: **Saldo saat ini**, pemasukan dan pengeluaran bulan ini, tombol **Pemasukan** / **Pengeluaran**, dan **input cepat** (ketik atau suara) yang mengenali nominal dan kategori sebelum disimpan.', '• Tab **Ringkasan**: pemasukan, pengeluaran, sisa/defisit, porsi pengeluaran, **pengeluaran per kategori**, dan tren **6 bulan terakhir**.', '• Tab **Harian**: daftar transaksi per bulan, bisa disaring **Semua · Pemasukan · Pengeluaran**.', '• Tab **Target**: target tabungan (dana darurat, biaya sekolah, dll.) dan **setor** ke target.', '• Tab **Assets**: aset dan kewajiban (emas, properti, KPR, dan sebagainya) dengan grafik pertumbuhan, komposisi, dan perbandingan periode. **Dicatat terpisah** dari Harian.', '• **Net Worth** hanya memakai **saldo akhir bulan** dari Harian, bukan transaksi hariannya.', '• Data tersimpan di **perangkat**; ada **cadangan cloud** terenkripsi PIN, cadangan **file**, dan ekspor **PDF**.'],
   [{ t: 'Buka Catat Uang', go: 'keu:catatuang' }, { t: 'Tab Harian', go: 'cu:riwayat' }, { t: 'Tab Assets', go: 'cu:kekayaan' }, { t: 'Tab Target', go: 'cu:target' }], ['Net worth', 'Menu Keuangan']);
@@ -75760,7 +76465,12 @@ var WAWASAN = [
   'Tujuan keuangan yang jelas lebih mudah dicapai. Tulis **target, nominal, dan tenggat**, misalnya "dana haji Rp5 juta, 12 bulan", lalu bagi menjadi setoran bulanan. 🎯',
   'Rapat Anggota adalah tempat anggota **menyetujui laporan, memilih pengurus, dan menentukan arah** koperasi. Hadir dan bertanya adalah hak sekaligus bentuk tanggung jawab pemilik. 🗳️',
   '**Inflasi** menggerus nilai uang yang hanya disimpan tunai. Simpan di tempat yang aman dan produktif, dan sesuaikan target tabungan dengan kenaikan harga dari tahun ke tahun. 📈',
-  '**Asuransi atau proteksi** menjaga tabungan dari musibah besar seperti sakit atau kecelakaan. Dana darurat menutup kejadian kecil, proteksi menutup yang besar. ☂️'
+  '**Asuransi atau proteksi** menjaga tabungan dari musibah besar seperti sakit atau kecelakaan. Dana darurat menutup kejadian kecil, proteksi menutup yang besar. ☂️',
+  'PDF yang diunduh dari aplikasi Koperasi Renco otomatis memuat **stempel Dokumen Asli** dan **kode verifikasi**. Kalau ada dokumen yang mengaku dari Renco tapi tanpa stempel itu, tanyakan dulu ke pengurus. 📄',
+  'Aplikasi terasa lama atau fitur baru belum muncul? Ketuk **Update Aplikasi** di halaman login. Yang dihapus hanya salinan di perangkat, **data aslimu aman di cloud**. 🔄',
+  '**Saldo Offline** di RencoPay memungkinkan transfer lewat QR tanpa internet. Siapkan dulu saat online (Rp 10 ribu sampai Rp 500 ribu, berlaku 7 hari), sisanya bisa dikembalikan ke saldo utama. 💼',
+  'Redominasi, Net Worth, Catat Uang, dan Kalkulator ada di aplikasi untuk membantumu **memantau, bukan sekadar menyimpan**. Luangkan 5 menit tiap awal bulan untuk melihat angkanya. 📱',
+  'Simpanan Pokok dan Wajib adalah **modal bersama**, sedangkan Simpanan Sukarela dan Berjangka (BERKAH) adalah tabunganmu. Pahami bedanya sebelum menarik atau memindahkan dana. 🏦'
 ];
 var _wIdx = -1;
 function jawabWawasan(){
@@ -77341,7 +78051,7 @@ var CSS = '' +
 '@keyframes raHalo{0%{box-shadow:0 6px 18px rgba(13,32,22,.5),0 0 0 4px rgba(255,209,102,.30)}65%,100%{box-shadow:0 6px 18px rgba(13,32,22,.5),0 0 0 15px rgba(255,209,102,0)}}' +
 /* ── overlay & panel ── */
 '#raOverlay{position:fixed;inset:0;z-index:8600;background:rgba(13,32,22,0);-webkit-backdrop-filter:blur(0);backdrop-filter:blur(0);display:flex;align-items:flex-end;justify-content:center;visibility:hidden;pointer-events:none;transition:background .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s,visibility 0s .4s}' +
-'#raOverlay.open{background:rgba(13,32,22,.52);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);visibility:visible;pointer-events:auto;transition:background .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s,visibility 0s}' +
+'#raOverlay.open{background:rgba(13,32,22,.38);-webkit-backdrop-filter:blur(12px) saturate(1.1);backdrop-filter:blur(12px) saturate(1.1);visibility:visible;pointer-events:auto;transition:background .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s,visibility 0s}' +
 '#raPanel{position:relative;width:100%;max-width:520px;height:min(86vh,700px);height:min(86dvh,700px);display:flex;flex-direction:column;overflow:hidden;border-radius:26px 26px 0 0;font-family:inherit;color:var(--text,#1c3025);' +
  'background:radial-gradient(120% 60% at 100% 0%,rgba(244,169,34,.10),transparent 60%),radial-gradient(100% 50% at 0% 100%,rgba(64,145,108,.12),transparent 60%),var(--cream,#fefae0);' +
  'box-shadow:0 -12px 50px rgba(0,0,0,.35);transform:translateY(105%);transition:transform .45s cubic-bezier(.2,.9,.25,1.05)}' +
@@ -77500,7 +78210,7 @@ function build(){
     '<div id="raLog" aria-live="polite"></div><div id="raModeBar"></div><div id="raQuick"></div>' +
     '<form id="raForm" autocomplete="off"><input id="raIn" type="text" maxlength="500" placeholder="Tulis bebas, mis. gajiku 4 juta, gimana ngaturnya?" enterkeyhint="send" autocomplete="off" autocapitalize="sentences"><button id="raSend" type="submit" aria-label="Kirim"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z" fill="currentColor"/></svg></button></form></div>';
   document.body.appendChild(ov);
-  ov.addEventListener('click', function(e){ if (e.target === ov) toggle(false); });
+  ov.addEventListener('click', function(e){ /* abaikan klik susulan dari ketukan pembuka (muncul di bawah jari) */ if (e.target === ov && Date.now() - (UI.t0 || 0) > 500) toggle(false); });
   $('raClose').onclick = function(){ toggle(false); };
   $('raClear').onclick = function(){ var b = $('raClear'); b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); reset(); greet(); };
   var inp = $('raIn'), send = $('raSend');
@@ -77713,6 +78423,7 @@ function reset(){ if (log()) log().innerHTML = ''; UI.ctx = {}; try { applyMode(
 function toggle(on){
   build(); var ov = $('raOverlay'); if (!ov) return;
   UI.open = on === undefined ? !UI.open : !!on;
+  if (UI.open) UI.t0 = Date.now();
   ov.classList.toggle('open', UI.open);
   var fab = $('raFab'); if (fab) { fab.style.display = UI.open ? 'none' : (me() && !window._rencoPayOnly ? 'flex' : 'none'); }
   if (UI.open) { try { applyMode(); } catch(e){} if (!log().children.length) greet(); setTimeout(function(){ var i = $('raIn'); if (i && window.innerWidth > 700) i.focus(); }, 120); }
@@ -77746,7 +78457,7 @@ if (typeof document !== 'undefined') {
 })();
 </script>
 <script id="ns-member-stats">
-/* ── Statistik Anggota di menu Nasabah: Skor Kepercayaan, Pertumbuhan Tabungan, Net Worth ── */
+/* ── Statistik Anggota di menu Nasabah: Grafik Pertumbuhan Tabungan ── */
 (function(){
   var css = ''
   + '#nsMemberStats{padding:4px 14px 4px;display:none}'
@@ -77770,6 +78481,35 @@ if (typeof document !== 'undefined') {
   + '#nsMemberStats .nms-nw small{display:block;font-size:10px;font-weight:600;color:var(--text-soft);margin-bottom:2px}'
   + '#nsMemberStats .nms-nw b{display:block;font-size:12.5px;font-weight:800;word-break:break-word}'
   + '#nsMemberStats .nms-stack{display:flex;height:10px;border-radius:99px;overflow:hidden;margin-top:12px;background:rgba(0,0,0,.07)}'
+  + '#nsMemberStats .nms-hero{position:relative;overflow:hidden;background:linear-gradient(160deg,rgba(45,106,79,.13),var(--white,#fff) 58%);border:1px solid rgba(45,106,79,.16)}'
+  + '#nsMemberStats .nms-hero:before{content:"";position:absolute;right:-46px;top:-46px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(244,169,34,.22),rgba(244,169,34,0) 70%);pointer-events:none}'
+  + '#nsMemberStats .nms-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;position:relative}'
+  + '#nsMemberStats .nms-eyebrow{font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text-soft);margin-bottom:5px;display:flex;align-items:center;gap:5px}'
+  + '#nsMemberStats .nms-seg{display:inline-flex;background:rgba(0,0,0,.06);border-radius:99px;padding:3px;gap:2px;flex:0 0 auto}'
+  + '#nsMemberStats .nms-seg button{border:0;background:transparent;font:inherit;font-size:10.5px;font-weight:800;color:var(--text-soft);padding:5px 10px;border-radius:99px;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s;-webkit-tap-highlight-color:transparent}'
+  + '#nsMemberStats .nms-seg button.on{background:var(--forest-mid,#2d6a4f);color:#fff;box-shadow:0 2px 6px rgba(45,106,79,.35)}'
+  + '#nsMemberStats .nms-plot{position:relative;margin:10px -2px 4px;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:crosshair}'
+  + '#nsMemberStats .nms-tip{position:absolute;top:0;transform:translateX(-50%);background:var(--text,#1b2b21);color:#fff;border-radius:10px;padding:5px 9px;font-size:10px;line-height:1.35;white-space:nowrap;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.22);z-index:2}'
+  + '#nsMemberStats .nms-tip b{display:block;font-size:12px}'
+  + '#nsMemberStats .nms-empty{position:absolute;left:0;right:0;top:38%;text-align:center;font-size:11px;font-weight:700;color:var(--text-soft);pointer-events:none}'
+  + '#nsMemberStats .nms-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}'
+  + '#nsMemberStats .nms-hint{font-size:10px;color:var(--text-soft);opacity:.8}'
+  + '#nsMemberStats .nms-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}'
+  + '#nsMemberStats .nms-chip{background:rgba(45,106,79,.07);border-radius:14px;padding:9px 8px;animation:nmsPop .5s ease both}'
+  + '#nsMemberStats .nms-chip:nth-child(2){animation-delay:.08s}#nsMemberStats .nms-chip:nth-child(3){animation-delay:.16s}'
+  + '#nsMemberStats .nms-chip small{display:block;font-size:9.5px;font-weight:700;color:var(--text-soft);margin-bottom:2px}'
+  + '#nsMemberStats .nms-chip b{display:block;font-size:13px;font-weight:800;color:var(--text,#1b2b21)}'
+  + '#nsMemberStats .nms-chip em{display:block;font-style:normal;font-size:9.5px;color:var(--text-soft);margin-top:1px}'
+  + '#nsMemberStats .nms-draw{stroke-dasharray:1;animation:nmsDraw 1s ease-out both}'
+  + '#nsMemberStats .nms-fade{animation:nmsFade 1.1s ease-out both}'
+  + '#nsMemberStats .nms-grow{transform-box:fill-box;transform-origin:50% 100%;animation:nmsGrow .6s cubic-bezier(.2,.9,.3,1.2) both}'
+  + '#nsMemberStats .nms-pulse{transform-box:fill-box;transform-origin:center;animation:nmsPulse 1.8s ease-out infinite}'
+  + '@keyframes nmsDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}'
+  + '@keyframes nmsFade{from{opacity:0}to{opacity:1}}'
+  + '@keyframes nmsGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}'
+  + '@keyframes nmsPop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}'
+  + '@keyframes nmsPulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(3);opacity:0}}'
+  + '@media (prefers-reduced-motion:reduce){#nsMemberStats .nms-draw,#nsMemberStats .nms-fade,#nsMemberStats .nms-grow,#nsMemberStats .nms-pulse,#nsMemberStats .nms-chip{animation:none}}'
   + '#nsMemberStats svg text{font-family:inherit}';
   var st = document.createElement('style'); st.id = 'nsMemberStatsCSS'; st.textContent = css; document.head.appendChild(st);
 
@@ -77780,6 +78520,20 @@ if (typeof document !== 'undefined') {
     if (a >= 1e6) return s + (a/1e6).toFixed(1).replace('.0','') + ' jt';
     if (a >= 1e3) return s + Math.round(a/1e3) + ' rb';
     return s + Math.round(a);
+  }
+  // Ikon SVG line-style
+  var ICO = {
+    sprout: '<path d="M12 21v-9"/><path d="M12 12c0-4 3-6.5 8-6.5 0 4.5-3 7-8 6.5z"/><path d="M12 15c0-3.2-2.4-5-6.5-5 0 3.4 2.2 5.4 6.5 5z"/>',
+    swipe: '<path d="M3 12h18"/><path d="M7 8l-4 4 4 4"/><path d="M17 8l4 4-4 4"/>',
+    peak: '<path d="M3 19l6.2-10.5 3.6 6 2.2-3.2L21 19z"/>',
+    bars: '<path d="M5 20v-8"/><path d="M12 20V5"/><path d="M19 20v-5"/>',
+    trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'
+  };
+  function ico(n, sz, col){
+    return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" fill="none" stroke="' + (col || 'currentColor') + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:0 0 auto;vertical-align:-2px">' + ICO[n] + '</svg>';
+  }
+  function arrow(up, sz){
+    return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-1px"><path d="' + (up ? 'M12 4l9 15H3z' : 'M12 20L3 5h18z') + '"/></svg>';
   }
   var BLN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
@@ -77802,25 +78556,140 @@ if (typeof document !== 'undefined') {
     return pts;
   }
 
-  function chartSVG(pts){
-    var W = 320, H = 150, pl = 6, pr = 6, pt = 16, pb = 22;
-    var max = Math.max.apply(null, pts.map(function(p){return p.v;}));
-    if (max <= 0) max = 1;
-    var iw = W - pl - pr, ih = H - pt - pb;
-    var xs = function(i){ return pl + iw * i / (pts.length - 1); };
-    var ys = function(v){ return pt + ih - ih * v / max; };
-    var line = pts.map(function(p,i){ return (i?'L':'M') + xs(i).toFixed(1) + ' ' + ys(p.v).toFixed(1); }).join(' ');
-    var area = line + ' L' + xs(pts.length-1).toFixed(1) + ' ' + (pt+ih) + ' L' + xs(0).toFixed(1) + ' ' + (pt+ih) + ' Z';
-    var grid = [0,.5,1].map(function(f){ var y = pt + ih - ih*f; return '<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y+'" y2="'+y+'" stroke="currentColor" stroke-opacity=".10"/>'; }).join('');
-    var labels = pts.map(function(p,i){ if (i % 2 && i !== pts.length-1) return ''; return '<text x="'+xs(i).toFixed(1)+'" y="'+(H-6)+'" font-size="9" text-anchor="'+(i===0?'start':(i===pts.length-1?'end':'middle'))+'" fill="currentColor" fill-opacity=".55">'+p.label+'</text>'; }).join('');
-    var last = pts[pts.length-1];
-    var dot = '<circle cx="'+xs(pts.length-1).toFixed(1)+'" cy="'+ys(last.v).toFixed(1)+'" r="4" fill="#f4a922" stroke="#fff" stroke-width="1.5"/>';
-    var topLbl = '<text x="'+(W-pr)+'" y="10" font-size="9" text-anchor="end" fill="currentColor" fill-opacity=".55">maks. '+short(max)+'</text>';
-    return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Grafik pertumbuhan tabungan 12 bulan terakhir" style="display:block;color:var(--text-soft,#6b7280)">'
-      + '<defs><linearGradient id="nmsG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2d6a4f" stop-opacity=".32"/><stop offset="1" stop-color="#2d6a4f" stop-opacity="0"/></linearGradient></defs>'
-      + grid + '<path d="'+area+'" fill="url(#nmsG)"/>'
-      + '<path d="'+line+'" fill="none" stroke="#2d6a4f" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>'
-      + dot + topLbl + labels + '</svg>';
+  // ── Grafik interaktif ──
+  var S = { range: 12, mode: 'line', idx: null };
+  var G = { W: 320, H: 184, pl: 8, pr: 8, pt: 26, pb: 24 };
+
+  function smoothPath(xy, lo, hi){
+    var d = 'M' + xy[0][0].toFixed(1) + ' ' + xy[0][1].toFixed(1), i;
+    var cl = function(y){ return Math.max(lo, Math.min(hi, y)); };
+    for (i = 0; i < xy.length - 1; i++) {
+      var p0 = xy[i-1] || xy[i], p1 = xy[i], p2 = xy[i+1], p3 = xy[i+2] || p2;
+      d += ' C' + (p1[0] + (p2[0]-p0[0])/6).toFixed(1) + ' ' + cl(p1[1] + (p2[1]-p0[1])/6).toFixed(1)
+         + ' ' + (p2[0] - (p3[0]-p1[0])/6).toFixed(1) + ' ' + cl(p2[1] - (p3[1]-p1[1])/6).toFixed(1)
+         + ' ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
+    }
+    return d;
+  }
+
+  function geom(pts, mode){
+    var n = pts.length, iw = G.W - G.pl - G.pr, ih = G.H - G.pt - G.pb;
+    var max = Math.max.apply(null, pts.map(function(p){ return p.v; }));
+    var empty = max <= 0; if (empty) max = 1;
+    var slot = iw / n;
+    return {
+      n: n, iw: iw, ih: ih, max: max, empty: empty, slot: slot,
+      xs: function(i){ return mode === 'bar' ? G.pl + slot * (i + .5) : G.pl + (n > 1 ? iw * i / (n - 1) : iw / 2); },
+      ys: function(v){ return G.pt + ih - ih * v / max; }
+    };
+  }
+
+  function plotHTML(pts, mode, idx, anim){
+    var g = geom(pts, mode), n = g.n, W = G.W, H = G.H;
+    var act = idx != null ? idx : n - 1;
+    var step = n > 8 ? 2 : 1, out = '', i;
+    out += '<defs>'
+      + '<linearGradient id="nmsA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2d6a4f" stop-opacity=".34"/><stop offset="1" stop-color="#2d6a4f" stop-opacity="0"/></linearGradient>'
+      + '<linearGradient id="nmsL" gradientUnits="userSpaceOnUse" x1="' + G.pl + '" y1="0" x2="' + (W - G.pr) + '" y2="0"><stop offset="0" stop-color="#2d6a4f"/><stop offset=".7" stop-color="#40916c"/><stop offset="1" stop-color="#f4a922"/></linearGradient>'
+      + '<linearGradient id="nmsB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#40916c"/><stop offset="1" stop-color="#2d6a4f"/></linearGradient>'
+      + '<linearGradient id="nmsBg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd166"/><stop offset="1" stop-color="#f4a922"/></linearGradient>'
+      + '</defs>';
+    [0, .5, 1].forEach(function(f){
+      var y = G.pt + g.ih - g.ih * f;
+      out += '<line x1="' + G.pl + '" x2="' + (W - G.pr) + '" y1="' + y + '" y2="' + y + '" stroke="currentColor" stroke-opacity=".10" stroke-dasharray="' + (f ? '3 4' : '0') + '"/>';
+      if (f && !g.empty) out += '<text x="' + G.pl + '" y="' + (y - 3) + '" font-size="8.5" fill="currentColor" fill-opacity=".5">' + short(g.max * f) + '</text>';
+    });
+    if (mode === 'bar') {
+      var gap = Math.max(2, g.slot * .16);
+      pts.forEach(function(p, k){
+        var h = p.v > 0 ? Math.max(3, g.ih * p.v / g.max) : 2, x = G.pl + g.slot * k + gap, w = g.slot - gap * 2, y = G.pt + g.ih - h;
+        var on = k === act;
+        out += '<rect class="' + (anim ? 'nms-grow' : '') + '" style="animation-delay:' + (k * 35) + 'ms" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="' + Math.min(5, w / 2).toFixed(1) + '" fill="' + (on ? 'url(#nmsBg)' : 'url(#nmsB)') + '" opacity="' + (p.v > 0 ? (on || idx == null ? 1 : .5) : .25) + '"/>';
+      });
+    } else {
+      var xy = pts.map(function(p, k){ return [g.xs(k), g.ys(p.v)]; });
+      var line = n > 1 ? smoothPath(xy, G.pt, G.pt + g.ih) : 'M' + xy[0][0] + ' ' + xy[0][1];
+      var area = line + ' L' + g.xs(n - 1).toFixed(1) + ' ' + (G.pt + g.ih) + ' L' + g.xs(0).toFixed(1) + ' ' + (G.pt + g.ih) + ' Z';
+      out += '<path class="' + (anim ? 'nms-fade' : '') + '" d="' + area + '" fill="url(#nmsA)"/>'
+        + '<path class="' + (anim ? 'nms-draw' : '') + '" pathLength="1" d="' + line + '" fill="none" stroke="url(#nmsL)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>';
+      pts.forEach(function(p, k){
+        if (k === act) return;
+        out += '<circle cx="' + xy[k][0].toFixed(1) + '" cy="' + xy[k][1].toFixed(1) + '" r="2" fill="#fff" stroke="#2d6a4f" stroke-width="1.2" opacity="' + (idx != null ? .85 : .0) + '"/>';
+      });
+      if (idx != null) out += '<line x1="' + xy[act][0].toFixed(1) + '" x2="' + xy[act][0].toFixed(1) + '" y1="' + G.pt + '" y2="' + (G.pt + g.ih) + '" stroke="#f4a922" stroke-width="1.4" stroke-dasharray="3 3"/>';
+      else out += '<circle class="nms-pulse" cx="' + xy[act][0].toFixed(1) + '" cy="' + xy[act][1].toFixed(1) + '" r="4" fill="#f4a922"/>';
+      out += '<circle cx="' + xy[act][0].toFixed(1) + '" cy="' + xy[act][1].toFixed(1) + '" r="' + (idx != null ? 6 : 4.5) + '" fill="#f4a922" stroke="#fff" stroke-width="2"/>';
+    }
+    pts.forEach(function(p, k){
+      if ((n - 1 - k) % step) return;
+      out += '<text x="' + g.xs(k).toFixed(1) + '" y="' + (H - 7) + '" font-size="9.5" text-anchor="middle" font-weight="' + (k === act ? 800 : 500) + '" fill="currentColor" fill-opacity="' + (k === act ? .95 : .5) + '">' + p.label + '</text>';
+    });
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Grafik pertumbuhan tabungan ' + n + ' bulan terakhir" style="display:block;color:var(--text-soft,#6b7280);overflow:visible">' + out + '</svg>';
+    var tip = '';
+    if (idx != null) {
+      var cur = pts[idx], prev = idx > 0 ? pts[idx - 1].v : null, dl = '';
+      if (prev !== null) { var dd = cur.v - prev; dl = '<span style="color:' + (dd >= 0 ? '#86efac' : '#fca5a5') + '">' + arrow(dd >= 0, 9) + ' ' + rp(Math.abs(dd)) + '</span>'; }
+      var left = Math.max(15, Math.min(85, g.xs(idx) / W * 100));
+      tip = '<div class="nms-tip" style="left:' + left.toFixed(1) + '%">' + cur.label + ' ' + cur.tahun + '<b>' + rp(cur.v) + '</b>' + dl + '</div>';
+    }
+    return svg + tip + (g.empty ? '<div class="nms-empty">Belum ada setoran pada periode ini</div>' : '');
+  }
+
+  function paint(wrap, anim){
+    var all = wrap._nmsPts; if (!all) return;
+    var pts = all.slice(-S.range), n = pts.length;
+    var plot = wrap.querySelector('.nms-plot'); if (!plot) return;
+    if (S.idx != null && S.idx >= n) S.idx = null;
+    plot.innerHTML = plotHTML(pts, S.mode, S.idx, anim);
+
+    Array.prototype.forEach.call(wrap.querySelectorAll('[data-range]'), function(b){ b.classList.toggle('on', +b.getAttribute('data-range') === S.range); });
+    Array.prototype.forEach.call(wrap.querySelectorAll('[data-mode]'), function(b){ b.classList.toggle('on', b.getAttribute('data-mode') === S.mode); });
+
+    var hi = S.idx != null ? S.idx : n - 1, cur = pts[hi];
+    var eb = wrap.querySelector('.nms-eyebrow'), valEl = wrap.querySelector('.nms-val'), dEl = wrap.querySelector('.nms-delta');
+    eb.innerHTML = ico('sprout', 14, '#2d6a4f') + '<span>' + (S.idx != null ? 'Saldo ' + cur.label + ' ' + cur.tahun : 'Pertumbuhan Tabungan') + '</span>';
+    var sel, basis, suf;
+    if (S.idx != null) { basis = hi > 0 ? pts[hi-1].v : null; sel = basis === null ? 0 : cur.v - basis; suf = basis === null ? 'awal periode' : 'dari bulan sebelumnya'; }
+    else { basis = pts[0].v; sel = cur.v - basis; suf = 'dalam ' + n + ' bulan'; }
+    var persen = basis > 0 ? Math.round(sel / basis * 100) : null;
+    dEl.style.color = sel >= 0 ? '#16a34a' : '#dc2626';
+    dEl.innerHTML = arrow(sel >= 0, 10) + ' ' + rp(Math.abs(sel)) + (persen !== null ? ' (' + (sel >= 0 ? '+' : '') + persen + '%)' : '') + ' ' + suf;
+
+    if (wrap._nmsRaf) cancelAnimationFrame(wrap._nmsRaf);
+    if (anim && S.idx == null && cur.v > 0 && window.requestAnimationFrame && !(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches)) {
+      var t0 = null, to = cur.v;
+      var tick = function(ts){ if (t0 === null) t0 = ts; var k = Math.min(1, (ts - t0) / 700); valEl.textContent = rp(Math.round(to * (1 - Math.pow(1 - k, 3)))); if (k < 1) wrap._nmsRaf = requestAnimationFrame(tick); };
+      wrap._nmsRaf = requestAnimationFrame(tick);
+    } else valEl.textContent = rp(cur.v);
+
+    // Ringkasan (periode terpilih)
+    var mx = pts[0], sum = 0, best = null, k;
+    for (k = 0; k < n; k++) { if (pts[k].v > mx.v) mx = pts[k]; sum += pts[k].v; if (k > 0) { var dl = pts[k].v - pts[k-1].v; if (dl > 0 && (!best || dl > best.d)) best = { d: dl, p: pts[k] }; } }
+    var ch = wrap.querySelector('.nms-chips');
+    if (ch && (anim || !ch.innerHTML)) ch.innerHTML =
+        '<div class="nms-chip"><small>' + ico('peak', 12, '#2d6a4f') + ' Tertinggi</small><b>' + short(mx.v) + '</b><em>' + (mx.v > 0 ? mx.label + ' ' + mx.tahun : '–') + '</em></div>'
+      + '<div class="nms-chip"><small>' + ico('bars', 12, '#2563eb') + ' Rata-rata</small><b>' + short(sum / n) + '</b><em>per bulan</em></div>'
+      + '<div class="nms-chip"><small>' + ico('trend', 12, '#d97706') + ' Naik terbesar</small><b>' + (best ? '+' + short(best.d) : '–') + '</b><em>' + (best ? best.p.label + ' ' + best.p.tahun : 'belum ada') + '</em></div>';
+  }
+
+  function bind(wrap){
+    if (wrap._nmsBound) return; wrap._nmsBound = true;
+    wrap.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('button[data-range],button[data-mode]'); if (!b) return;
+      if (b.hasAttribute('data-range')) S.range = +b.getAttribute('data-range'); else S.mode = b.getAttribute('data-mode');
+      S.idx = null; paint(wrap, true);
+    });
+    var pick = function(e){
+      var plot = e.target.closest && e.target.closest('.nms-plot'); if (!plot || !wrap._nmsPts) return;
+      var pts = wrap._nmsPts.slice(-S.range), g = geom(pts, S.mode), r = plot.getBoundingClientRect(); if (!r.width) return;
+      var fx = (e.clientX - r.left) / r.width * G.W, i;
+      i = S.mode === 'bar' ? Math.floor((fx - G.pl) / g.slot) : Math.round((fx - G.pl) / g.iw * (g.n - 1));
+      i = Math.max(0, Math.min(g.n - 1, i));
+      if (i !== S.idx) { S.idx = i; paint(wrap, false); }
+    };
+    wrap.addEventListener('pointerdown', pick);
+    wrap.addEventListener('pointermove', function(e){ if (e.pointerType === 'mouse' || e.buttons) pick(e); });
+    wrap.addEventListener('pointerleave', function(e){ if (e.pointerType === 'mouse' && S.idx != null) { S.idx = null; paint(wrap, false); } });
   }
 
   function ringSVG(total, warna){
@@ -77849,57 +78718,25 @@ if (typeof document !== 'undefined') {
       if (cari.length === 1) kkId = cari[0].id;
     }
     if (!kkId) { wrap.innerHTML = diag('ID anggota (nasabahId) tidak ditemukan pada sesi login ini.'); wrap.style.display = 'block'; return; }
-    var parts = [];
+    var parts = []; wrap._nmsPts = null;
     function safe(nama, fn){ try { var h = fn(); if (h) parts.push(h); } catch(e){ console.warn('[nsMemberStats] '+nama, e); parts.push(diag(nama+': '+(e && e.message || e))); } }
 
-    // ── 1. Skor Kepercayaan ──
-    safe('Skor Kepercayaan', function(){
-      var sk = hitungSkorKepercayaan(kkId);
-      if (!sk) return '';
-      var ada = sk.total != null;
-      var bars = sk.breakdown.map(function(b){
-        var has = b.skor !== null;
-        return '<div class="nms-bar"><div><span>'+b.label+'</span><span style="font-weight:800;color:'+(has?warnaBar(b.skor):'#9ca3af')+'">'+(has?b.skor:'–')+'</span></div>'
-          + '<i><s style="width:'+(has?b.skor:0)+'%;background:'+(has?warnaBar(b.skor):'#9ca3af')+'"></s></i></div>';
-      }).join('');
-      return '<div class="nms-card"><div class="nms-h"><span class="nms-t">Skor Kepercayaan</span>'
-        + '<span class="nms-pill" style="background:'+sk.warna+'1f;color:'+sk.warna+'">'+sk.grade+'</span></div>'
-        + '<div class="nms-skor"><div class="nms-ring">'+ringSVG(sk.total, sk.warna)+'<b>'+(ada?sk.total:'–')+'</b></div><div class="nms-bars">'+bars+'</div></div>'
-        + '<div class="nms-note">'+(sk.batas && sk.batas.length ? sk.batas[0] : sk.rekomendasi)+'</div></div>';
-    });
-
-    // ── 2. Grafik Pertumbuhan Tabungan ──
+    // ── Grafik Pertumbuhan Tabungan (interaktif) ──
     safe('Pertumbuhan Tabungan', function(){
       var pts = seriesTabungan(kkId);
-      var awal = pts[0].v, akhir = pts[pts.length-1].v, sel = akhir - awal;
-      var persen = awal > 0 ? Math.round(sel / awal * 100) : null;
-      var warnaSel = sel >= 0 ? '#16a34a' : '#dc2626';
-      var subTxt = (sel >= 0 ? '▲ ' : '▼ ') + rp(Math.abs(sel)) + (persen !== null ? ' (' + (sel>=0?'+':'') + persen + '%)' : '') + ' dalam 12 bulan';
-      return '<div class="nms-card"><div class="nms-h"><span class="nms-t">Pertumbuhan Tabungan</span><span class="nms-pill" style="background:rgba(45,106,79,.10);color:var(--forest-mid,#2d6a4f)">12 bulan</span></div>'
-        + '<div class="nms-big">'+rp(akhir)+'</div><div class="nms-sub" style="color:'+warnaSel+';margin-bottom:8px">'+subTxt+'</div>'
-        + chartSVG(pts) + '</div>';
-    });
-
-    // ── 3. Net Worth ──
-    safe('Net Worth', function(){
-      var sim = totalSimpananKK(kkId);
-      var berj = (dbx.tabunganBerjangka||[]).filter(function(t){ return t.kkId === kkId && t.status === 'aktif'; }).reduce(function(s,b){ return s + (b.jumlah||0); }, 0);
-      var pin = totalPinjamanAktifKK(kkId);
-      var aset = sim + berj, nw = aset - pin, tot = aset + pin || 1;
-      return '<div class="nms-card"><div class="nms-h"><span class="nms-t">Net Worth di Koperasi</span>'
-        + '<span class="nms-pill" style="background:'+(nw>=0?'rgba(22,163,74,.12)':'rgba(220,38,38,.12)')+';color:'+(nw>=0?'#16a34a':'#dc2626')+'">'+(nw>=0?'Positif':'Negatif')+'</span></div>'
-        + '<div class="nms-big" style="color:'+(nw>=0?'var(--text,#1b2b21)':'#dc2626')+'">'+(nw<0?'-':'')+rp(Math.abs(nw))+'</div>'
-        + '<div class="nms-sub" style="color:var(--text-soft)">Total aset dikurangi kewajiban pinjaman</div>'
-        + '<div class="nms-stack"><span style="width:'+(sim/tot*100)+'%;background:#2d6a4f"></span><span style="width:'+(berj/tot*100)+'%;background:#f4a922"></span><span style="width:'+(pin/tot*100)+'%;background:#dc2626"></span></div>'
-        + '<div class="nms-nw">'
-        + '<div><small><span style="color:#2d6a4f">●</span> Simpanan</small><b>'+rp(sim)+'</b></div>'
-        + '<div><small><span style="color:#f4a922">●</span> Berjangka</small><b>'+rp(berj)+'</b></div>'
-        + '<div><small><span style="color:#dc2626">●</span> Pinjaman</small><b style="color:'+(pin>0?'#dc2626':'inherit')+'">'+rp(pin)+'</b></div>'
-        + '</div></div>';
+      wrap._nmsPts = pts;
+      return '<div class="nms-card nms-hero">'
+        + '<div class="nms-top"><div style="min-width:0"><div class="nms-eyebrow"></div><div class="nms-big nms-val"></div><div class="nms-sub nms-delta"></div></div>'
+        + '<div class="nms-seg"><button type="button" data-range="3">3B</button><button type="button" data-range="6">6B</button><button type="button" data-range="12">12B</button></div></div>'
+        + '<div class="nms-plot"></div>'
+        + '<div class="nms-foot"><div class="nms-hint">' + ico('swipe', 12) + ' Sentuh &amp; geser grafik untuk lihat saldo tiap bulan</div>'
+        + '<div class="nms-seg"><button type="button" data-mode="line">Garis</button><button type="button" data-mode="bar">Batang</button></div></div>'
+        + '<div class="nms-chips"></div></div>';
     });
 
     wrap.innerHTML = parts.join('');
     wrap.style.display = 'block';
+    bind(wrap); S.idx = null; paint(wrap, true);
   }
   window.renderNsMemberStats = render;
   setInterval(function(){ try { var p = document.getElementById('page-nasabah'); if (p && p.classList.contains('active')) { var w = document.getElementById('nsMemberStats'); if (w && !w.innerHTML) render(); } } catch(e){} }, 1000);
@@ -77912,6 +78749,995 @@ if (typeof document !== 'undefined') {
     window.renderNasabah = w;
     try { renderNasabah = w; } catch(e){}
   }
+})();
+</script>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     LAPORAN — banner seragam (semua tab) + KOMPLAIN SKOR KEPERCAYAAN
+════════════════════════════════════════════════════════════════════ -->
+<style id="lapBannerCSS">
+/* Banner paling atas tiap tab Laporan: ukuran, jarak, sudut & keterbacaan teks diseragamkan */
+.lap-banner{margin:12px 14px !important;padding:18px 16px !important;border-radius:22px !important;box-shadow:0 10px 26px rgba(0,0,0,.18) !important;position:relative !important;overflow:hidden !important}
+.lap-banner [style*="text-transform:uppercase"][style*="letter-spacing"]{font-size:10.5px !important;font-weight:800 !important;letter-spacing:.9px !important;color:rgba(255,255,255,.82) !important}
+.lap-banner [style*="font-size:8px"],.lap-banner [style*="font-size:8.5px"],.lap-banner [style*="font-size:9px"],
+.lap-banner [style*="font-size:9.5px"],.lap-banner [style*="font-size:10px"]{font-size:10.5px !important}
+.lap-banner [style*="color:rgba(255,255,255,0.4"],.lap-banner [style*="color:rgba(255,255,255,0.5"],.lap-banner [style*="color:rgba(255,255,255,0.6"]{color:rgba(255,255,255,.76) !important}
+html.renco-dark .lap-banner{box-shadow:0 10px 26px rgba(0,0,0,.5) !important}
+</style>
+<script>
+(function(){
+  function cekGradien(el){ return !!el && el.tagName==='DIV' && /linear-gradient/.test(el.getAttribute('style')||''); }
+  function tandai(){
+    var c = document.getElementById('laporanContent'); if (!c) return;
+    var f = c.firstElementChild; if (!f) return;
+    if (!cekGradien(f) && f.firstElementChild && cekGradien(f.firstElementChild) && f.id !== 'laporanNasabahUserContent') f = f.firstElementChild;
+    if (cekGradien(f) && !f.classList.contains('lap-banner')) f.classList.add('lap-banner');
+  }
+  function pasang(){
+    var c = document.getElementById('laporanContent'); if (!c || c._lapBnObs) return;
+    c._lapBnObs = true;
+    try { new MutationObserver(tandai).observe(c, { childList:true }); } catch(e){}
+    tandai();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pasang); else pasang();
+  setTimeout(pasang, 1500);
+})();
+</script>
+
+<style id="kmsCSS">
+.kms-box{margin:12px 0 0}
+.kms-card{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:20px;padding:13px 14px;box-shadow:0 8px 20px -14px rgba(0,0,0,.35)}
+.kms-h{display:flex;align-items:center;gap:10px}
+.kms-h .ic{width:36px;height:36px;border-radius:12px;background:rgba(123,45,139,.1);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.kms-h b{display:block;font-size:12.5px;font-weight:900;color:var(--text,#1c3025)}
+.kms-h span{display:block;font-size:10.5px;line-height:1.45;color:var(--text-soft,#4a7c59);margin-top:2px}
+.kms-btn{border:0;border-radius:13px;padding:10px 14px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kms-btn.pri{background:linear-gradient(135deg,#7b2d8b,#a855f7);color:#fff;box-shadow:0 6px 14px -6px rgba(123,45,139,.6)}
+.kms-btn.ok{background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#fff}
+.kms-btn.no{background:rgba(220,38,38,.1);color:#b91c1c}
+.kms-btn.ghost{background:rgba(0,0,0,.05);color:var(--text,#1c3025)}
+.kms-btn:disabled{opacity:.5}
+.kms-row{border-top:1px dashed rgba(0,0,0,.1);margin-top:10px;padding-top:10px}
+.kms-row .t{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;font-weight:800;color:var(--text,#1c3025)}
+.kms-row .m{font-size:10px;color:var(--text-soft,#4a7c59);margin-top:2px}
+.kms-row .p{font-size:11px;line-height:1.5;color:var(--text,#1c3025);margin-top:5px;white-space:pre-wrap;word-break:break-word}
+.kms-row .r{font-size:11px;line-height:1.5;margin-top:6px;padding:7px 10px;border-radius:10px;background:rgba(45,106,79,.09);color:var(--text,#1c3025);white-space:pre-wrap;word-break:break-word}
+.kms-row .r.x{background:rgba(220,38,38,.08)}
+.kms-chip{flex-shrink:0;font-size:9.5px;font-weight:800;padding:3px 9px;border-radius:99px}
+.kms-chip.baru{background:rgba(245,158,11,.16);color:#b45309}
+.kms-chip.diterima{background:rgba(22,163,74,.14);color:#15803d}
+.kms-chip.ditolak{background:rgba(220,38,38,.12);color:#b91c1c}
+.kms-ov{position:fixed;inset:0;z-index:100005;background:rgba(10,20,15,.55);display:flex;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:kmsFade .2s ease both}
+.kms-sheet{width:100%;max-width:520px;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;color:var(--text,#1c3025);border-radius:26px 26px 0 0;padding:18px 18px calc(22px + env(safe-area-inset-bottom,0px));animation:kmsUp .28s cubic-bezier(.22,1,.36,1) both}
+.kms-sheet h3{margin:0 0 3px;font-size:16px;font-weight:900}
+.kms-sheet .sub{font-size:11px;line-height:1.5;color:var(--text-soft,#4a7c59);margin-bottom:12px}
+.kms-sheet label.l{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;color:var(--text-soft,#4a7c59)}
+.kms-sheet textarea,.kms-sheet input[type=number]{width:100%;box-sizing:border-box;border:1.5px solid rgba(0,0,0,.12);border-radius:13px;padding:10px 12px;font:inherit;font-size:13px;background:#fff;color:inherit}
+.kms-sheet textarea{min-height:92px;resize:vertical}
+.kms-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kms-opt{border:1.5px solid rgba(0,0,0,.1);border-radius:14px;padding:9px 10px;cursor:pointer;background:#fff;text-align:left;font:inherit;-webkit-tap-highlight-color:transparent}
+.kms-opt .a{font-size:11.5px;font-weight:800;color:var(--text,#1c3025)}
+.kms-opt .b{font-size:10px;color:var(--text-soft,#4a7c59);margin-top:2px}
+.kms-opt.on{border-color:#7b2d8b;background:rgba(123,45,139,.08)}
+.kms-opt.wide{grid-column:1/-1}
+.kms-score{display:flex;align-items:center;gap:12px;background:rgba(123,45,139,.07);border-radius:16px;padding:10px 12px}
+.kms-score .n{font-size:26px;font-weight:900;color:#7b2d8b;line-height:1;min-width:44px;text-align:center}
+.kms-score .g{font-size:12px;font-weight:800}
+.kms-score .d{font-size:10px;color:var(--text-soft,#4a7c59);margin-top:2px}
+.kms-foto{display:flex;align-items:center;gap:10px}
+.kms-foto img{width:64px;height:64px;object-fit:cover;border-radius:12px;border:1px solid rgba(0,0,0,.1)}
+.kms-act{display:flex;gap:8px;margin-top:16px;position:sticky;bottom:-18px;background:#fff;padding:12px 0 4px}
+html.renco-dark .kms-act{background:#15231b}
+.kms-act .kms-btn{flex:1;padding:13px 10px;font-size:13px}
+.kms-cmp{display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid rgba(0,0,0,.07)}
+.kms-cmp:first-of-type{border-top:0}
+.kms-cmp .lb{flex:1;min-width:0}
+.kms-cmp .lb>b{display:block;font-size:12px;font-weight:800}
+.kms-cmp .lb>span{display:block;font-size:10px;color:var(--text-soft,#4a7c59);line-height:1.4;margin-top:1px}
+.kms-cmp.hl{background:rgba(245,158,11,.1);border-radius:12px;padding:9px 8px}
+.kms-cmp input{width:78px !important;text-align:center;flex-shrink:0;padding:8px 6px !important}
+.kms-bukti{max-width:100%;max-height:200px;border-radius:12px;border:1px solid rgba(0,0,0,.1);margin-top:8px;display:block}
+.kms-ban{display:flex;align-items:center;gap:12px;margin:10px 14px 0;padding:12px 14px;border-radius:18px;background:linear-gradient(135deg,#6b21a8,#a855f7);color:#fff;cursor:pointer;box-shadow:0 8px 20px -10px rgba(107,33,168,.7)}
+.kms-ban .c{min-width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900}
+.kms-ban b{display:block;font-size:13px;font-weight:800}
+.kms-ban span{display:block;font-size:10.5px;opacity:.85;margin-top:1px}
+.kms-adm{margin-top:14px;border-top:1px solid rgba(0,0,0,.07);padding-top:12px}
+@keyframes kmsFade{from{opacity:0}}
+@keyframes kmsUp{from{transform:translateY(40px);opacity:0}}
+html.renco-dark .kms-card,html.renco-dark .kms-sheet,html.renco-dark .kms-opt,html.renco-dark .kms-sheet textarea,html.renco-dark .kms-sheet input[type=number]{background:#15231b;color:#e8f3ec;border-color:rgba(255,255,255,.12)}
+html.renco-dark .kms-h b,html.renco-dark .kms-row .t,html.renco-dark .kms-row .p,html.renco-dark .kms-row .r,html.renco-dark .kms-opt .a,html.renco-dark .kms-btn.ghost{color:#e8f3ec}
+html.renco-dark .kms-btn.ghost{background:rgba(255,255,255,.1)}
+html.renco-dark .kms-score .n{color:#d8b4fe}
+</style>
+<script>
+/* ═══ KOMPLAIN SKOR KEPERCAYAAN ═══
+   Nasabah mengajukan komplain bila Skor Kepercayaan terasa tidak sesuai.
+   Admin meninjau, lalu memperbaiki lewat koreksi per komponen / skor akhir
+   (disimpan di nasabah.skorKoreksi dan dipakai oleh hitungSkorKepercayaan()).
+   Data komplain: DB.komplainSkor[] (ikut sinkron cloud). */
+(function(){
+  'use strict';
+
+  var KOMP = {
+    iuran:     { ic:'💰', lb:'Iuran Wajib' },
+    angsuran:  { ic:'🗓️', lb:'Angsuran Tepat' },
+    telat:     { ic:'⏱️', lb:'Bebas Telat' },
+    pelunasan: { ic:'🏁', lb:'Pelunasan' },
+    total:     { ic:'🛡️', lb:'Skor Keseluruhan' }
+  };
+  var URUT = ['iuran','angsuran','telat','pelunasan'];
+  var STATUS = { baru:'⏳ Menunggu', diterima:'✅ Skor diperbaiki', ditolak:'❌ Ditolak' };
+  var MAKS_PENDING = 3;
+
+  function esc(t){ return String(t==null?'':t).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function toast(m){ if (typeof showToast==='function') showToast(m); else alert(m); }
+  function isAdm(){ return typeof isAdmin==='function' && isAdmin(); }
+  function meId(){ return (window.AUTH && AUTH.user && AUTH.user.role==='nasabah') ? AUTH.user.nasabahId : null; }
+  function user(){ return (window.AUTH && AUTH.user) ? (AUTH.user.nama || AUTH.user.username || 'admin') : 'admin'; }
+  function list(){ if (!window.DB) return []; if (!Array.isArray(DB.komplainSkor)) DB.komplainSkor = []; return DB.komplainSkor; }
+  function nasabah(id){ return (window.DB && DB.nasabah || []).filter(function(n){ return n.id===id; })[0] || null; }
+  function tgl(iso){ var d=new Date(iso); if (isNaN(d)) return '-'; return d.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
+  function uid(){ return 'kms_'+Date.now()+Math.random().toString(36).slice(2,7); }
+  function skor(kkId, opsi){ try { return hitungSkorKepercayaan(kkId, opsi); } catch(e){ return null; } }
+
+  /* ── overlay sheet ── */
+  function tutup(){ var o=document.getElementById('kmsOv'); if (o) o.remove(); }
+  function buka(html){
+    tutup();
+    var o=document.createElement('div'); o.id='kmsOv'; o.className='kms-ov';
+    o.innerHTML='<div class="kms-sheet" role="dialog" aria-modal="true">'+html+'</div>';
+    o.addEventListener('mousedown',function(e){ if (e.target===o) tutup(); });
+    document.body.appendChild(o);
+  }
+  window.kmsTutup = tutup;
+
+  /* ── daftar komplain satu nasabah ── */
+  function barisKomplain(k, adm){
+    var m = KOMP[k.komponen] || KOMP.total;
+    var tanggapan = k.tanggapan ? '<div class="r'+(k.status==='ditolak'?' x':'')+'"><b>Tanggapan '+(adm?'Anda':'pengurus')+':</b> '+esc(k.tanggapan)
+        +(k.status==='diterima' && typeof k.skorSesudah==='number' ? '<br>Skor sekarang: <b>'+k.skorSesudah+'</b>' : '')+'</div>' : '';
+    return '<div class="kms-row"><div class="t"><span>'+m.ic+' '+m.lb+'</span><span class="kms-chip '+esc(k.status)+'">'+(STATUS[k.status]||k.status)+'</span></div>'
+      +'<div class="m">'+tgl(k.tanggal)+(typeof k.skorSaat==='number'?' · skor saat itu '+k.skorSaat:'')+'</div>'
+      +'<div class="p">'+esc(k.pesan)+'</div>'+tanggapan
+      +(adm && k.status==='baru' ? '<div style="margin-top:8px"><button class="kms-btn pri" style="padding:8px 14px" onclick="kmsAdminBuka(\''+esc(k.kkId)+'\',\''+esc(k.id)+'\')">🔎 Tinjau & Perbaiki</button></div>' : '')
+      +'</div>';
+  }
+  function riwayat(kkId){ return list().filter(function(k){ return k.kkId===kkId; }).sort(function(a,b){ return String(b.tanggal).localeCompare(String(a.tanggal)); }); }
+
+  /* ═════════ SISI NASABAH ═════════ */
+  function isiBoxNasabah(kkId, s){
+    var r = riwayat(kkId).slice(0,4);
+    var menunggu = riwayat(kkId).filter(function(k){ return k.status==='baru'; }).length;
+    return '<div class="kms-card"><div class="kms-h"><div class="ic">📝</div><div style="flex:1;min-width:0"><b>Skor terasa tidak sesuai?</b>'
+      +'<span>Kalau ada catatan iuran atau angsuran yang menurutmu keliru, ajukan komplain. Pengurus akan memeriksa dan memperbaikinya bila benar.</span></div></div>'
+      +'<div style="margin-top:11px"><button class="kms-btn pri" style="width:100%" onclick="kmsNasabahBuka(\''+esc(kkId)+'\')">📝 Ajukan Komplain Skor</button></div>'
+      +(menunggu ? '<div style="font-size:10.5px;margin-top:8px;color:#b45309;font-weight:700">⏳ '+menunggu+' komplain sedang diperiksa pengurus</div>' : '')
+      +(r.length ? '<div style="font-size:10.5px;font-weight:900;margin-top:12px;color:var(--text-soft,#4a7c59);text-transform:uppercase;letter-spacing:.5px">Riwayat komplainmu</div>'+r.map(function(k){ return barisKomplain(k,false); }).join('') : '')
+      +'</div>';
+  }
+  window._kmsBlokNasabah = function(kkId, s){
+    if (!kkId || kkId !== meId()) return '';   // hanya pemilik skor yang bisa komplain
+    return '<div class="kms-box" data-kms="n" data-kk="'+esc(kkId)+'">'+isiBoxNasabah(kkId, s)+'</div>';
+  };
+
+  var _foto = null, _komSel = 'total';
+
+  window.kmsNasabahBuka = function(kkId){
+    if (kkId !== meId()) { toast('⚠️ Komplain hanya bisa diajukan dari akun pemilik skor'); return; }
+    var s = skor(kkId); if (!s) return;
+    _foto = null; _komSel = 'total';
+    var opts = s.breakdown.map(function(b){
+      var m = KOMP[b.key];
+      return '<button type="button" class="kms-opt" data-k="'+b.key+'" onclick="kmsPilih(\''+b.key+'\')"><div class="a">'+m.ic+' '+m.lb+'</div><div class="b">Nilai: '+(b.skor===null?'–':b.skor)+' · '+esc(b.ket)+'</div></button>';
+    }).join('');
+    buka('<h3>📝 Komplain Skor Kepercayaan</h3>'
+      +'<div class="sub">Ceritakan bagian skor yang menurutmu tidak sesuai. Pengurus akan memeriksa catatan dan memberi tanggapan.</div>'
+      +'<div class="kms-score"><div class="n">'+(s.total===null?'–':s.total)+'</div><div><div class="g">'+esc(s.grade)+'</div><div class="d">Skormu saat ini</div></div></div>'
+      +'<label class="l">Bagian yang tidak sesuai</label><div class="kms-opts">'+opts
+      +'<button type="button" class="kms-opt wide on" data-k="total" onclick="kmsPilih(\'total\')"><div class="a">🛡️ Skor Keseluruhan</div><div class="b">Tidak tahu persis bagian mana / semuanya terasa keliru</div></button></div>'
+      +'<label class="l">Penjelasan <span style="text-transform:none;font-weight:600">(min. 10 huruf)</span></label>'
+      +'<textarea id="kmsPesan" maxlength="500" placeholder="Contoh: Iuran bulan Agustus & September sudah saya bayar lewat transfer, tapi masih tercatat belum lunas."></textarea>'
+      +'<label class="l">Bukti (opsional)</label>'
+      +'<div class="kms-foto"><img id="kmsFotoPrev" style="display:none" alt=""><label class="kms-btn ghost" style="cursor:pointer;margin:0">📷 Pilih foto bukti<input type="file" accept="image/*" style="display:none" onchange="kmsFoto(this)"></label></div>'
+      +'<div class="kms-act"><button class="kms-btn ghost" onclick="kmsTutup()">Batal</button><button class="kms-btn pri" id="kmsKirim" onclick="kmsNasabahKirim(\''+esc(kkId)+'\')">Kirim Komplain</button></div>');
+  };
+
+  window.kmsPilih = function(k){
+    _komSel = k;
+    document.querySelectorAll('#kmsOv .kms-opt').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-k')===k); });
+  };
+
+  window.kmsFoto = function(inp){
+    var f = inp.files && inp.files[0]; if (!f) return;
+    if (!/^image\//.test(f.type)) { toast('⚠️ File harus berupa gambar'); return; }
+    var fr = new FileReader();
+    fr.onload = function(){
+      var im = new Image();
+      im.onload = function(){
+        var mx = 900, sc = Math.min(1, mx/Math.max(im.width, im.height));
+        var c = document.createElement('canvas'); c.width = Math.round(im.width*sc); c.height = Math.round(im.height*sc);
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        _foto = c.toDataURL('image/jpeg', .62);
+        var p = document.getElementById('kmsFotoPrev'); if (p) { p.src=_foto; p.style.display='block'; }
+      };
+      im.onerror = function(){ toast('⚠️ Foto tidak bisa dibaca'); };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+  };
+
+  window.kmsNasabahKirim = function(kkId){
+    if (kkId !== meId()) return;
+    var el = document.getElementById('kmsPesan'); var pesan = ((el&&el.value)||'').trim();
+    if (pesan.length < 10) { toast('⚠️ Jelaskan komplainmu minimal 10 huruf'); return; }
+    var pend = riwayat(kkId).filter(function(k){ return k.status==='baru'; });
+    if (pend.length >= MAKS_PENDING) { toast('⚠️ Masih ada '+pend.length+' komplain yang belum ditanggapi. Mohon tunggu dulu.'); return; }
+    if (pend.some(function(k){ return k.komponen===_komSel; })) { toast('⚠️ Komplain untuk bagian ini masih diperiksa pengurus'); return; }
+    var s = skor(kkId); if (!s) return;
+    var n = nasabah(kkId);
+    var nilaiKomp = null;
+    s.breakdown.forEach(function(b){ if (b.key===_komSel) nilaiKomp = b.skor; });
+    list().push({
+      id: uid(), kkId: kkId, nama: n ? n.nama : '', tanggal: new Date().toISOString(),
+      komponen: _komSel, pesan: pesan, bukti: _foto || null,
+      skorSaat: s.total, gradeSaat: s.grade, nilaiKomponen: nilaiKomp,
+      status: 'baru'
+    });
+    if (typeof auditLog === 'function') auditLog('Komplain Skor Kepercayaan', (n?n.nama:kkId)+' — '+KOMP[_komSel].lb, 'skor');
+    else if (typeof saveDB === 'function') saveDB();
+    _foto = null; tutup(); segarkan(kkId);
+    toast('✅ Komplain terkirim — pengurus akan memeriksanya');
+  };
+
+  /* ═════════ SISI ADMIN ═════════ */
+  function isiBoxAdmin(kkId, s){
+    var r = riwayat(kkId).slice(0,5);
+    var baru = riwayat(kkId).filter(function(k){ return k.status==='baru'; }).length;
+    return '<div class="kms-adm"><div class="kms-h"><div class="ic">🛠️</div><div style="flex:1;min-width:0"><b>Komplain & Koreksi Skor</b>'
+      +'<span>'+(s && s.koreksiAda ? '✎ Skor ini memuat koreksi manual admin.' : 'Skor dihitung otomatis dari catatan sistem.')+(baru?' <b style="color:#b45309">'+baru+' komplain menunggu.</b>':'')+'</span></div></div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="kms-btn pri" style="padding:9px 13px" onclick="kmsAdminBuka(\''+esc(kkId)+'\')">✏️ Koreksi Skor</button>'
+      +(s && s.koreksiAda ? '<button class="kms-btn no" style="padding:9px 13px" onclick="kmsReset(\''+esc(kkId)+'\')">↺ Reset ke otomatis</button>' : '')+'</div>'
+      +(s && s.koreksiTotal ? '<div class="kms-row"><div class="m">Skor akhir diatur manual oleh '+esc(s.koreksiTotal.oleh||'admin')+(s.koreksiTotal.tanggal?' · '+tgl(s.koreksiTotal.tanggal):'')+(s.koreksiTotal.alasan?'<br>Alasan: '+esc(s.koreksiTotal.alasan):'')+'</div></div>' : '')
+      +r.map(function(k){ return barisKomplain(k,true); }).join('')
+      +'</div>';
+  }
+  window._kmsBlokAdmin = function(kkId, s){
+    if (!isAdm()) return '';
+    return '<div class="kms-box-adm" data-kms="a" data-kk="'+esc(kkId)+'">'+isiBoxAdmin(kkId, s)+'</div>';
+  };
+
+  window.kmsAdminBuka = function(kkId, komplainId){
+    if (!isAdm()) { toast('⛔ Hanya Admin yang dapat memperbaiki skor'); return; }
+    var n = nasabah(kkId); if (!n) return;
+    var oto = skor(kkId, { abaikanKoreksi:true }), cur = skor(kkId);
+    if (!oto || !cur) return;
+    var k = komplainId ? list().filter(function(x){ return x.id===komplainId; })[0] : null;
+    var kor = n.skorKoreksi || {};
+    var sudahDitanggapi = k && k.status!=='baru';
+    var info = k
+      ? '<div class="kms-card" style="margin-bottom:12px"><div class="t" style="font-size:12px;font-weight:900">'+(KOMP[k.komponen]||KOMP.total).ic+' '+(KOMP[k.komponen]||KOMP.total).lb+' <span class="kms-chip '+esc(k.status)+'" style="float:right">'+(STATUS[k.status]||'')+'</span></div>'
+        +'<div class="m" style="font-size:10px;color:var(--text-soft,#4a7c59);margin-top:3px">'+esc(n.nama)+' · '+tgl(k.tanggal)+(typeof k.skorSaat==='number'?' · skor saat itu '+k.skorSaat:'')+'</div>'
+        +'<div class="p" style="font-size:12px;line-height:1.55;margin-top:7px;white-space:pre-wrap;word-break:break-word">'+esc(k.pesan)+'</div>'
+        +(k.bukti ? '<img class="kms-bukti" src="'+k.bukti+'" alt="Bukti">' : '')+'</div>'
+      : '<div class="sub">Koreksi manual untuk <b>'+esc(n.nama)+'</b> tanpa komplain.</div>';
+    var baris = cur.breakdown.map(function(b, i){
+      var o = oto.breakdown[i];
+      var kv = kor[b.key] && typeof kor[b.key].skor==='number' ? kor[b.key].skor : '';
+      var m = KOMP[b.key];
+      return '<div class="kms-cmp'+(k&&k.komponen===b.key?' hl':'')+'"><div class="lb"><b>'+m.ic+' '+m.lb+'</b><span>Otomatis: <b>'+(o.skor===null?'–':o.skor)+'</b> · '+esc(o.ket)+'</span></div>'
+        +'<input type="number" min="0" max="100" inputmode="numeric" data-kms-in="'+b.key+'" value="'+kv+'" placeholder="otomatis"></div>';
+    }).join('');
+    var tv = kor.total && typeof kor.total.skor==='number' ? kor.total.skor : '';
+    var batas = (oto.batas||[]).length ? '<div style="font-size:10.5px;color:#92400e;background:#fef3c7;border-radius:10px;padding:8px 10px;margin-top:10px;line-height:1.55">'+oto.batas.map(function(t){ return '⚠️ '+esc(t); }).join('<br>')+'<br><i>Batas ini tetap berlaku pada hitungan komponen. Isi "Skor akhir" di bawah bila ingin menimpanya.</i></div>' : '';
+    buka('<h3>🛠️ '+(k?'Tinjau Komplain Skor':'Koreksi Skor Kepercayaan')+'</h3>'+info
+      +'<div class="kms-score"><div class="n">'+(cur.total===null?'–':cur.total)+'</div><div><div class="g">'+esc(cur.grade)+'</div><div class="d">Skor sekarang · otomatis: '+(oto.total===null?'–':oto.total)+'</div></div></div>'
+      +'<label class="l">Nilai per komponen <span style="text-transform:none;font-weight:600">(kosong = ikuti hitungan otomatis)</span></label>'
+      +baris+batas
+      +'<label class="l">Skor akhir <span style="text-transform:none;font-weight:600">(opsional — menimpa semua hitungan & batas)</span></label>'
+      +'<input type="number" min="0" max="100" inputmode="numeric" id="kmsAdmTotal" value="'+tv+'" placeholder="kosong = otomatis">'
+      +'<label class="l">'+(k?'Tanggapan untuk nasabah':'Alasan koreksi')+' <span style="text-transform:none;font-weight:600">(wajib)</span></label>'
+      +'<textarea id="kmsAdmAlasan" maxlength="400" placeholder="Contoh: Pembayaran iuran Agustus & September sudah dicek dan valid, skor diperbaiki.">'+(sudahDitanggapi?esc(k.tanggapan||''):'')+'</textarea>'
+      +'<div class="kms-act">'
+      +(k && !sudahDitanggapi ? '<button class="kms-btn no" onclick="kmsAdminSimpan(\''+esc(kkId)+'\',\''+esc(komplainId)+'\',\'ditolak\')">❌ Tolak</button>' : '<button class="kms-btn ghost" onclick="kmsTutup()">Batal</button>')
+      +'<button class="kms-btn ok" onclick="kmsAdminSimpan(\''+esc(kkId)+'\','+(k?'\''+esc(komplainId)+'\'':'null')+',\'diterima\')">'+(k && !sudahDitanggapi?'✅ Terima & Terapkan':'💾 Simpan Koreksi')+'</button></div>');
+  };
+
+  function angka(v){ if (v===''||v==null) return null; var x=Number(v); return isFinite(x) ? x : NaN; }
+
+  window.kmsAdminSimpan = function(kkId, komplainId, status){
+    if (!isAdm()) return;
+    var n = nasabah(kkId); if (!n) return;
+    var alasan = ((document.getElementById('kmsAdmAlasan')||{}).value||'').trim();
+    if (alasan.length < 5) { toast('⚠️ Tulis tanggapan/alasan (min. 5 huruf)'); return; }
+    var k = komplainId ? list().filter(function(x){ return x.id===komplainId; })[0] : null;
+    var iso = new Date().toISOString(), oleh = user();
+    var terapkan = {};
+    if (status === 'diterima') {
+      var kor = Object.assign({}, n.skorKoreksi || {});
+      var gagal = false;
+      URUT.concat(['total']).forEach(function(key){
+        var el = key==='total' ? document.getElementById('kmsAdmTotal') : document.querySelector('#kmsOv [data-kms-in="'+key+'"]');
+        var v = angka(el ? el.value : '');
+        if (v !== null && (isNaN(v) || v<0 || v>100)) { gagal = true; return; }
+        if (v === null) { delete kor[key]; }
+        else {
+          var lama = kor[key];
+          kor[key] = (lama && lama.skor===Math.round(v)) ? lama : { skor: Math.round(v), alasan: alasan, tanggal: iso, oleh: oleh, komplainId: komplainId||null };
+          terapkan[key] = Math.round(v);
+        }
+      });
+      if (gagal) { toast('⚠️ Nilai harus angka 0–100'); return; }
+      if (Object.keys(kor).length) n.skorKoreksi = kor; else delete n.skorKoreksi;
+    }
+    var sBaru = skor(kkId);
+    if (k) {
+      k.status = status; k.tanggapan = alasan; k.tanggalTanggapan = iso; k.ditanggapiOleh = oleh;
+      k.skorSesudah = sBaru ? sBaru.total : null; k.koreksi = terapkan;
+    }
+    var ket = (n.nama||kkId)+' — '+(k ? (status==='diterima'?'komplain diterima':'komplain ditolak') : 'koreksi manual')
+      +(Object.keys(terapkan).length ? ' ('+Object.keys(terapkan).map(function(x){ return (KOMP[x]||{lb:x}).lb+'='+terapkan[x]; }).join(', ')+')' : '');
+    if (typeof auditLog === 'function') auditLog('Koreksi Skor Kepercayaan', ket, 'skor'); else if (typeof saveDB==='function') saveDB();
+    tutup(); segarkan(kkId); perbaruiBanner();
+    toast(status==='ditolak' ? '❌ Komplain ditolak & tanggapan terkirim' : '✅ Skor diperbarui'+(sBaru&&sBaru.total!==null?' → '+sBaru.total:''));
+  };
+
+  window.kmsReset = function(kkId){
+    if (!isAdm()) return;
+    var n = nasabah(kkId); if (!n || !n.skorKoreksi) return;
+    if (!confirm('Hapus SEMUA koreksi manual pada skor '+n.nama+' dan kembali ke hitungan otomatis?')) return;
+    delete n.skorKoreksi;
+    if (typeof auditLog === 'function') auditLog('Reset Koreksi Skor', n.nama+' — kembali ke hitungan otomatis', 'skor'); else if (typeof saveDB==='function') saveDB();
+    segarkan(kkId); toast('↺ Skor kembali ke hitungan otomatis');
+  };
+
+  /* Muat ulang blok komplain & kartu skor yang sedang tampil */
+  function segarkan(kkId){
+    var adaAdm = false;
+    document.querySelectorAll('.kms-box[data-kk],.kms-box-adm[data-kk]').forEach(function(b){
+      var id = b.getAttribute('data-kk'), s = skor(id);
+      if (b.getAttribute('data-kms')==='n') b.innerHTML = isiBoxNasabah(id, s);
+      else { b.innerHTML = isiBoxAdmin(id, s); if (id===kkId) adaAdm = true; }
+    });
+    // Kartu skor admin (angka & bar) ikut dihitung ulang
+    if (adaAdm && typeof showDetailNasabah === 'function') { try { showDetailNasabah(kkId); } catch(e){} }
+    // Kartu skor nasabah (cincin & tiles) — render ulang bila ada
+    document.querySelectorAll('.skf-wrap').forEach(function(w){
+      var box = w.querySelector('.kms-box[data-kk]'); if (!box) return;
+      var id = box.getAttribute('data-kk');
+      try { var tmp = document.createElement('div'); tmp.innerHTML = _renderSkorKepercayaanAnggotaHTML(id); var baru = tmp.firstElementChild; if (baru) { var open = w.querySelector('.skf-detail.open'); w.replaceWith(baru); if (open) { var t = baru.querySelector('.skf-tg'); if (t && typeof _skorToggleAnggota==='function') _skorToggleAnggota(t); } } } catch(e){}
+    });
+  }
+
+  /* ═════════ INBOX ADMIN + BANNER ═════════ */
+  window.kmsInbox = function(semua){
+    if (!isAdm()) return;
+    var L = list().slice().sort(function(a,b){ return String(b.tanggal).localeCompare(String(a.tanggal)); });
+    var baru = L.filter(function(k){ return k.status==='baru'; });
+    var tampil = semua ? L.slice(0,40) : baru;
+    var h = '<h3>📨 Komplain Skor Kepercayaan</h3><div class="sub">'+baru.length+' menunggu tanggapan'+(L.length-baru.length?' · '+(L.length-baru.length)+' sudah ditanggapi':'')+'</div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:6px"><button class="kms-btn '+(semua?'ghost':'pri')+'" style="padding:8px 14px" onclick="kmsInbox(false)">Menunggu</button><button class="kms-btn '+(semua?'pri':'ghost')+'" style="padding:8px 14px" onclick="kmsInbox(true)">Semua</button></div>';
+    h += tampil.length ? tampil.map(function(k){
+      var m = KOMP[k.komponen]||KOMP.total, n = nasabah(k.kkId);
+      return '<div class="kms-row"><div class="t"><span>'+esc(n?n.nama:(k.nama||k.kkId))+'</span><span class="kms-chip '+esc(k.status)+'">'+(STATUS[k.status]||'')+'</span></div>'
+        +'<div class="m">'+m.ic+' '+m.lb+' · '+tgl(k.tanggal)+'</div><div class="p">'+esc(k.pesan.length>140?k.pesan.slice(0,140)+'…':k.pesan)+'</div>'
+        +'<div style="margin-top:8px"><button class="kms-btn '+(k.status==='baru'?'pri':'ghost')+'" style="padding:8px 14px" onclick="kmsAdminBuka(\''+esc(k.kkId)+'\',\''+esc(k.id)+'\')">'+(k.status==='baru'?'🔎 Tinjau & Perbaiki':'👁 Lihat')+'</button></div></div>';
+    }).join('') : '<div style="text-align:center;font-size:12px;color:var(--text-soft,#4a7c59);padding:26px 0">Tidak ada komplain'+(semua?'':' yang menunggu')+' 🎉</div>';
+    h += '<div class="kms-act"><button class="kms-btn ghost" onclick="kmsTutup()">Tutup</button></div>';
+    buka(h);
+  };
+
+  function perbaruiBanner(){
+    var jml = isAdm() ? list().filter(function(k){ return k.status==='baru'; }).length : 0;
+    var b = document.getElementById('kmsHomeBanner');
+    if (!jml) { if (b) b.style.display='none'; return; }
+    if (!b) {
+      var hero = document.querySelector('#page-home .hero-banner'); if (!hero) return;
+      b = document.createElement('div'); b.id='kmsHomeBanner';
+      var apv = document.getElementById('apvHomeBanner');
+      (apv && apv.parentNode===hero.parentNode ? apv : hero).after(b);
+    }
+    b.style.display='';
+    b.innerHTML = '<div class="kms-ban" onclick="kmsInbox(false)"><div class="c">'+jml+'</div><div style="flex:1"><b>Komplain Skor Kepercayaan</b><span>Nasabah meminta skornya diperiksa — ketuk untuk meninjau</span></div><div style="font-size:20px">📨</div></div>';
+  }
+  window._kmsUpdateBanner = perbaruiBanner;
+  setInterval(function(){ try { perbaruiBanner(); } catch(e){} }, 4000);
+  setTimeout(perbaruiBanner, 1500);
+})();
+</script>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     TIKET KOMPLAIN TRANSAKSI — nasabah ajukan komplain di tiap transaksi,
+     admin kelola tiket (status, prioritas, petugas, balasan) & perbaiki
+════════════════════════════════════════════════════════════════════ -->
+<style id="tktCSS">
+.kms-tkt-btn{padding:5px 12px;border-radius:99px;border:1.5px solid rgba(123,45,139,.35);background:rgba(123,45,139,.08);color:#7b2d8b;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;line-height:1.2}
+.txn-act-btn.kms-tkt-btn{padding:0;border-radius:inherit;border:0;background:none;font-size:13px}
+.tkt-entry{margin:8px 14px 0;display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:16px;background:rgba(123,45,139,.07);border:1px solid rgba(123,45,139,.18);cursor:pointer}
+.tkt-entry b{display:block;font-size:12px;font-weight:800;color:var(--text,#1c3025)}
+.tkt-entry span{display:block;font-size:10.5px;color:var(--text-soft,#4a7c59);margin-top:1px}
+.tkt-entry .n{min-width:24px;height:24px;border-radius:99px;background:#7b2d8b;color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.tkt-ban{background:linear-gradient(135deg,#0f766e,#14b8a6) !important;box-shadow:0 8px 20px -10px rgba(15,118,110,.7) !important}
+.tkt-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:4px 0 10px}
+.tkt-sum button{border:0;border-radius:12px;padding:8px 2px;background:rgba(0,0,0,.05);font:inherit;cursor:pointer;color:var(--text,#1c3025)}
+.tkt-sum button.on{background:#7b2d8b;color:#fff}
+.tkt-sum b{display:block;font-size:16px;font-weight:900;line-height:1.1}
+.tkt-sum span{display:block;font-size:9.5px;font-weight:700;margin-top:2px;opacity:.85}
+.tkt-search{width:100%;box-sizing:border-box;border:1.5px solid rgba(0,0,0,.12);border-radius:13px;padding:9px 12px;font:inherit;font-size:12.5px;margin-bottom:6px;background:#fff;color:inherit}
+.tkt-item{border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:11px 12px;margin-top:9px;cursor:pointer;background:#fff;position:relative}
+.tkt-item.late{border-color:rgba(220,38,38,.45)}
+.tkt-item .no{font-size:10px;font-weight:800;color:#7b2d8b;letter-spacing:.3px}
+.tkt-item .tt{font-size:12.5px;font-weight:800;margin-top:2px;color:var(--text,#1c3025)}
+.tkt-item .mm{font-size:10.5px;color:var(--text-soft,#4a7c59);margin-top:3px;line-height:1.45}
+.tkt-item .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.tkt-st{flex-shrink:0;font-size:9.5px;font-weight:800;padding:3px 9px;border-radius:99px}
+.tkt-st.baru{background:rgba(245,158,11,.16);color:#b45309}
+.tkt-st.diproses{background:rgba(59,130,246,.15);color:#1d4ed8}
+.tkt-st.menunggu{background:rgba(168,85,247,.15);color:#7e22ce}
+.tkt-st.selesai{background:rgba(22,163,74,.14);color:#15803d}
+.tkt-st.ditolak{background:rgba(220,38,38,.12);color:#b91c1c}
+.tkt-pr{display:inline-block;font-size:9px;font-weight:800;padding:1px 7px;border-radius:99px;margin-left:5px;vertical-align:1px}
+.tkt-pr.tinggi{background:rgba(249,115,22,.16);color:#c2410c}
+.tkt-pr.mendesak{background:rgba(220,38,38,.16);color:#b91c1c}
+.tkt-pr.rendah{background:rgba(0,0,0,.06);color:#6b7280}
+.tkt-dot{position:absolute;top:10px;right:10px;width:9px;height:9px;border-radius:50%;background:#dc2626}
+.tkt-trx{background:rgba(15,118,110,.07);border:1px solid rgba(15,118,110,.2);border-radius:16px;padding:10px 12px;margin:10px 0}
+.tkt-trx .a{font-size:15px;font-weight:900;color:var(--text,#1c3025)}
+.tkt-trx .b{font-size:11px;color:var(--text-soft,#4a7c59);margin-top:3px;line-height:1.5}
+.tkt-msg{margin-top:9px;padding:9px 11px;border-radius:14px;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;max-width:92%}
+.tkt-msg small{display:block;font-size:9.5px;font-weight:700;opacity:.7;margin-bottom:2px}
+.tkt-msg.n{background:rgba(123,45,139,.1);margin-left:auto}
+.tkt-msg.a{background:rgba(45,106,79,.11)}
+.tkt-msg.s{background:rgba(0,0,0,.05);font-size:10.5px;max-width:100%;text-align:center}
+.tkt-msg.i{background:rgba(245,158,11,.14);border:1px dashed rgba(180,83,9,.4)}
+.tkt-ctl{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.tkt-ctl select{width:100%;box-sizing:border-box;border:1.5px solid rgba(0,0,0,.12);border-radius:12px;padding:8px 9px;font:inherit;font-size:12px;background:#fff;color:inherit}
+.tkt-ctl label{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-soft,#4a7c59);margin-bottom:3px}
+.tkt-fix{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+.tkt-fix .kms-btn{padding:9px 4px;font-size:11px}
+.tkt-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tkt-chips button{border:1px solid rgba(0,0,0,.12);background:rgba(0,0,0,.04);border-radius:99px;padding:5px 10px;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer;color:inherit}
+.tkt-fixlog{font-size:10.5px;line-height:1.55;background:rgba(22,163,74,.08);border-radius:12px;padding:8px 10px;margin-top:8px}
+html.renco-dark .tkt-item,html.renco-dark .tkt-search,html.renco-dark .tkt-ctl select{background:#15231b;color:#e8f3ec;border-color:rgba(255,255,255,.12)}
+html.renco-dark .tkt-item .tt,html.renco-dark .tkt-trx .a,html.renco-dark .tkt-entry b{color:#e8f3ec}
+html.renco-dark .tkt-sum button{background:rgba(255,255,255,.08);color:#e8f3ec}
+html.renco-dark .tkt-sum button.on{background:#7b2d8b}
+</style>
+<script>
+/* ═══ TIKET KOMPLAIN TRANSAKSI ═══
+   Koleksi: DB.tiket[]  (ikut sinkron cloud; pesan di-union saat merge)
+   Tiket: {id,no,kkId,nama,tanggal,tanggalUpdate,kategori,deskripsi,bukti,
+           trx:{id,src,type,jenis,jumlah,tanggal,keterangan,dihapus?},
+           prioritas,status,petugas,pesan[],riwayat[],perbaikan[],dibacaNasabah} */
+(function(){
+  'use strict';
+
+  var KAT = {
+    'salah-jumlah': 'Jumlah tidak sesuai',
+    'salah-tanggal':'Tanggal salah',
+    'dobel':        'Tercatat dobel',
+    'salah-jenis':  'Jenis / keterangan keliru',
+    'bukan-saya':   'Bukan transaksi saya',
+    'belum-masuk':  'Dana belum masuk / tertunda',
+    'lainnya':      'Lainnya'
+  };
+  var STATUS = { baru:'🆕 Baru', diproses:'🔧 Diproses', menunggu:'💬 Menunggu Nasabah', selesai:'✅ Selesai', ditolak:'❌ Ditolak' };
+  var PRIO = { rendah:'Rendah', normal:'Normal', tinggi:'Tinggi', mendesak:'Mendesak' };
+  var PRIO_N = { rendah:0, normal:1, tinggi:2, mendesak:3 };
+  var AKTIF = ['baru','diproses','menunggu'];
+  var SLA_HARI = 3;
+  var TEMPLATE = [
+    'Terima kasih, komplain Anda sedang kami periksa.',
+    'Mohon kirimkan bukti transfer / struk pembayaran.',
+    'Sudah kami perbaiki, mohon dicek kembali.',
+    'Data sudah sesuai catatan kami, tidak ada kekeliruan.'
+  ];
+
+  function esc(t){ return String(t==null?'':t).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function toast(m){ if (typeof showToast==='function') showToast(m); else alert(m); }
+  function isAdm(){ return typeof isAdmin==='function' && isAdmin(); }
+  function meId(){ return (window.AUTH && AUTH.user && AUTH.user.role==='nasabah') ? AUTH.user.nasabahId : null; }
+  function who(){ return (window.AUTH && AUTH.user) ? (AUTH.user.nama || AUTH.user.username || 'admin') : 'admin'; }
+  function db(){ if (!window.DB) return []; if (!Array.isArray(DB.tiket)) DB.tiket = []; return DB.tiket; }
+  function nas(id){ return (window.DB && DB.nasabah || []).filter(function(n){ return n.id===id; })[0] || null; }
+  function rp(n){ return (typeof fmt==='function') ? fmt(n||0) : 'Rp '+Number(n||0).toLocaleString('id-ID'); }
+  function now(){ return new Date().toISOString(); }
+  function tgl(iso, jam){ var d=new Date(iso); if (isNaN(d)) return '-'; var s=d.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}); return jam===false ? s : s+' · '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
+  function rid(p){ return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+  function getT(id){ return db().filter(function(t){ return t.id===id; })[0] || null; }
+  function hariUmur(t){ return Math.floor((Date.now()-new Date(t.tanggal).getTime())/86400000); }
+  function terlambat(t){ return AKTIF.indexOf(t.status)>=0 && hariUmur(t)>=SLA_HARI; }
+  function simpan(){ if (typeof saveDB==='function') saveDB(); }
+  function audit(a, d){ if (typeof auditLog==='function') auditLog(a, d, 'tiket'); }
+  function nomor(){
+    var d=new Date(), p='TKT-'+String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+'-';
+    var n = db().filter(function(t){ return String(t.no||'').indexOf(p)===0; }).length+1, no;
+    do { no = p+String(n++).padStart(3,'0'); } while (db().some(function(t){ return t.no===no; }));
+    return no;
+  }
+  function catat(t, aksi){ t.riwayat = t.riwayat || []; t.riwayat.push({ tanggal:now(), oleh:who(), aksi:aksi }); t.tanggalUpdate = now(); }
+  function pesan(t, dari, teks, internal){
+    t.pesan = t.pesan || [];
+    t.pesan.push({ id:rid('m'), dari:dari, nama:dari==='sistem'?'Sistem':who(), tanggal:now(), teks:teks, internal:!!internal });
+    t.tanggalUpdate = now();
+  }
+
+  /* ── overlay (sheet) ── */
+  function tutup(){ var o=document.getElementById('tktOv'); if (o) o.remove(); }
+  function buka(html){
+    tutup();
+    var o=document.createElement('div'); o.id='tktOv'; o.className='kms-ov';
+    o.innerHTML='<div class="kms-sheet" role="dialog" aria-modal="true">'+html+'</div>';
+    o.addEventListener('mousedown',function(e){ if (e.target===o) tutup(); });
+    document.body.appendChild(o);
+    return o.firstChild;
+  }
+  window.tiketTutup = tutup;
+
+  /* ═════════ TOMBOL KOMPLAIN DI TRANSAKSI ═════════ */
+  window._tiketBtn = function(payload, mode){
+    var j = esc(JSON.stringify(payload||{}));
+    if (mode==='icon') return '<button class="txn-act-btn kms-tkt-btn" data-tkt="'+j+'" onclick="event.stopPropagation();tiketDariTombol(this)" title="Komplain transaksi ini">🚩</button>';
+    return '<button class="kms-tkt-btn" data-tkt="'+j+'" onclick="event.stopPropagation();tiketDariTombol(this)">🚩 Komplain</button>';
+  };
+  window.tiketDariTombol = function(btn){
+    var p; try { p = JSON.parse(btn.getAttribute('data-tkt')||'{}'); } catch(e){ p = {}; }
+    tiketBuka(p);
+  };
+
+  /* Cari transaksi sebenarnya di DB.transaksi dari payload (id, atau pencocokan data) */
+  function resolusi(p){
+    var rec = null, T = (window.DB && DB.transaksi) || [];
+    if (p.id) rec = T.filter(function(x){ return x.id===p.id; })[0] || null;
+    if (!rec && !p.id && p.jumlah) {
+      var kk = p.kkId || meId();
+      var hari = String(p.tanggal||'').slice(0,10);
+      var c = T.filter(function(x){
+        return (!kk || x.kkId===kk) && (!p.type || x.type===p.type) && Math.round(x.jumlah||0)===Math.round(p.jumlah||0)
+          && (!hari || String(x.tanggal||'').slice(0,10)===hari) && (!p.keterangan || (x.keterangan||'')===p.keterangan);
+      });
+      if (c.length===1) rec = c[0];
+    }
+    var base = rec || p;
+    return {
+      kkId: (rec && rec.kkId) || p.kkId || meId() || null,
+      trx: { id: rec ? rec.id : (p.id||null), src: rec ? 'koperasi' : (p.src||'koperasi'), type: base.type||base.tipe||'', jenis: base.jenis||'',
+             jumlah: +base.jumlah||0, tanggal: base.tanggal||base.createdAt||'', keterangan: base.keterangan||base.judul||'', tipe: p.tipe||'' ,
+             terhubung: !!rec }
+    };
+  }
+  function kunciTrx(trx){ return trx.id ? 'id:'+trx.id : 'h:'+[trx.type,trx.jumlah,String(trx.tanggal).slice(0,10),trx.keterangan].join('|'); }
+
+  var _foto = null, _kat = 'salah-jumlah', _form = null;
+
+  window.tiketBuka = function(p){
+    p = p || {};
+    var r = resolusi(p);
+    if (!r.kkId) { toast('⚠️ Transaksi ini tidak terhubung ke nasabah — tiket tidak bisa dibuat'); return; }
+    if (meId() && r.kkId !== meId()) { toast('⚠️ Hanya bisa mengomplain transaksi milik sendiri'); return; }
+    var kunci = kunciTrx(r.trx);
+    var ada = db().filter(function(t){ return t.kkId===r.kkId && AKTIF.indexOf(t.status)>=0 && kunciTrx(t.trx)===kunci; })[0];
+    if (ada) { toast('ℹ️ Sudah ada tiket aktif untuk transaksi ini'); tiketDetail(ada.id); return; }
+    _form = r; _foto = null; _kat = 'salah-jumlah';
+    var n = nas(r.kkId);
+    var kat = Object.keys(KAT).map(function(k){ return '<button type="button" class="kms-opt'+(k===_kat?' on':'')+'" data-k="'+k+'" onclick="tiketPilihKat(\''+k+'\')"><div class="a">'+KAT[k]+'</div></button>'; }).join('');
+    buka('<h3>🚩 Komplain Transaksi</h3><div class="sub">Laporkan jika ada yang tidak sesuai. Pengurus akan memeriksa dan membalas lewat tiket.</div>'
+      +'<div class="tkt-trx"><div class="a">'+rp(r.trx.jumlah)+'</div><div class="b">'+esc(r.trx.keterangan||r.trx.type||'Transaksi')+'<br>'+(r.trx.tanggal?tgl(r.trx.tanggal):'-')+(isAdm()&&n?'<br>Nasabah: <b>'+esc(n.nama)+'</b>':'')+'</div></div>'
+      +'<label class="l">Jenis masalah</label><div class="kms-opts">'+kat+'</div>'
+      +'<label class="l">Penjelasan <span style="text-transform:none;font-weight:600">(min. 10 huruf)</span></label>'
+      +'<textarea id="tktDesk" maxlength="600" placeholder="Contoh: Saya setor Rp 100.000 tapi yang tercatat Rp 10.000."></textarea>'
+      +'<label class="l">Bukti (opsional)</label><div class="kms-foto"><img id="tktFotoPrev" style="display:none" alt=""><label class="kms-btn ghost" style="cursor:pointer;margin:0">📷 Pilih foto bukti<input type="file" accept="image/*" style="display:none" onchange="tiketFoto(this)"></label></div>'
+      +'<div class="kms-act"><button class="kms-btn ghost" onclick="tiketTutup()">Batal</button><button class="kms-btn pri" onclick="tiketKirim()">Kirim Tiket</button></div>');
+  };
+  window.tiketPilihKat = function(k){ _kat = k; document.querySelectorAll('#tktOv .kms-opt').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-k')===k); }); };
+  window.tiketFoto = function(inp){
+    var f = inp.files && inp.files[0]; if (!f) return;
+    if (!/^image\//.test(f.type)) { toast('⚠️ File harus berupa gambar'); return; }
+    var fr = new FileReader();
+    fr.onload = function(){
+      var im = new Image();
+      im.onload = function(){
+        var sc = Math.min(1, 900/Math.max(im.width, im.height));
+        var c = document.createElement('canvas'); c.width = Math.round(im.width*sc); c.height = Math.round(im.height*sc);
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        _foto = c.toDataURL('image/jpeg', .62);
+        var pv = document.getElementById('tktFotoPrev'); if (pv) { pv.src=_foto; pv.style.display='block'; }
+      };
+      im.onerror = function(){ toast('⚠️ Foto tidak bisa dibaca'); };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+  };
+  window.tiketKirim = function(){
+    if (!_form) return;
+    var d = ((document.getElementById('tktDesk')||{}).value||'').trim();
+    if (d.length < 10) { toast('⚠️ Jelaskan masalahnya minimal 10 huruf'); return; }
+    var aktifUser = db().filter(function(t){ return t.kkId===_form.kkId && AKTIF.indexOf(t.status)>=0; }).length;
+    if (!isAdm() && aktifUser >= 5) { toast('⚠️ Masih ada 5 tiket aktif. Tunggu sebagian selesai dulu.'); return; }
+    var n = nas(_form.kkId);
+    var t = {
+      id: rid('tkt_'), no: nomor(), kkId: _form.kkId, nama: n ? n.nama : '', tanggal: now(), tanggalUpdate: now(),
+      kategori: _kat, deskripsi: d, bukti: _foto || null, trx: _form.trx,
+      prioritas: 'normal', status: 'baru', petugas: '', pesan: [], riwayat: [], perbaikan: [],
+      dibuatOleh: isAdm() ? 'admin' : 'nasabah', dibacaNasabah: now()
+    };
+    t.riwayat.push({ tanggal: now(), oleh: who(), aksi: 'Tiket dibuat' + (isAdm() ? ' oleh admin' : '') });
+    pesan(t, isAdm()?'admin':'nasabah', d);
+    db().push(t);
+    audit('Tiket Komplain Dibuat', t.no+' — '+t.nama+' — '+KAT[_kat]+' — '+rp(t.trx.jumlah));
+    simpan(); _foto = null; _form = null;
+    toast('✅ Tiket '+t.no+' terkirim');
+    tiketDetail(t.id); segarkanEntri();
+  };
+
+  /* ═════════ DAFTAR TIKET ═════════ */
+  var _filter = 'aktif', _cari = '';
+
+  function itemHTML(t, adm){
+    var unread = !adm && t.dibacaNasabah && (t.pesan||[]).some(function(m){ return m.dari==='admin' && !m.internal && m.tanggal>t.dibacaNasabah; });
+    return '<div class="tkt-item'+(adm&&terlambat(t)?' late':'')+'" onclick="tiketDetail(\''+t.id+'\')">'+(unread?'<span class="tkt-dot"></span>':'')
+      +'<div class="top"><div style="min-width:0"><div class="no">'+esc(t.no)+(t.prioritas&&t.prioritas!=='normal'?'<span class="tkt-pr '+t.prioritas+'">'+PRIO[t.prioritas]+'</span>':'')+'</div>'
+      +'<div class="tt">'+esc(KAT[t.kategori]||t.kategori)+' · '+rp(t.trx.jumlah)+'</div></div>'
+      +'<span class="tkt-st '+t.status+'">'+STATUS[t.status]+'</span></div>'
+      +'<div class="mm">'+(adm?'👤 '+esc(t.nama||t.kkId)+' · ':'')+esc(t.trx.keterangan||t.trx.type||'Transaksi')+'<br>'+tgl(t.tanggal,false)+(AKTIF.indexOf(t.status)>=0?' · umur '+hariUmur(t)+' hari':'')+(adm&&t.petugas?' · 🛠 '+esc(t.petugas):'')+(adm&&terlambat(t)?' · <b style="color:#b91c1c">melewati SLA</b>':'')+'</div></div>';
+  }
+
+  window.tiketDaftar = function(filter, cari){
+    var adm = isAdm();
+    if (!adm && !meId()) return;
+    if (filter) _filter = filter;
+    if (typeof cari === 'string') _cari = cari;
+    var semua = db().filter(function(t){ return adm || t.kkId===meId(); });
+    var hit = { aktif:0, baru:0, diproses:0, menunggu:0, selesai:0 };
+    semua.forEach(function(t){ if (AKTIF.indexOf(t.status)>=0) hit.aktif++; if (hit[t.status]!=null) hit[t.status]++; if (t.status==='ditolak') hit.selesai++; });
+    var L = semua.filter(function(t){
+      if (_filter==='aktif') return AKTIF.indexOf(t.status)>=0;
+      if (_filter==='selesai') return t.status==='selesai' || t.status==='ditolak';
+      if (_filter==='semua') return true;
+      return t.status===_filter;
+    });
+    var q = _cari.trim().toLowerCase();
+    if (q) L = L.filter(function(t){ return (t.no+' '+(t.nama||'')+' '+(t.trx.keterangan||'')+' '+(KAT[t.kategori]||'')).toLowerCase().indexOf(q)>=0; });
+    L.sort(function(a,b){
+      var aa = AKTIF.indexOf(a.status)>=0, bb = AKTIF.indexOf(b.status)>=0;
+      if (aa!==bb) return aa ? -1 : 1;
+      if (aa && adm) { var d = (PRIO_N[b.prioritas]||1)-(PRIO_N[a.prioritas]||1); if (d) return d; return String(a.tanggal).localeCompare(String(b.tanggal)); }
+      return String(b.tanggalUpdate||b.tanggal).localeCompare(String(a.tanggalUpdate||a.tanggal));
+    });
+    var tab = function(k,l,n){ return '<button class="'+(_filter===k?'on':'')+'" onclick="tiketDaftar(\''+k+'\')"><b>'+n+'</b><span>'+l+'</span></button>'; };
+    var skor = (adm && window.DB && Array.isArray(DB.komplainSkor)) ? DB.komplainSkor.filter(function(k){ return k.status==='baru'; }).length : 0;
+    buka('<h3>'+(adm?'🎫 Pusat Tiket Komplain':'🎫 Tiket Komplain Saya')+'</h3><div class="sub">'+(adm?'Kelola komplain transaksi dari nasabah. Tiket aktif lebih dari '+SLA_HARI+' hari ditandai melewati SLA.':'Pantau komplain transaksi yang pernah kamu ajukan.')+'</div>'
+      +'<div class="tkt-sum">'+tab('aktif','Aktif',hit.aktif)+tab('baru','Baru',hit.baru)+tab('diproses','Diproses',hit.diproses)+tab('selesai','Selesai',hit.selesai)+'</div>'
+      +'<input class="tkt-search" id="tktCari" placeholder="Cari no. tiket, nama, keterangan…" value="'+esc(_cari)+'" oninput="tiketCari(this.value)">'
+      +'<div id="tktList">'+(L.length ? L.map(function(t){ return itemHTML(t,adm); }).join('') : '<div style="text-align:center;font-size:12px;color:var(--text-soft,#4a7c59);padding:28px 0">Tidak ada tiket'+(_filter==='aktif'?' aktif 🎉':'')+'</div>')+'</div>'
+      +(skor ? '<div style="margin-top:12px"><button class="kms-btn ghost" style="width:100%" onclick="kmsInbox(false)">📨 Komplain Skor Kepercayaan ('+skor+' menunggu)</button></div>' : '')
+      +'<div class="kms-act"><button class="kms-btn ghost" onclick="tiketTutup()">Tutup</button></div>');
+  };
+  var _tm = null;
+  window.tiketCari = function(v){
+    _cari = v;
+    clearTimeout(_tm);
+    _tm = setTimeout(function(){
+      var pos = (document.getElementById('tktCari')||{}).selectionStart;
+      tiketDaftar();
+      var el = document.getElementById('tktCari'); if (el) { el.focus(); try { el.setSelectionRange(pos,pos); } catch(e){} }
+    }, 250);
+  };
+
+  /* ═════════ DETAIL TIKET ═════════ */
+  window.tiketDetail = function(id){
+    var t = getT(id); if (!t) return;
+    var adm = isAdm();
+    if (!adm && t.kkId !== meId()) return;
+    if (!adm) { t.dibacaNasabah = now(); simpan(); segarkanEntri(); }
+    var msgs = (t.pesan||[]).filter(function(m){ return adm || !m.internal; }).map(function(m){
+      var c = m.dari==='sistem' ? 's' : (m.internal ? 'i' : (m.dari==='admin' ? 'a' : 'n'));
+      return '<div class="tkt-msg '+c+'"><small>'+(m.dari==='sistem'?'':esc(m.nama||m.dari)+' · ')+tgl(m.tanggal)+(m.internal?' · 🔒 catatan internal':'')+'</small>'+esc(m.teks)+'</div>';
+    }).join('');
+    var fix = (t.perbaikan||[]).map(function(f){
+      return '<div class="tkt-fixlog">🛠 <b>'+({edit:'Transaksi dikoreksi',hapus:'Transaksi dihapus',benar:'Transaksi diverifikasi benar'}[f.jenis]||f.jenis)+'</b> oleh '+esc(f.oleh)+' · '+tgl(f.tanggal)+(f.ringkas?'<br>'+esc(f.ringkas):'')+'</div>';
+    }).join('');
+    var trxLabel = t.trx.dihapus ? ' <span style="color:#b91c1c;font-weight:800">(sudah dihapus)</span>' : (!t.trx.terhubung && adm ? ' <span style="color:#b45309;font-weight:800">(tidak terhubung ke catatan)</span>' : '');
+    var aktif = AKTIF.indexOf(t.status)>=0;
+    var kontrol = '';
+    if (adm) {
+      kontrol = '<div class="tkt-ctl"><div><label>Status</label><select onchange="tiketUbah(\''+t.id+'\',\'status\',this.value)">'
+        +Object.keys(STATUS).map(function(k){ return '<option value="'+k+'"'+(k===t.status?' selected':'')+'>'+STATUS[k]+'</option>'; }).join('')+'</select></div>'
+        +'<div><label>Prioritas</label><select onchange="tiketUbah(\''+t.id+'\',\'prioritas\',this.value)">'
+        +Object.keys(PRIO).map(function(k){ return '<option value="'+k+'"'+(k===t.prioritas?' selected':'')+'>'+PRIO[k]+'</option>'; }).join('')+'</select></div></div>'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px"><span>🛠 Petugas: <b>'+(esc(t.petugas)||'belum ada')+'</b></span>'
+        +(t.petugas===who()?'':'<button class="kms-btn ghost" style="padding:5px 11px;font-size:10.5px" onclick="tiketUbah(\''+t.id+'\',\'petugas\',\''+esc(who()).replace(/'/g,'')+'\')">Ambil tiket</button>')+'</div>'
+        +'<label class="l">Perbaikan transaksi</label><div class="tkt-fix">'
+        +'<button class="kms-btn pri" onclick="tiketKoreksi(\''+t.id+'\')"'+(t.trx.dihapus?' disabled':'')+'>✏️ Koreksi</button>'
+        +'<button class="kms-btn no" onclick="tiketHapusTrx(\''+t.id+'\')"'+(t.trx.dihapus||!t.trx.terhubung?' disabled':'')+'>🗑 Hapus</button>'
+        +'<button class="kms-btn ok" onclick="tiketBenar(\''+t.id+'\')">✔ Sudah benar</button></div>';
+    }
+    var komposer = '';
+    if (adm || aktif || t.status==='selesai' || t.status==='ditolak') {
+      komposer = '<label class="l">'+(adm?'Balasan / catatan':(aktif?'Balas':'Buka kembali dengan pesan'))+'</label>'
+        +'<textarea id="tktBalas" maxlength="600" style="min-height:70px" placeholder="'+(adm?'Tulis balasan untuk nasabah…':'Tulis pesan untuk pengurus…')+'"></textarea>'
+        +(adm?'<div class="tkt-chips">'+TEMPLATE.map(function(x,i){ return '<button type="button" onclick="tiketTpl('+i+')">'+esc(x.length>34?x.slice(0,34)+'…':x)+'</button>'; }).join('')
+          +'</div><label style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;margin-top:9px"><input type="checkbox" id="tktInternal"> 🔒 Catatan internal (tidak terlihat nasabah)</label>' : '');
+    }
+    var aksi;
+    if (adm) {
+      aksi = '<div class="kms-act"><button class="kms-btn no" onclick="tiketTutupTiket(\''+t.id+'\',\'ditolak\')">❌ Tolak</button><button class="kms-btn ghost" onclick="tiketKirimBalas(\''+t.id+'\')">💬 Balas</button><button class="kms-btn ok" onclick="tiketTutupTiket(\''+t.id+'\',\'selesai\')">✅ Selesai</button></div>';
+    } else if (aktif) {
+      aksi = '<div class="kms-act"><button class="kms-btn ghost" onclick="tiketTutupTiket(\''+t.id+'\',\'selesai\')">Tutup tiket</button><button class="kms-btn pri" onclick="tiketKirimBalas(\''+t.id+'\')">Kirim</button></div>';
+    } else {
+      aksi = '<div class="kms-act"><button class="kms-btn ghost" onclick="tiketDaftar()">‹ Daftar</button><button class="kms-btn pri" onclick="tiketKirimBalas(\''+t.id+'\')">Buka kembali</button></div>';
+    }
+    buka('<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">'+esc(t.no)+'</h3><span class="tkt-st '+t.status+'">'+STATUS[t.status]+'</span></div>'
+      +'<div class="sub" style="margin-top:3px">'+esc(KAT[t.kategori]||t.kategori)+(adm?' · 👤 '+esc(t.nama||t.kkId):'')+' · dibuat '+tgl(t.tanggal,false)+(t.prioritas!=='normal'?'<span class="tkt-pr '+t.prioritas+'">'+PRIO[t.prioritas]+'</span>':'')+'</div>'
+      +'<div class="tkt-trx"><div class="a">'+rp(t.trx.jumlah)+trxLabel+'</div><div class="b">'+esc(t.trx.keterangan||t.trx.type||'Transaksi')+'<br>'+(t.trx.tanggal?tgl(t.trx.tanggal):'-')+(t.trx.id?'<br>ID: '+esc(t.trx.id):'')+'</div></div>'
+      +(t.bukti?'<img class="kms-bukti" src="'+t.bukti+'" alt="Bukti">':'')
+      +kontrol+fix
+      +'<label class="l">Percakapan</label><div style="display:flex;flex-direction:column">'+msgs+'</div>'
+      +komposer+aksi
+      +'<div class="kms-act" style="margin-top:6px;position:static"><button class="kms-btn ghost" onclick="tiketDaftar()" style="font-size:11px;padding:8px">‹ Kembali ke daftar tiket</button></div>');
+  };
+
+  window.tiketTpl = function(i){ var el=document.getElementById('tktBalas'); if (el) { el.value = TEMPLATE[i]; el.focus(); } };
+
+  window.tiketKirimBalas = function(id){
+    var t = getT(id); if (!t) return;
+    var el = document.getElementById('tktBalas'), teks = ((el&&el.value)||'').trim();
+    if (teks.length < 2) { toast('⚠️ Tulis pesan dulu'); return; }
+    var adm = isAdm(), internal = adm && !!(document.getElementById('tktInternal')||{}).checked;
+    pesan(t, adm?'admin':'nasabah', teks, internal);
+    if (adm && !internal && t.status==='baru') { t.status='diproses'; catat(t,'Status → Diproses (dibalas admin)'); if (!t.petugas) t.petugas = who(); }
+    if (!adm) {
+      if (t.status==='menunggu') { t.status='diproses'; catat(t,'Nasabah membalas — Diproses'); }
+      else if (AKTIF.indexOf(t.status)<0) { t.status='baru'; catat(t,'Tiket dibuka kembali oleh nasabah'); }
+      t.dibacaNasabah = now();
+    }
+    simpan(); tiketDetail(id); segarkanEntri();
+  };
+
+  window.tiketUbah = function(id, field, nilai){
+    if (!isAdm()) return;
+    var t = getT(id); if (!t) return;
+    if (field==='status') {
+      if (nilai==='selesai' || nilai==='ditolak') { tiketTutupTiket(id, nilai); return; }
+      t.status = nilai; catat(t, 'Status → '+STATUS[nilai]);
+      pesan(t,'sistem','Status tiket diubah menjadi '+STATUS[nilai]+' oleh '+who());
+    } else if (field==='prioritas') { t.prioritas = nilai; catat(t,'Prioritas → '+PRIO[nilai]); }
+    else if (field==='petugas') { t.petugas = nilai; if (t.status==='baru') t.status='diproses'; catat(t,'Petugas: '+nilai); }
+    audit('Tiket Diubah', t.no+' — '+field+' = '+nilai);
+    simpan(); tiketDetail(id); segarkanEntri();
+  };
+
+  /* Selesaikan / tolak (admin) atau tutup (nasabah) */
+  window.tiketTutupTiket = function(id, status){
+    var t = getT(id); if (!t) return;
+    var adm = isAdm();
+    var el = document.getElementById('tktBalas'), teks = ((el&&el.value)||'').trim();
+    if (adm && teks.length < 5) { toast('⚠️ Tulis ringkasan penyelesaian/alasan di kolom balasan (min. 5 huruf)'); if (el) el.focus(); return; }
+    if (!adm && !confirm('Tutup tiket ini? Kamu masih bisa membukanya kembali nanti.')) return;
+    if (teks) pesan(t, adm?'admin':'nasabah', teks);
+    t.status = status; t.ditutup = now(); t.ditutupOleh = who();
+    if (adm && !t.petugas) t.petugas = who();
+    catat(t, (adm ? 'Tiket '+(status==='selesai'?'diselesaikan':'ditolak')+' oleh admin' : 'Tiket ditutup oleh nasabah'));
+    pesan(t,'sistem','Tiket '+(status==='selesai'?'diselesaikan':'ditolak')+' oleh '+who());
+    audit('Tiket '+(status==='selesai'?'Selesai':'Ditolak'), t.no+' — '+t.nama);
+    if (!adm) t.dibacaNasabah = now();
+    simpan(); tiketDetail(id); segarkanEntri();
+    toast(status==='selesai' ? '✅ Tiket selesai' : '❌ Tiket ditolak');
+  };
+
+  /* ═════════ PERBAIKAN OLEH ADMIN ═════════ */
+  function ringkasTrx(x){ return rp(x.jumlah)+' · '+(x.tanggal?tgl(x.tanggal,false):'-')+' · '+(x.keterangan||x.type||''); }
+
+  window.tiketKoreksi = function(id){
+    if (!isAdm()) return;
+    var t = getT(id); if (!t) return;
+    var sebelum = JSON.parse(JSON.stringify(t.trx));
+    var idTrx = t.trx.id;
+    tutup();
+    var buka2 = function(){ tiketDetail(id); };
+    if (t.trx.src==='rencopay' && idTrx && typeof window._homeEditRP==='function') {
+      toast('✏️ Edit transaksi RencoPay — simpan lalu buka tiket kembali');
+      window._homeEditRP(idTrx);
+      return;
+    }
+    if (!idTrx || !(DB.transaksi||[]).some(function(x){ return x.id===idTrx; })) { toast('⚠️ Catatan transaksi tidak ditemukan — tidak bisa dikoreksi'); buka2(); return; }
+    var prev = _afterEditTxnCallback;
+    _afterEditTxnCallback = function(){
+      var cur = (document.getElementById('editTxnId')||{}).value;
+      if (cur !== idTrx) { if (typeof prev==='function') prev(); return; }
+      var rec = (DB.transaksi||[]).filter(function(x){ return x.id===idTrx; })[0];
+      var tk = getT(id);
+      if (rec && tk) {
+        var sesudah = { id:rec.id, src:'koperasi', type:rec.type||'', jenis:rec.jenis||'', jumlah:rec.jumlah||0, tanggal:rec.tanggal||'', keterangan:rec.keterangan||'', terhubung:true };
+        var beda = [];
+        if (sebelum.jumlah!==sesudah.jumlah) beda.push('jumlah '+rp(sebelum.jumlah)+' → '+rp(sesudah.jumlah));
+        if (String(sebelum.tanggal).slice(0,10)!==String(sesudah.tanggal).slice(0,10)) beda.push('tanggal '+tgl(sebelum.tanggal,false)+' → '+tgl(sesudah.tanggal,false));
+        if ((sebelum.keterangan||'')!==(sesudah.keterangan||'')) beda.push('keterangan diubah');
+        if (sebelum.type!==sesudah.type || sebelum.jenis!==sesudah.jenis) beda.push('jenis/tipe diubah');
+        tk.trx = Object.assign({}, tk.trx, sesudah);
+        var ring = beda.length ? beda.join('; ') : 'disimpan tanpa perubahan data';
+        tk.perbaikan.push({ jenis:'edit', tanggal:now(), oleh:who(), sebelum:sebelum, sesudah:sesudah, ringkas:ring });
+        catat(tk,'Transaksi dikoreksi: '+ring);
+        pesan(tk,'sistem','Transaksi dikoreksi oleh '+who()+': '+ring);
+        if (tk.status==='baru') tk.status='diproses';
+        audit('Koreksi Transaksi via Tiket', tk.no+' — '+ring);
+        simpan();
+      }
+      setTimeout(function(){ tiketDetail(id); segarkanEntri(); }, 150);
+    };
+    openEditTxn(idTrx);
+  };
+
+  window.tiketHapusTrx = function(id){
+    if (!isAdm()) return;
+    var t = getT(id); if (!t || !t.trx.id) return;
+    var sebelum = JSON.parse(JSON.stringify(t.trx));
+    if (typeof hapusTxnTerintegrasi !== 'function') { toast('⚠️ Fungsi hapus tidak tersedia'); return; }
+    tutup();
+    var ok = false;
+    try { ok = hapusTxnTerintegrasi(t.trx.id); } catch(e){ console.warn(e); }
+    var tk = getT(id);
+    if (ok && tk) {
+      tk.trx.dihapus = true; tk.trx.terhubung = false;
+      tk.perbaikan.push({ jenis:'hapus', tanggal:now(), oleh:who(), sebelum:sebelum, ringkas:ringkasTrx(sebelum) });
+      catat(tk,'Transaksi dihapus: '+ringkasTrx(sebelum));
+      pesan(tk,'sistem','Transaksi dihapus oleh '+who()+': '+ringkasTrx(sebelum));
+      if (tk.status==='baru') tk.status='diproses';
+      audit('Hapus Transaksi via Tiket', tk.no+' — '+ringkasTrx(sebelum));
+      simpan(); toast('🗑 Transaksi dihapus & dicatat di tiket');
+    }
+    tiketDetail(id); segarkanEntri();
+  };
+
+  window.tiketBenar = function(id){
+    if (!isAdm()) return;
+    var t = getT(id); if (!t) return;
+    var el = document.getElementById('tktBalas'), teks = ((el&&el.value)||'').trim();
+    t.perbaikan.push({ jenis:'benar', tanggal:now(), oleh:who(), ringkas: teks || 'Data sesuai catatan dan bukti' });
+    catat(t,'Transaksi diverifikasi benar');
+    pesan(t,'sistem','Transaksi diverifikasi oleh '+who()+' — data sudah sesuai.');
+    if (teks) pesan(t,'admin',teks);
+    if (t.status==='baru') t.status='diproses';
+    audit('Verifikasi Transaksi via Tiket', t.no+' — data benar');
+    simpan(); tiketDetail(id); segarkanEntri();
+  };
+
+  /* ═════════ ENTRI & BANNER ═════════ */
+  function jumlahAktifAdmin(){ return db().filter(function(t){ return AKTIF.indexOf(t.status)>=0; }).length; }
+  function jumlahBelumDibaca(){
+    var k = meId(); if (!k) return 0;
+    return db().filter(function(t){ return t.kkId===k && t.dibacaNasabah && (t.pesan||[]).some(function(m){ return m.dari==='admin' && !m.internal && m.tanggal>t.dibacaNasabah; }); }).length;
+  }
+  function segarkanEntri(){
+    try {
+      // Nasabah: baris "Tiket Saya" di atas daftar transaksi Beranda
+      var wrapList = document.getElementById('homeTransaksiList');
+      var e = document.getElementById('tktEntry');
+      var k = meId();
+      var mine = k ? db().filter(function(t){ return t.kkId===k; }) : [];
+      if (k && wrapList && mine.length) {
+        var card = wrapList.closest('.card') || wrapList.parentNode;
+        if (!e) { e = document.createElement('div'); e.id='tktEntry'; e.className='tkt-entry'; e.onclick=function(){ tiketDaftar('aktif',''); }; card.parentNode.insertBefore(e, card); }
+        var akt = mine.filter(function(t){ return AKTIF.indexOf(t.status)>=0; }).length, bb = jumlahBelumDibaca();
+        e.innerHTML = '<span style="font-size:20px;flex:none">🎫</span><div style="flex:1;min-width:0"><b>Tiket Komplain Saya</b><span>'+(bb?bb+' balasan baru dari pengurus':(akt?akt+' tiket sedang diproses':'Semua tiket sudah selesai'))+'</span></div>'+(bb?'<div class="n">'+bb+'</div>':'<span style="flex:none;font-size:16px;color:var(--text-soft,#4a7c59)">›</span>');
+      } else if (e) { e.remove(); }
+      // Admin: banner di Beranda
+      var n = isAdm() ? jumlahAktifAdmin() : 0;
+      var b = document.getElementById('tktHomeBanner');
+      if (!n) { if (b) b.style.display='none'; return; }
+      if (!b) {
+        var hero = document.querySelector('#page-home .hero-banner'); if (!hero) return;
+        b = document.createElement('div'); b.id='tktHomeBanner';
+        var ref = document.getElementById('kmsHomeBanner') || document.getElementById('apvHomeBanner') || hero;
+        ref.after(b);
+      }
+      var tlt = db().filter(terlambat).length;
+      b.style.display='';
+      b.innerHTML = '<div class="kms-ban tkt-ban" onclick="tiketDaftar(\'aktif\',\'\')"><div class="c">'+n+'</div><div style="flex:1"><b>Tiket Komplain Transaksi</b><span>'+n+' tiket aktif'+(tlt?' · '+tlt+' melewati SLA':'')+' — ketuk untuk mengelola</span></div><div style="font-size:20px">🎫</div></div>';
+    } catch(err){ console.warn('[tiket]', err); }
+  }
+  window._tiketSegarkan = segarkanEntri;
+  setInterval(segarkanEntri, 4000);
+  setTimeout(segarkanEntri, 1800);
+
+  /* ═════════ MERGE SINKRON CLOUD ═════════ */
+  function unionPesan(dst, src, tipe){
+    var ids = new Set((dst||[]).map(function(m){ return m.id; })), tambah = 0;
+    (src||[]).forEach(function(m){ if (m && m.id && !ids.has(m.id)) { dst.push(m); ids.add(m.id); tambah++; } });
+    if (tambah) dst.sort(function(a,b){ return String(a.tanggal).localeCompare(String(b.tanggal)); });
+    return tambah;
+  }
+  /* cloudArr = DB.tiket hasil cloud (dimodifikasi); lokalArr = versi lokal sebelum ditimpa */
+  window._tiketMerge = function(lokalArr, cloudArr){
+    (lokalArr||[]).forEach(function(l){
+      var c = (cloudArr||[]).filter(function(x){ return x.id===l.id; })[0];
+      if (!c) return;
+      var lokalBaru = String(l.tanggalUpdate||'') > String(c.tanggalUpdate||'');
+      c.pesan = c.pesan || []; unionPesan(c.pesan, l.pesan);
+      c.riwayat = c.riwayat || [];
+      var rid2 = new Set(c.riwayat.map(function(r){ return r.tanggal+r.aksi; }));
+      (l.riwayat||[]).forEach(function(r){ if (!rid2.has(r.tanggal+r.aksi)) c.riwayat.push(r); });
+      c.riwayat.sort(function(a,b){ return String(a.tanggal).localeCompare(String(b.tanggal)); });
+      if (lokalBaru) { ['status','prioritas','petugas','ditutup','ditutupOleh','dibacaNasabah','trx','tanggalUpdate'].forEach(function(f){ if (l[f]!==undefined) c[f]=l[f]; }); c.perbaikan = (l.perbaikan||[]).length >= (c.perbaikan||[]).length ? l.perbaikan : c.perbaikan; }
+    });
+  };
+  /* Master Device: terima tiket baru & balasan nasabah dari cloud */
+  window._tiketMergeMaster = function(cloudArr){
+    if (!Array.isArray(cloudArr) || !window.DB) return false;
+    var L = db(), ubah = false;
+    cloudArr.forEach(function(c){
+      if (!c || !c.id) return;
+      var l = L.filter(function(x){ return x.id===c.id; })[0];
+      if (!l) { L.push(c); ubah = true; return; }
+      var idLokal = new Set((l.pesan||[]).map(function(m){ return m.id; }));
+      var nasBaru = (c.pesan||[]).filter(function(m){ return m.dari==='nasabah' && !idLokal.has(m.id); }).length;
+      var n = unionPesan(l.pesan = l.pesan || [], c.pesan);
+      if (n) {
+        ubah = true; l.tanggalUpdate = now();
+        if (nasBaru && (l.status==='menunggu' || l.status==='selesai' || l.status==='ditolak')) { l.status = (l.status==='menunggu') ? 'diproses' : 'baru'; }
+      }
+      if (c.status==='selesai' && c.ditutupOleh && c.ditutupOleh!==l.ditutupOleh && (c.pesan||[]).some(function(m){ return m.dari==='nasabah'; }) && AKTIF.indexOf(l.status)>=0 && String(c.ditutup)>String(l.tanggalUpdate)) { /* ditutup nasabah di device lain */ l.status='selesai'; l.ditutup=c.ditutup; l.ditutupOleh=c.ditutupOleh; ubah = true; }
+    });
+    if (ubah && typeof saveDB==='function') saveDB();
+    return ubah;
+  };
+
+  /* ═════════ PEMASANGAN OTOMATIS TOMBOL PADA DAFTAR TRANSAKSI ═════════
+     Daftar yang punya tombol "Bagikan" (data-txn / data-share) otomatis dapat
+     tombol "🚩 Komplain" di sebelahnya, tanpa mengubah tiap template. */
+  function pasangTombol(){
+    document.querySelectorAll('button[data-txn]:not([data-tkt-done]),button[data-share]:not([data-tkt-done])').forEach(function(b){
+      b.setAttribute('data-tkt-done','1');
+      var par = b.parentNode; if (!par || par.querySelector('.kms-tkt-btn')) return;
+      var p = null;
+      try {
+        if (b.hasAttribute('data-txn')) {
+          var j = JSON.parse(b.getAttribute('data-txn')||'{}');
+          p = { type:j.type||'', tipe:j.tipe||'', jumlah:j.jumlah||0, keterangan:j.keterangan||'', tanggal:j.tanggal||'' };
+        } else {
+          var s = JSON.parse(b.getAttribute('data-share')||'{}'), rows = s.rows||[];
+          var g = function(l){ var r = rows.filter(function(x){ return x.label===l; })[0]; return r ? r.val : ''; };
+          if (g('ID Pengajuan') || /^\W*\s*Pengajuan/i.test(s.title||'')) return;   // pengajuan pending bukan transaksi
+          var idt = g('ID Transaksi'); var jml = String(g('Jumlah')).replace(/[^\d]/g,'');
+          p = { id: idt && idt!=='-' ? idt : null, jumlah: +jml||0, keterangan: s.title||'', tanggal:'' };
+        }
+      } catch(e){ return; }
+      if (!p || (!p.id && !p.jumlah)) return;
+      var tmp = document.createElement('div'); tmp.innerHTML = window._tiketBtn(p);
+      par.insertBefore(tmp.firstChild, b);
+    });
+  }
+  var _deb = null;
+  try {
+    new MutationObserver(function(){ clearTimeout(_deb); _deb = setTimeout(pasangTombol, 200); }).observe(document.body, { childList:true, subtree:true });
+  } catch(e){}
+  setTimeout(pasangTombol, 1200);
+})();
+
+/* Komplain dari detail transaksi RencoPay (daftar RencoPay memakai id catatan dompet) */
+(function(){
+  var iv = setInterval(function(){
+    if (typeof window.rpxShare !== 'function') return;
+    clearInterval(iv);
+    window.rpxKomplain = function(btn){
+      var it = btn.closest('[data-id]'), id = it ? it.getAttribute('data-id') : '', B = window._rpxB, n = B && B.map ? B.map[id] : null;
+      if (!n) return;
+      var raw = n.raw || {};
+      window.tiketBuka({ id:id, src:'rencopay', tipe:n.kredit?'kredit':'debit', jumlah:n.jumlah, keterangan:n.ket, tanggal:raw.tanggal||raw.createdAt||'', kkId:raw.kkId||null });
+    };
+    // Sisipkan tombol pada setiap panel detail yang sudah/akan dirender
+    var tambah = function(){
+      document.querySelectorAll('.rpx-act:not([data-tkt-done])').forEach(function(a){
+        a.setAttribute('data-tkt-done','1');
+        var b = document.createElement('button'); b.type='button'; b.textContent='🚩 Komplain';
+        b.setAttribute('onclick','event.stopPropagation();rpxKomplain(this)');
+        a.appendChild(b);
+      });
+    };
+    try { new MutationObserver(function(){ setTimeout(tambah,100); }).observe(document.body,{childList:true,subtree:true}); } catch(e){}
+    tambah();
+  }, 800);
 })();
 </script>
 
