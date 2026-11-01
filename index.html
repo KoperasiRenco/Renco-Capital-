@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="rc-build" content="20261020-pwhash-v1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' data: blob: https://cwtoqrxakgaawqgyxhjz.supabase.co wss://cwtoqrxakgaawqgyxhjz.supabase.co https://api.rss2json.com https://api.allorigins.win https://corsproxy.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a472a">
 <meta name="mobile-web-app-capable" content="yes">
@@ -250,17 +252,60 @@ window.addEventListener('beforeinstallprompt',function(e){
 </script>
 
 <script>
+/* Service worker: didaftarkan SATU kali. Mencoba lokasi berurutan (relatif ke halaman
+   dulu, lalu path lama) dan berhenti di yang pertama berhasil, supaya tidak ada dua
+   service worker dengan scope berbeda yang saling bertabrakan. */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/Renco-Capital-/sw.js', { updateViaCache: 'none' })
-      .then(function(reg) { try { reg.update(); } catch(e) {} console.log('[RENCO] SW terdaftar:', reg.scope); })
-      .catch(function(err) {
-        // SW tidak wajib — app tetap berjalan normal tanpa SW
-        if (err && err.message && err.message.indexOf('404') !== -1) return;
-        console.warn('[RENCO] SW gagal:', err);
-      });
+    var kandidat = ['sw.js', '/Renco-Capital-/sw.js', '/sw.js'];
+    (function coba(i) {
+      if (i >= kandidat.length) return; // SW tidak wajib — app tetap jalan tanpa SW
+      navigator.serviceWorker.register(kandidat[i], { updateViaCache: 'none' })
+        .then(function(reg) { try { reg.update(); } catch(e) {} console.log('[RENCO] SW terdaftar:', reg.scope); })
+        .catch(function() { coba(i + 1); });
+    })(0);
   });
 }
+</script>
+
+<script>
+/* ═══ WAJIB GANTI PASSWORD ADMIN BAWAAN ═══
+   Jika admin masuk memakai password bawaan (RCPW.adminIsDefault()), tampilkan
+   jendela yang harus diisi: password baru minimal 8 karakter, tidak boleh sama
+   dengan password bawaan. Tidak ada tombol tutup — selama masih bawaan, jendela
+   ini muncul lagi di login berikutnya. */
+window._rcPaksaGantiAdminPw = function () {
+  try {
+    if (!window.RCPW || !RCPW.adminIsDefault() || document.getElementById('rcForcePw')) return;
+    var o = document.createElement('div');
+    o.id = 'rcForcePw';
+    o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true');
+    o.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit';
+    o.innerHTML =
+      '<div style="background:#fff;color:#1b1b1b;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.4)">' +
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">🔐 Ganti Password Admin</div>' +
+      '<div style="font-size:13px;line-height:1.5;color:#444;margin-bottom:14px">Password admin masih password bawaan aplikasi. Demi keamanan, buat password baru sekarang (minimal 8 karakter).</div>' +
+      '<input id="rcFpNew" type="password" autocomplete="new-password" placeholder="Password baru" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;border:1px solid #bbb;border-radius:10px;font-size:16px">' +
+      '<input id="rcFpConf" type="password" autocomplete="new-password" placeholder="Ulangi password baru" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;border:1px solid #bbb;border-radius:10px;font-size:16px">' +
+      '<div id="rcFpErr" style="display:none;color:#b00020;font-size:13px;margin-bottom:8px"></div>' +
+      '<button id="rcFpBtn" type="button" style="width:100%;padding:13px;border:0;border-radius:10px;background:#1a472a;color:#fff;font-size:16px;font-weight:700;cursor:pointer">Simpan Password Baru</button>' +
+      '</div>';
+    document.body.appendChild(o);
+    var nw = document.getElementById('rcFpNew'), cf = document.getElementById('rcFpConf'), er = document.getElementById('rcFpErr');
+    function bad(m) { er.textContent = m; er.style.display = 'block'; }
+    document.getElementById('rcFpBtn').onclick = function () {
+      er.style.display = 'none';
+      var a = nw.value, b = cf.value;
+      if (a.length < 8) return bad('Minimal 8 karakter.');
+      if (a !== b) return bad('Konfirmasi password tidak cocok.');
+      if (RCPW.adminOK(a)) return bad('Password baru tidak boleh sama dengan password bawaan.');
+      RCPW.adminSet(a);
+      o.parentNode.removeChild(o);
+      if (typeof showToast === 'function') showToast('✅ Password admin berhasil diganti');
+    };
+    setTimeout(function () { nw.focus(); }, 100);
+  } catch (e) { console.warn('[RENCO] paksa ganti pw gagal', e); }
+};
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
@@ -364,8 +409,17 @@ document.addEventListener('DOMContentLoaded', function() {
           var _origInstSave = instance.save;
           if (typeof _origInstSave === 'function') {
             instance.save = function() {
-              if (!instance._rcSkipStempel) { _rcGambarStempel(instance); }
+              if (!instance._rcSkipStempel && !instance._rcSudahStempel) { instance._rcSudahStempel = true; _rcGambarStempel(instance); }
               return _origInstSave.apply(instance, arguments);
+            };
+          }
+          /* Jalur Bagikan/Kirim (Web Share) memakai output('blob') bukan save() — stempel juga harus ikut ditempel */
+          var _origInstOutput = instance.output;
+          if (typeof _origInstOutput === 'function') {
+            instance.output = function(type) {
+              var t = String(type || '').toLowerCase();
+              if (t && t !== 'save' && !instance._rcSkipStempel && !instance._rcSudahStempel) { instance._rcSudahStempel = true; _rcGambarStempel(instance); }
+              return _origInstOutput.apply(instance, arguments);
             };
           }
         } catch (e) {
@@ -9090,7 +9144,7 @@ window.submitNasabahChangePassword = function() {
       if (typeof _catatLoginLog === 'function') _catatLoginLog('admin', 'Administrator', 'admin');
       if (typeof historyLog === 'function') setTimeout(function(){ historyLog('Login', 'Admin (utama) masuk'); }, 500);
       if (typeof auditLog === 'function') auditLog('Login Berhasil', 'Admin utama (admin) masuk ke sistem', 'login');
-      if (RCPW.adminIsDefault()) setTimeout(function(){ if (typeof showToast === 'function') showToast('⚠️ Password admin masih bawaan. Segera ganti lewat menu Admin.', 6500); }, 2500);
+      if (RCPW.adminIsDefault()) setTimeout(function(){ if (typeof window._rcPaksaGantiAdminPw === 'function') window._rcPaksaGantiAdminPw(); }, 900);
       return true;
     }
     if (typeof usersLoad === 'function') {
@@ -9302,7 +9356,7 @@ var UM_MENUS = [
   { id:'laporan', label:'&#x1F4CA; Laporan' },
   { id:'rencoPay', label:'&#x1F4B3; RencoPay' },
   { id:'vision2045', label:'&#x1F441; Vision 2045' },
-  { id:'forum', label:'&#x1F3AE; Hiburan' }
+  { id:'forum', label:'&#x1F3AE; Semeton®' }
 ];
 
 function renderUserManagement() {
@@ -12242,7 +12296,7 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
                 else if (j === 'sukarela') add('s-suk', 'Simpanan Sukarela', '#74c69d', v);
                 else add('s-lain', 'Simpanan Lain', '#95d5b2', v);
               }
-              else if (ty === 'tarik-sukarela') add('tarik', 'Tarik Tunai', '#b07a00', v);
+              else if (ty === 'tarik-sukarela') { if (window._tarikJenis(t) === 'topup') add('topup', 'Top Up RencoPay', '#2563eb', v); else add('tarik', 'Tarik Tunai', '#b07a00', v); }
               else if (ty === 'cicilan') add('cicilan', 'Bayar Cicilan', '#0f766e', v);
               else if (ty === 'pinjaman') add('pinjaman', 'Pencairan Pinjaman', '#16a34a', v);
               else if (ty === 'pembiayaan') add('pembiayaan', 'Pembiayaan', '#4d7c0f', v);
@@ -13006,8 +13060,6 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
         <div class="card" id="nasabahListCard">
           <div id="nasabahList"></div>
         </div>
-        <!-- Statistik Anggota: Grafik Pertumbuhan Tabungan (hanya user anggota) -->
-        <div id="nsMemberStats"></div>
         <!-- Kartu Anggota Otomatis (hanya untuk nasabah/user, bukan admin) -->
         <div id="kartuAnggotaInlineDaftar" style="display:none;padding:0 14px 20px"></div>
       </div>
@@ -13149,6 +13201,9 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
 
         <!-- ══ AREA BAWAH SUB MENU: Pedoman Muamalah + Ayat pengingat ══ -->
         <div style="width:100%;padding:14px 14px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:8px">
+
+          <!-- Statistik Anggota: Grafik Pertumbuhan Tabungan (hanya user anggota) — di bawah grid menu, di atas Pedoman Muamalah -->
+          <div id="nsMemberStats"></div>
 
 
           <!-- ══ Kalkulator 4% Rule + Slide Edukasi (menggantikan banner Nasehat Hari Ini) ══ -->
@@ -14218,6 +14273,8 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
 
         <div id="forumGridInner" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
 
+          <div class="smt-cat first" role="button" tabindex="0" aria-expanded="true"><span class="ci"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><b>Komunitas &amp; Hiburan</b><svg class="smt-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+
           <button id="forumTabDiskusi" onclick="forumTab('diskusi')" class="forum-grid-btn active">
             <div class="fgb-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -14299,15 +14356,115 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
             <span class="fgb-label">100 Nasehat</span>
           </button>
 
-          <button id="forumTabCatatUang" onclick="hiburanBukaKeu('catatuang')" class="forum-grid-btn">
+          <div class="smt-cat" role="button" tabindex="0" aria-expanded="false"><span class="ci"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2z"/><circle cx="16.5" cy="14.5" r="1.2"/></svg></span><b>Keuangan &amp; Bisnis</b><svg class="smt-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+
+          <button id="forumTabCatatUang" onclick="hiburanBukaKeu('catatuang')" class="forum-grid-btn smt-h">
             <div class="fgb-icon" id="forumTabCatatUang_ico"></div>
             <span class="fgb-label">Catat Uang</span>
           </button>
 
-          <button id="forumTabKalkulator" onclick="hiburanBukaKeu('kalkulator')" class="forum-grid-btn">
+          <button id="forumTabKalkulator" onclick="hiburanBukaKeu('kalkulator')" class="forum-grid-btn smt-h">
             <div class="fgb-icon" id="forumTabKalkulator_ico"></div>
             <span class="fgb-label">Kalkulator</span>
           </button>
+
+          <button id="forumTabSmtHpp" onclick="smtOpen('hpp')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="2.5" width="16" height="19" rx="2.5" stroke="#2d6a4f" stroke-width="1.7"/><path d="M8 7h8M8 11.5h2M14 11.5h2M8 16h2M14 16h2" stroke="#2d6a4f" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </div>
+            <span class="fgb-label">Hitung HPP</span>
+          </button>
+
+          <button id="forumTabSmtMargin" onclick="smtOpen('margin')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 12A9 9 0 1 1 12 3v9z" stroke="#2d6a4f" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 3.6A9 9 0 0 1 20.4 8H16z" stroke="#2d6a4f" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="fgb-label">Margin &amp; Untung</span>
+          </button>
+
+          <button id="forumTabSmtAnggaran" onclick="smtOpen('anggaran')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="#2d6a4f" stroke-width="1.7"/><path d="M3 10h18M16 15h2M7 6V4.5h9" stroke="#2d6a4f" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </div>
+            <span class="fgb-label">Anggaran</span>
+          </button>
+
+          <div class="smt-cat" role="button" tabindex="0" aria-expanded="false"><span class="ci"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg></span><b>Pekerjaan &amp; Aktivitas</b><svg class="smt-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+
+          <button id="forumTabSmtTugas" onclick="smtOpen('tugas')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M10 6.5h10M10 12h10M10 17.5h10" stroke="#2d6a4f" stroke-width="1.7" stroke-linecap="round"/><path d="M3.5 6.5l1.4 1.4L7 5.5M3.5 12l1.4 1.4L7 11M3.5 17.5l1.4 1.4L7 17" stroke="#2d6a4f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="fgb-label">Daftar Tugas</span>
+          </button>
+
+          <button id="forumTabSmtCatatan" onclick="smtOpen('catatan')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 3h9.5L19 7.5V21H5z" stroke="#2d6a4f" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5M8.5 13h7M8.5 17h4.5" stroke="#2d6a4f" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </div>
+            <span class="fgb-label">Catatan</span>
+          </button>
+
+          <button id="forumTabSmtPengingat" onclick="smtOpen('pengingat')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16z" stroke="#2d6a4f" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 21h4" stroke="#2d6a4f" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </div>
+            <span class="fgb-label">Pengingat</span>
+          </button>
+
+          <button id="forumTabSmtInvoice" onclick="smtOpen('invoice')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 2.5h9l4 4V21.5H6z" stroke="#2d6a4f" stroke-width="1.7" stroke-linejoin="round"/><path d="M14.5 2.5v4.5H19M9.5 12h6M9.5 16h4" stroke="#2d6a4f" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </div>
+            <span class="fgb-label">Invoice</span>
+          </button>
+
+          <div class="smt-cat" role="button" tabindex="0" aria-expanded="false"><span class="ci"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L3.5 17.2a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.2-.5-.5-2.2z"/></svg></span><b>Alat Bantu Digital</b><svg class="smt-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+
+          <button id="forumTabSmtQr" onclick="smtOpen('qr')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.2" stroke="#2d6a4f" stroke-width="1.7"/><rect x="14" y="3" width="7" height="7" rx="1.2" stroke="#2d6a4f" stroke-width="1.7"/><rect x="3" y="14" width="7" height="7" rx="1.2" stroke="#2d6a4f" stroke-width="1.7"/><path d="M14 14h3v3M21 14v.01M14 21h3M21 17.5V21" stroke="#2d6a4f" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </div>
+            <span class="fgb-label">QR Generator</span>
+          </button>
+
+          <button id="forumTabSmtKompres" onclick="smtOpen('kompres')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#2d6a4f" stroke-width="1.7"/><circle cx="9" cy="10" r="1.7" stroke="#2d6a4f" stroke-width="1.6"/><path d="M3.5 17l5-5 4 4 3-3 5 5" stroke="#2d6a4f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="fgb-label">Kompres Foto</span>
+          </button>
+
+          <button id="forumTabSmtSatuan" onclick="smtOpen('satuan')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M7 4L3 8l4 4M3 8h15M17 20l4-4-4-4M21 16H6" stroke="#2d6a4f" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="fgb-label">Konversi</span>
+          </button>
+
+          <div class="smt-cat" role="button" tabindex="0" aria-expanded="false"><span class="ci"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg></span><b>Perencanaan Diri</b><svg class="smt-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+
+          <button id="forumTabSmtTarget" onclick="smtOpen('target')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#2d6a4f" stroke-width="1.7"/><circle cx="12" cy="12" r="5" stroke="#2d6a4f" stroke-width="1.7"/><circle cx="12" cy="12" r="1.3" stroke="#2d6a4f" stroke-width="1.7"/></svg>
+            </div>
+            <span class="fgb-label">Target Pribadi</span>
+          </button>
+
+          <button id="forumTabSmtJurnal" onclick="smtOpen('jurnal')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 7a3 3 0 0 0-3-3H3v14h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6V4h-6a3 3 0 0 0-3 3z" stroke="#2d6a4f" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 7v14" stroke="#2d6a4f" stroke-width="1.6"/></svg>
+            </div>
+            <span class="fgb-label">Jurnal Harian</span>
+          </button>
+
+          <button id="forumTabSmtIde" onclick="smtOpen('ide')" class="forum-grid-btn smt-h">
+            <div class="fgb-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4" stroke="#2d6a4f" stroke-width="1.7" stroke-linecap="round"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.45.9 1.15.9 1.9V16h5.4v-.3c0-.75.3-1.45.9-1.9A6 6 0 0 0 12 3z" stroke="#2d6a4f" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="fgb-label">Bank Ide</span>
+          </button>
+
 
         </div>
 
@@ -14899,7 +15056,7 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
           <path d="M19.5 12a7.5 7.5 0 0 1-7.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
         </svg>
       </span>
-      <span class="nav-label">Hiburan</span>
+      <span class="nav-label">Semeton®</span>
     </button>
 
     <!-- RencoPay: kartu pembayaran digital -->
@@ -21873,6 +22030,24 @@ function rwToggleDrop(id) {
   }
 }
 
+window._tarikJenis = function(t){
+  if (!t || t.type !== 'tarik-sukarela') return '';
+  if (t.kategori === 'biaya-admin') return 'admin';
+  return String(t.keterangan || '').indexOf('Top Up RencoPay') === 0 ? 'topup' : 'tunai';
+};
+window._tarikJenisLabel = function(t){ var j = window._tarikJenis(t); return j === 'topup' ? 'Top Up RencoPay' : (j === 'admin' ? 'Biaya Admin' : (j === 'tunai' ? 'Tarik Tunai' : '')); };
+/* label jenis transaksi: untuk Tarik Sukarela dibedakan Top Up RencoPay vs Tarik Tunai; jenis lain tetap dari peta label */
+window._tLblTx = function(map, t){
+  var base = (map && t) ? map[t.type] : undefined, l = window._tarikJenisLabel(t);
+  if (!l) return base;
+  if (base && base.charCodeAt(0) > 255) { var m = /^(\S+)\s/.exec(base); if (m) return m[1] + ' ' + l; }
+  return l;
+};
+window._tarikBadge = function(t){
+  var j = window._tarikJenis(t); if (!j) return '';
+  var st = j === 'topup' ? 'background:#dbeafe;color:#1e40af' : (j === 'admin' ? 'background:#e5e7eb;color:#374151' : 'background:#fef3c7;color:#92400e');
+  return '<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:9px;font-weight:800;white-space:nowrap;' + st + '">' + (j === 'topup' ? '💳 Top Up RencoPay' : (j === 'admin' ? 'Biaya Admin' : '💵 Tarik Tunai')) + '</span>';
+};
 function totalSimpananKK(kkId) {
   const masuk  = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='simpanan').reduce((a,b)=>a+b.jumlah,0);
   const keluar = DB.transaksi.filter(t=>t.kkId===kkId && t.type==='tarik-sukarela').reduce((a,b)=>a+b.jumlah,0);
@@ -28682,7 +28857,7 @@ window._homeRiwayatRender = function() {
 
   var koperasiList = _srcKoperasi.map(function(t) {
     var nama = _meNasabah ? '' : _namaAnggota(t.kkId);
-    var label = t.keterangan || _typeLbl[t.type] || t.type || 'Transaksi';
+    var label = t.keterangan || window._tLblTx(_typeLbl, t) || t.type || 'Transaksi';
     return _decorate({
       id: t.id,
       tipe: _KELUAR_TYPES.indexOf(t.type) !== -1 ? 'debit' : 'kredit',
@@ -28690,7 +28865,7 @@ window._homeRiwayatRender = function() {
       tanggal: t.tanggal,
       createdAt: t.createdAt,
       keterangan: label + (nama ? ' · ' + nama : ''),
-      kategori: _typeLbl[t.type] || t.type || 'Umum',
+      kategori: window._tLblTx(_typeLbl, t) || t.type || 'Umum',
       _src: 'koperasi'
     }, t);
   }).sort(_urut);
@@ -31110,7 +31285,7 @@ function buildRiwayatPanel(nasabahSimpanan) {
         const isTarik = t.type==='tarik-sukarela' || t.type==='transfer-sukarela-keluar';
         const jenisLabel = t.type==='transfer-sukarela-keluar' ? 'Transfer Keluar'
                           : t.type==='transfer-sukarela-masuk' ? 'Transfer Masuk'
-                          : isTarik ? 'Tarik Sukarela'
+                          : isTarik ? (window._tarikJenisLabel(t) || 'Tarik Sukarela')
                           : ({pokok:'Pokok',wajib:'Wajib',sukarela:'Sukarela'}[jenis]||jenis);
         html += `
         <div class="txn-row" style="animation-delay:${ri*0.03}s">
@@ -31120,7 +31295,7 @@ function buildRiwayatPanel(nasabahSimpanan) {
           </div>
           <div class="txn-row-content">
             <div class="txn-row-info">
-              <div class="txn-row-label">${t.keterangan||jenisLabel||'Simpanan'}</div>
+              <div class="txn-row-label">${t.keterangan||jenisLabel||'Simpanan'}${window._tarikBadge(t)}</div>
               <div class="txn-row-date">
                 <span>${fmtDate(t.tanggal)}</span>
                 <span class="txn-row-jenis ${jenis}" style="${isTarik?'background:rgba(230,57,70,0.12);color:var(--danger)':''}">${jenisLabel}</span>
@@ -31350,7 +31525,7 @@ function downloadRiwayatSimpananPDF() {
       ensureSpace(6.5);
       if (ri % 2 === 0) { doc.setFillColor(248,250,248); doc.rect(margin, y, usableW, 6.5, 'F'); }
       const isTarik = t.type === 'tarik-sukarela';
-      const jl = isTarik ? 'Tarik Sukarela' : (jenisLabelMap[t.jenis] || t.jenis);
+      const jl = isTarik ? (window._tarikJenisLabel(t) || 'Tarik Sukarela') : (jenisLabelMap[t.jenis] || t.jenis);
       doc.setFontSize(7);
       doc.setTextColor(30,48,36);
       doc.text(fmtDate(t.tanggal), margin+2, y+4.5);
@@ -41425,7 +41600,7 @@ function _pdfGenLaporanPribadiNasabah(jsPDFCls, kkId) {
     ];
     var txRows = riwayat.map(function (t) {
       var d = new Date(t.tanggal);
-      return { tglF: isNaN(d) ? '—' : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }), jenisF: tLbl[t.type] || t.type || '-', ketF: t.keterangan || tLbl[t.type] || '-', jumlahF: _pdfFmt(t.jumlah || 0) };
+      return { tglF: isNaN(d) ? '—' : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }), jenisF: window._tLblTx(tLbl, t) || t.type || '-', ketF: t.keterangan || window._tLblTx(tLbl, t) || '-', jumlahF: _pdfFmt(t.jumlah || 0) };
     });
     y = _pdfTabel(doc, y, margin, usableW, pageH, txCols, txRows);
   }
@@ -41983,10 +42158,11 @@ function _pdfGenArsipRingkas(jsPDFCls) {
     { header: 'Kas Keluar', key: 'keluarF', width: usableW * 0.27, colorFn: function () { return [230, 57, 70]; } }
   ];
   var totalMasuk = 0, totalKeluar = 0, totalCount = 0;
+  var NKr = (typeof window._arsipNonKasMap === 'function') ? window._arsipNonKasMap() : {};
   var rows = bulanList.map(function (b) {
     var txB = allTx.filter(function (t) { var d = new Date(t.tanggal); return !isNaN(d) && d.getFullYear() === b.y && d.getMonth() === b.m; });
-    var masuk = txB.filter(function (t) { return t.type === 'simpanan' || t.type === 'cicilan'; }).reduce(function (a, x) { return a + (x.jumlah || 0); }, 0);
-    var keluar = txB.filter(function (t) { return t.type === 'tarik-sukarela' || t.type === 'pinjaman' || t.type === 'pembiayaan'; }).reduce(function (a, x) { return a + (x.jumlah || 0); }, 0);
+    var masuk = txB.filter(function (t) { return !NKr[t.id] && (t.type === 'simpanan' || t.type === 'cicilan'); }).reduce(function (a, x) { return a + (x.jumlah || 0); }, 0);
+    var keluar = txB.filter(function (t) { return !NKr[t.id] && (t.type === 'tarik-sukarela' || t.type === 'pinjaman' || t.type === 'pembiayaan'); }).reduce(function (a, x) { return a + (x.jumlah || 0); }, 0);
     totalMasuk += masuk; totalKeluar += keluar; totalCount += txB.length;
     return { label: b.label, count: String(txB.length), masukF: _pdfFmt(masuk), keluarF: _pdfFmt(keluar) };
   });
@@ -42004,7 +42180,7 @@ function _pdfGenArsipRingkas(jsPDFCls) {
   var jenisLbl = { simpanan: 'Simpanan', 'tarik-sukarela': 'Tarik Sukarela', pinjaman: 'Pencairan Pinjaman', cicilan: 'Bayar Cicilan', angsuran: 'Angsuran RC' };
   var rowsTx = recent.map(function (t) {
     var d = new Date(t.tanggal); var tglF = isNaN(d) ? '—' : d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear();
-    return { tglF: tglF, nama: getNama(t.kkId), jenis: jenisLbl[t.type] || t.type || '—', jumlahF: _pdfFmt(t.jumlah) };
+    return { tglF: tglF, nama: getNama(t.kkId), jenis: (window._tLblTx(jenisLbl, t) || t.type || '—') + (NKr[t.id] ? ' · via Sukarela (non-tunai)' : ''), jumlahF: _pdfFmt(t.jumlah) };
   });
   if (!rowsTx.length) rowsTx.push({ tglF: '', nama: 'Belum ada transaksi', jenis: '', jumlahF: '' });
   y = _pdfTabel(doc, y, margin, usableW, pageH, colsTx, rowsTx);
@@ -57333,7 +57509,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     } else if (tp === 'transfer-sukarela-masuk') {
       jenis = 'Transfer Sukarela Masuk'; grup = 'Simpanan'; kat = 'masuk';
     } else if (tp === 'tarik-sukarela' || tp === 'tarik') {
-      jenis = (t.kategori === 'biaya-admin') ? 'Potong Biaya Admin' : (tp === 'tarik' ? 'Penarikan' : 'Tarik Sukarela');
+      jenis = (t.kategori === 'biaya-admin') ? 'Potong Biaya Admin' : (tp === 'tarik' ? 'Penarikan' : (/^\s*top\s*-?\s*up\s+rencopay/i.test(String(t.keterangan || '')) ? 'Top Up RencoPay' : 'Tarik Tunai Sukarela'));
       grup = 'Penarikan Simpanan'; kat = 'keluar';
     } else if (tp === 'transfer-sukarela-keluar') {
       jenis = 'Transfer Sukarela Keluar'; grup = 'Penarikan Simpanan'; kat = 'keluar';
@@ -57352,6 +57528,165 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     }
     return { jenis: jenis, jenisGrup: grup, kategori: kat,
              tabungan: (grup === 'Simpanan' || grup === 'Penarikan Simpanan') };
+  };
+
+  /* Pembayaran Iuran Wajib / Cicilan yang bersumber dari Simpanan Sukarela BUKAN uang tunai masuk:
+     dana hanya berpindah (Sukarela → RencoPay → bayar). Fungsi ini menandai pasangan transaksinya —
+     (a) potongan "Top Up RencoPay dari Simpanan Sukarela — Iuran/Cicilan" dan (b) pembayaran iuran/cicilannya —
+     supaya tidak dihitung sebagai Kas Masuk/Kas Keluar. Saldo simpanan tetap memakai semua transaksi. */
+  window._arsipNonKasMap = function() {
+    var all = DB.transaksi || [], map = {}, used = {};
+    function tg(x){ return String((x && (x.tanggal || x.createdAt)) || '').slice(0, 10); }
+    function dn(x){ var t = Date.parse(tg(x) + 'T00:00:00Z'); return isNaN(t) ? null : Math.round(t / 864e5); }
+    /* 0) tanda langsung pada transaksi pembayaran yang dicatat lewat jalur "dibayar dari Sukarela" */
+    all.forEach(function(y){ if (y && y.viaSukarela) { map[y.id] = true; used[y.id] = true; } });
+    /* 0b) tanda tidak langsung (data lama / jalur lain): keterangan menyebut "dari Simpanan Sukarela",
+           atau pengajuan persetujuannya bersumber dana Sukarela */
+    var pendMap = {};
+    (DB.pendingTransaksi || []).forEach(function(p){ if (p && p.id) pendMap[p.id] = p; });
+    function _isBayar(y){ return !!y && (y.type === 'cicilan' || (y.type === 'simpanan' && y.jenis === 'wajib')); }
+    function _isPotongan(y){ return !!y && y.type === 'tarik-sukarela' && String(y.keterangan || '').indexOf('Top Up RencoPay dari Simpanan Sukarela') === 0; }
+    all.forEach(function(y){
+      if (!_isBayar(y) || map[y.id]) return;
+      var ap = y.approvalId && pendMap[y.approvalId];
+      if (String(y.keterangan || '').indexOf('dari Simpanan Sukarela') >= 0 || (ap && ap.data && ap.data.sumberDana === 'sukarela')) {
+        map[y.id] = true; used[y.id] = true;
+      }
+    });
+    /* 0c) potongan Sukarela yang terhubung (approvalId / potonganId) ke pembayaran yang sudah ditandai → ikut non-tunai */
+    all.forEach(function(x){
+      if (!_isPotongan(x) || map[x.id]) return;
+      var linked = all.some(function(y){
+        return map[y.id] && _isBayar(y) && y.kkId === x.kkId && ((x.approvalId && y.approvalId === x.approvalId) || (y.potonganId && y.potonganId === x.id));
+      });
+      if (linked) map[x.id] = true;
+    });
+    all.forEach(function(x){
+      if (!(x && x.type === 'tarik-sukarela' && String(x.keterangan || '').indexOf('Top Up RencoPay dari Simpanan Sukarela') === 0)) return;
+      var kb = String(x.keterangan), jb = kb.indexOf('Bayar Cicilan') >= 0 ? 'cicilan' : (kb.indexOf('Iuran Simpanan Wajib') >= 0 ? 'wajib' : '');
+      if (!jb) return;
+      map[x.id] = true;                                   /* potongan Sukarela itu sendiri = pindah dana, bukan kas keluar */
+      var cands = all.filter(function(y){
+        return y !== x && !used[y.id] && y.kkId === x.kkId && (jb === 'cicilan' ? y.type === 'cicilan' : (y.type === 'simpanan' && y.jenis === 'wajib'));
+      });
+      var got = [];
+      if (x.approvalId) got = cands.filter(function(y){ return y.approvalId === x.approvalId; });   /* semua pembayaran dalam persetujuan yang sama */
+      if (!got.length && x.id) got = cands.filter(function(y){ return y.potonganId === x.id; });
+      if (!got.length) {
+        /* tanpa ID: pembayaran dalam ±45 hari (persetujuan bisa tertunda); bisa satu baris persis, atau gabungan (iuran beberapa bulan dibayar sekaligus) */
+        var dx = dn(x);
+        var near = cands.filter(function(y){ var dy = dn(y); return !y.approvalId && dx !== null && dy !== null && Math.abs(dy - dx) <= 45; })
+                        .sort(function(p, q){ return Math.abs(dn(p) - dx) - Math.abs(dn(q) - dx) || (p.id < q.id ? -1 : 1); });
+        var one = near.filter(function(y){ return y.jumlah === x.jumlah; })[0];
+        if (one) got = [one];
+        else {
+          var acc = 0, sel = [];
+          near.forEach(function(y){ if (acc + (y.jumlah || 0) <= x.jumlah) { acc += (y.jumlah || 0); sel.push(y); } });
+          if (acc === x.jumlah && sel.length) got = sel;
+        }
+      }
+      got.forEach(function(y){ map[y.id] = true; used[y.id] = true; });
+    });
+    /* FALLBACK — Top Up RencoPay "polos" (tanpa label Iuran/Cicilan) lalu dipakai bayar Wajib/Cicilan lewat RencoPay.
+       Pasangkan potongan Sukarela ↔ pembayaran (kkId sama, selisih ≤1 hari, nominal persis sama) agar keduanya
+       dihitung sebagai pindah dana (non-kas), bukan Setoran/Kas Masuk dan Penarikan/Kas Keluar. */
+    window._arsipNkTipe = window._arsipNkTipe || {};
+    all.forEach(function(x){
+      if (!x || map[x.id] || x.type !== 'tarik-sukarela' || x.kategori === 'biaya-admin') return;
+      if (!/^\s*top\s*-?\s*up\s+rencopay/i.test(String(x.keterangan || ''))) return;
+      if (x.statusTxn === 'pending' || x.statusTxn === 'gagal') return;
+      var dx = dn(x); if (dx === null) return;
+      var y = all.filter(function(c){
+        if (!c || c === x || map[c.id] || used[c.id] || c.kkId !== x.kkId) return false;
+        if (c.statusTxn === 'pending' || c.statusTxn === 'gagal') return false;
+        if (!(c.type === 'cicilan' || (c.type === 'simpanan' && c.jenis === 'wajib'))) return false;
+        var dy = dn(c); return dy !== null && Math.abs(dy - dx) <= 1 && (c.jumlah || 0) === (x.jumlah || 0);
+      })[0];
+      if (!y) return;
+      map[x.id] = true; map[y.id] = true; used[y.id] = true;
+      window._arsipNkTipe[x.id] = (y.type === 'cicilan') ? 'cicilan' : 'wajib';
+    });
+    return map;
+  };
+
+
+  /* Label jenis baris arsip. Potongan Sukarela untuk RencoPay diberi keterangan jelas. */
+  window._arsipJenisLabel = function(k, t, nk) {
+    if (t && t.type === 'tarik-sukarela' && /^\s*top\s*-?\s*up\s+rencopay/i.test(String(t.keterangan || ''))) {
+      var ket = String(t.keterangan);
+      var _nkT = window._arsipNkTipe && window._arsipNkTipe[t.id];
+      if (nk && _nkT) return _nkT === 'cicilan' ? 'Potong Sukarela · Bayar Cicilan' : 'Potong Sukarela · Iuran Wajib';
+      if (nk) return ket.indexOf('Bayar Cicilan') >= 0 ? 'Potong Sukarela · Bayar Cicilan' : (ket.indexOf('Iuran') >= 0 ? 'Potong Sukarela · Iuran Wajib' : 'Pindah Dana Sukarela');
+      return 'Top Up RencoPay';
+    }
+    return k.jenis + (nk ? ' · via Sukarela' : '');
+  };
+  /* Potongan Sukarela untuk bayar CICILAN: tabungan benar-benar berkurang (beda dengan iuran wajib yang net 0) */
+  window._arsipPotongCicilan = function(r) {
+    /* semua potongan Sukarela → RencoPay (untuk Cicilan maupun Iuran Wajib): tabungan benar-benar berkurang (= Top Up RencoPay) */
+    return !!r && !!r.nonKas && r.jenisGrup === 'Penarikan Simpanan' && String(r.jenis || '').indexOf('Bayar Cicilan') >= 0;
+  };
+  /* Top Up RencoPay dari Sukarela (termasuk yang langsung dipakai bayar Iuran Wajib / Cicilan) = dana Sukarela keluar → dihitung sebagai Kas Keluar pada Sisa Kas */
+  window._arsipKeluarViaSuk = function(rows) {
+    return (rows || []).filter(function(r){ return r && r.nonKas && r.jenisGrup === 'Penarikan Simpanan'; }).reduce(function(a,b){ return a + (b.jumlah || 0); }, 0);
+  };
+  /* Iuran Wajib yang dibayar via RencoPay (dari Sukarela): tetap setoran ke Simpanan Wajib, tapi bukan kas masuk */
+  window._arsipSetorNonKas = function(r) {
+    return !!r && !!r.nonKas && r.jenisGrup === 'Simpanan';
+  };
+  /* Saldo simpanan dipecah per jenis (Pokok / Wajib / Sukarela) s/d idx (y*12+m) atau semua bila null */
+  window._arsipSaldoPerJenis = function(kkId, idx) {
+    var o = { pokok: 0, wajib: 0, sukarela: 0, lain: 0 };
+    (DB.transaksi || []).forEach(function(t) {
+      if (kkId && t.kkId !== kkId) return;
+      if (t.statusTxn === 'pending' || t.statusTxn === 'gagal') return;
+      var k = window._arsipKlasifikasi(t); if (!k.tabungan) return;
+      if (idx !== null && idx !== undefined) {
+        var d = new Date(t.tanggal); if (isNaN(d)) return;
+        if (d.getFullYear() * 12 + d.getMonth() > idx) return;
+      }
+      var v = (k.kategori === 'masuk' ? 1 : -1) * (t.jumlah || 0);
+      if (t.type === 'simpanan') {
+        if (t.jenis === 'pokok') o.pokok += v; else if (t.jenis === 'wajib') o.wajib += v;
+        else if (t.jenis === 'sukarela') o.sukarela += v; else o.lain += v;
+      } else o.sukarela += v;
+    });
+    o.total = o.pokok + o.wajib + o.sukarela + o.lain;
+    return o;
+  };
+  /* Tagihan RencoPay (Koperasi Renco / Renco Capital) yang sudah LUNAS tetapi belum punya catatan
+     cicilan/angsuran di Transaksi maupun di data pinjaman/pembiayaan → tampilkan sebagai pembayaran.
+     existing = baris yang sudah dikumpulkan (untuk anti-dobel); inRange(paidAt) → true bila masuk periode. */
+  window._arsipTagihanLunasRows = function(existing, inRange, kkIdFilter) {
+    var out = [], bills = (DB.rencoPay && Array.isArray(DB.rencoPay.tagihan)) ? DB.rencoPay.tagihan : [];
+    function dn(x) { var t = Date.parse(String(x || '').slice(0, 10) + 'T00:00:00Z'); return isNaN(t) ? null : Math.round(t / 864e5); }
+    bills.forEach(function(b) {
+      if (!b || b.status !== 'Lunas' || !b.paidAt) return;
+      var isK = b.type === 'Koperasi Renco', isC = !!b.type && String(b.type).indexOf('Renco Capital') === 0;
+      if (!isK && !isC) return;
+      if (kkIdFilter && b.kkId !== kkIdFilter) return;
+      if (!inRange(b.paidAt)) return;
+      var grup = isK ? 'Pembayaran Cicilan' : 'Pembayaran Angsuran RC', dp = dn(b.paidAt), jml = b.amount || 0;
+      /* a) sudah ada baris yang sama (jumlah sama, ±5 hari)? satu baris hanya dipakai satu tagihan */
+      var pool = existing.concat(out), hit = null;
+      for (var i = 0; i < pool.length; i++) {
+        var r = pool[i];
+        if (r._tgUsed || r.kkId !== b.kkId || r.jenisGrup !== grup || Math.abs((r.jumlah || 0) - jml) >= 1) continue;
+        var dr = dn(r.tanggal); if (dr !== null && dp !== null && Math.abs(dr - dp) <= 5) { hit = r; break; }
+      }
+      if (hit) { hit._tgUsed = true; return; }
+      /* b) sudah ada catatan cicilan/angsuran pada pinjaman/pembiayaan sumbernya di tanggal yang berdekatan? */
+      var src = (isK ? (DB.pinjaman || []) : [].concat(DB.pembiayaan || [], DB.pembiayaanSyariah || [])).find(function(p) { return p.id === b.sourceId; });
+      var arr = src ? [].concat(src.cicilan || [], src.angsuranList || [], src.riwayatBayar || []) : [];
+      if (arr.some(function(c) { var dc = dn(c.tanggal || c.tglBayar); return dc !== null && dp !== null && Math.abs(dc - dp) <= 5; })) return;
+      var nb = (DB.nasabah || []).find(function(a) { return a.id === b.kkId; });
+      out.push({
+        id: 'tg_' + b.id, tanggal: b.paidAt, nama: nb ? nb.nama : (b.name || b.kkId), kkId: b.kkId,
+        jenis: (isK ? 'Bayar Cicilan' : 'Angsuran Renco Capital') + ' (Tagihan RencoPay)', jenisGrup: grup,
+        kategori: 'masuk', grup: 'Arus Kas Masuk', jumlah: jml, ket: 'Tagihan ' + b.type + (b.month ? ' · ' + b.month : ''), _tgUsed: true
+      });
+    });
+    return out;
   };
 
   window.renderLaporanArsipHTML = function() {
@@ -57418,7 +57753,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
        per bulan termasuk data anggota
     ══════════════════════════════════ */
     function _getAllTxBulan(y, m) {
-      var rows = [];
+      var rows = [], NK = window._arsipNonKasMap();
 
       // 1. Transaksi simpanan (pokok/wajib/sukarela)
       allTx.filter(function(t){ return _inBulan(t.tanggal, y, m) && t.statusTxn!=='pending' && t.statusTxn!=='gagal'; })
@@ -57426,7 +57761,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
           var k = window._arsipKlasifikasi(t);
           rows.push({
             id: t.id, tanggal: t.tanggal, nama: _getNama(t.kkId), kkId: t.kkId,
-            jenis: k.jenis, jenisGrup: k.jenisGrup,
+            jenis: window._arsipJenisLabel(k, t, NK[t.id]), nonKas: !!NK[t.id], jenisGrup: k.jenisGrup,
             kategori: k.kategori, grup: k.kategori==='keluar' ? 'Arus Kas Keluar' : 'Arus Kas Masuk',
             jumlah: t.jumlah||0, ket: t.keterangan||k.jenis
           });
@@ -57480,6 +57815,9 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
           });
       });
 
+      // 3b. Tagihan RencoPay (cicilan/angsuran) yang dilunasi bulan ini tapi belum tercatat di Transaksi
+      window._arsipTagihanLunasRows(rows, function(tgl){ return _inBulan(tgl, y, m); }).forEach(function(r){ rows.push(r); });
+
       // 4. Pencairan pinjaman baru bulan ini (arus keluar)
       allPin.filter(function(p){
         return _inBulan(p.tanggal||p.tanggalDisetujui, y, m) && (p.status==='aktif'||p.status==='lunas'||p.status==='menunggak');
@@ -57525,20 +57863,21 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     /* ── Ringkasan angka per bulan ── */
     function _ringkasanBulan(y, m) {
       var rows = _getAllTxBulan(y, m);
-      var totalMasuk  = rows.filter(function(r){return r.kategori==='masuk';}).reduce(function(a,b){return a+b.jumlah;},0);
-      var totalKeluar = rows.filter(function(r){return r.kategori==='keluar';}).reduce(function(a,b){return a+b.jumlah;},0);
+      var totalMasuk  = rows.filter(function(r){return r.kategori==='masuk' && !r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0);
+      var totalKeluar = rows.filter(function(r){return r.kategori==='keluar' && !r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0) + window._arsipKeluarViaSuk(rows);
       var byJenisGrup = {};
       rows.forEach(function(r){
         if (!byJenisGrup[r.jenisGrup]) byJenisGrup[r.jenisGrup]={masuk:0,keluar:0,count:0};
-        byJenisGrup[r.jenisGrup][r.kategori] += r.jumlah;
+        if (!r.nonKas) byJenisGrup[r.jenisGrup][r.kategori] += r.jumlah;   /* pindah dana Sukarela bukan pemasukan/pengeluaran */
         byJenisGrup[r.jenisGrup].count++;
       });
       var nasabahAktif = [...new Set(rows.map(function(r){return r.kkId;}))].length;
       var nasabahBaru  = allNsb.filter(function(n){
         var d=new Date(n.createdAt||n.tanggal||''); return d.getFullYear()===y&&d.getMonth()===m;
       }).length;
+      /* pindah dana Sukarela → pembayaran iuran/cicilan bukan setoran/penarikan nyata: dikeluarkan dari kedua angka */
       var tabMasuk  = (byJenisGrup['Simpanan']&&byJenisGrup['Simpanan'].masuk)||0;
-      var tabKeluar = (byJenisGrup['Penarikan Simpanan']&&byJenisGrup['Penarikan Simpanan'].keluar)||0;
+      var tabKeluar = ((byJenisGrup['Penarikan Simpanan']&&byJenisGrup['Penarikan Simpanan'].keluar)||0) + rows.filter(window._arsipPotongCicilan).reduce(function(a,b){return a+b.jumlah;},0);
       var idx = y*12+m;
       return { totalMasuk, totalKeluar, selisih: totalMasuk-totalKeluar, nasabahAktif, nasabahBaru, byJenisGrup, rows,
                tabMasuk: tabMasuk, tabKeluar: tabKeluar,
@@ -57569,7 +57908,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       var grupHTML = grupOrder.filter(function(g){ return byGrup[g]&&byGrup[g].length; }).map(function(g){
         var gRows  = byGrup[g];
         var isKel  = gRows[0] && gRows[0].kategori==='keluar';
-        var totG   = gRows.reduce(function(a,b){return a+b.jumlah;},0);
+        var totG   = gRows.reduce(function(a,b){return a+(b.nonKas?0:b.jumlah);},0);
         var bgHdr  = isKel ? 'linear-gradient(90deg,#fce4e4,#fff1f1)' : 'linear-gradient(90deg,#e8f5ee,#f0faf4)';
         var clrHdr = isKel ? '#c1121f' : '#155d38';
         var badgeBg= isKel ? '#fca5a5' : '#a8e6cf';
@@ -57589,7 +57928,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
             </div>
             <div style="flex:1;min-width:0">
               <div style="font-size:11px;font-weight:700;color:#1c3025;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${row.nama}</div>
-              <div style="font-size:9px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${row.ket}</div>
+              <div style="font-size:9px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${row.jenisGrup==='Penarikan Simpanan' ? '<b>'+row.jenis+'</b> · ' : ''}${row.ket}</div>
               <div style="font-size:9px;color:#9ca3af">${_fmtTgl(row.tanggal)}</div>
             </div>
             <div style="text-align:right;flex-shrink:0">
@@ -57637,6 +57976,14 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
               <div style="font-size:14px;font-weight:900;color:white">${selisihPos?'▲ +':'▼ −'}${_fmtRp(Math.abs(r.selisih))}</div>
             </div>
           </div>
+        </div>
+
+        <!-- Saldo tabungan: bulan lalu → bulan ini -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:1px solid rgba(0,0,0,0.06);background:#f0fdf4">
+          <div style="padding:7px 4px;text-align:center;border-right:1px solid rgba(0,0,0,0.05)"><div style="font-size:8px;color:#6b7280;font-weight:700">Saldo Bulan Lalu</div><div style="font-size:10px;font-weight:800;color:#374151">${_fmtRp(r.saldoAwal)}</div></div>
+          <div style="padding:7px 4px;text-align:center;border-right:1px solid rgba(0,0,0,0.05)"><div style="font-size:8px;color:#2d6a4f;font-weight:700">+ Setoran</div><div style="font-size:10px;font-weight:800;color:#155d38">${_fmtRp(r.tabMasuk)}</div></div>
+          <div style="padding:7px 4px;text-align:center;border-right:1px solid rgba(0,0,0,0.05)"><div style="font-size:8px;color:#b07a00;font-weight:700">− Penarikan</div><div style="font-size:10px;font-weight:800;color:#8a6000">${_fmtRp(r.tabKeluar)}</div></div>
+          <div style="padding:7px 4px;text-align:center"><div style="font-size:8px;color:#065f46;font-weight:700">Saldo Akhir</div><div style="font-size:10px;font-weight:800;color:#065f46">${_fmtRp(r.saldoAkhir)}</div></div>
         </div>
 
         <!-- Arus kas lain (di luar simpanan) -->
@@ -57687,6 +58034,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       var tabByAnggota = {};
       allRows.forEach(function(r){
         if (r.jenisGrup!=='Simpanan' && r.jenisGrup!=='Penarikan Simpanan') return;
+        if (r.nonKas && !window._arsipPotongCicilan(r)) return;
         if (!tabByAnggota[r.kkId]) tabByAnggota[r.kkId] = {masuk:0, keluar:0};
         tabByAnggota[r.kkId][r.kategori] += r.jumlah;
       });
@@ -57700,7 +58048,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       allRows.forEach(function(r){
         if (!byAnggota[r.kkId]) byAnggota[r.kkId] = {nama:r.nama, rows:[], masuk:0, keluar:0};
         byAnggota[r.kkId].rows.push(r);
-        byAnggota[r.kkId][r.kategori] += r.jumlah;
+        if (!r.nonKas) byAnggota[r.kkId][r.kategori] += r.jumlah;
       });
 
       var nasabahIds = Object.keys(byAnggota).sort(function(a,b){
@@ -57741,7 +58089,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
         var tabelGrup = grupOrder2.filter(function(g){return byGrup[g]&&byGrup[g].length;}).map(function(g){
           var gRows  = byGrup[g];
           var isKel  = gRows[0]&&gRows[0].kategori==='keluar';
-          var totG   = gRows.reduce(function(a,b){return a+b.jumlah;},0);
+          var totG   = gRows.reduce(function(a,b){return a+(b.nonKas?0:b.jumlah);},0);
           var rowHTML= gRows.map(function(row){
             return `<tr>
               <td style="padding:6px 8px;font-size:10px;color:#374151;border-bottom:1px solid #f3f4f6">${_fmtTgl(row.tanggal)}</td>
@@ -57975,6 +58323,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
 
     <!-- ══ BLAST EMAIL (hanya view anggota, admin) ══ -->
     ${blastEmailHTML}
+    ${typeof window.lbBtnHTML==='function' ? window.lbBtnHTML() : ''}
 
     <!-- ══ KONTEN UTAMA ══ -->
     ${kontenUtama}
@@ -58019,7 +58368,8 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
 
     var grupOrder = ['Simpanan','Pembayaran Cicilan','Pembayaran Angsuran RC','Penarikan Simpanan','Pembiayaan / Pinjaman','Lain-lain'];
     var byGrup = {};
-    rows.forEach(function(r){ var g=r.jenisGrup||'Lain-lain'; if(!byGrup[g])byGrup[g]=[]; byGrup[g].push(r); });
+    var _nkRows = rows.filter(function(r){ return r.nonKas; });
+    rows.filter(function(r){ return !r.nonKas; }).forEach(function(r){ var g=r.jenisGrup||'Lain-lain'; if(!byGrup[g])byGrup[g]=[]; byGrup[g].push(r); });
 
     var tbl = `<h3 style="font-size:13px;color:#1a472a;margin:0 0 8px">${label}</h3><table>
       <thead><tr><th>Tanggal</th><th>Anggota</th><th>Jenis</th><th>Keterangan</th><th style="text-align:right">Jumlah</th><th>Arus</th></tr></thead><tbody>`;
@@ -58041,8 +58391,14 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       });
     });
 
-    var totMasuk  = rows.filter(function(r){return r.kategori==='masuk';}).reduce(function(a,b){return a+b.jumlah;},0);
-    var totKeluar = rows.filter(function(r){return r.kategori==='keluar';}).reduce(function(a,b){return a+b.jumlah;},0);
+    if (_nkRows.length) {
+      tbl += `<tr><td colspan="6" class="grup-hdr" style="background:#e2e8f0;color:#334155">NON-TUNAI — Pindah dana Simpanan Sukarela ke Iuran / Cicilan</td></tr>`;
+      _nkRows.forEach(function(r){
+        tbl += `<tr><td>${_fmtTgl2(r.tanggal)}</td><td style="font-weight:600">${r.nama}</td><td>${r.jenis}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.ket}</td><td style="text-align:right;color:#475569;font-weight:700">${_fmtRp2(r.jumlah)}</td><td style="color:#475569;font-weight:700">Pindah</td></tr>`;
+      });
+    }
+    var totMasuk  = rows.filter(function(r){return r.kategori==='masuk' && !r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0);
+    var totKeluar = rows.filter(function(r){return r.kategori==='keluar' && !r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0) + window._arsipKeluarViaSuk(rows);
     tbl += `<tr class="total-row">
       <td colspan="4" style="font-weight:800;color:#1a472a">TOTAL</td>
       <td style="text-align:right;font-weight:800;color:#1a472a">${_fmtRp2(totMasuk-totKeluar)}</td>
@@ -58061,10 +58417,10 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     function _getNama2(kkId){ var n=allNsb2.find(function(a){return a.id===kkId;}); return n?n.nama:kkId||'—'; }
     function _inB(tgl){ if(!tgl)return false; var d=new Date(tgl); return !isNaN(d)&&d.getFullYear()===y&&d.getMonth()===m; }
 
-    var rows = [];
+    var rows = [], NK = window._arsipNonKasMap();
     allTx2.filter(function(t){return _inB(t.tanggal) && t.statusTxn!=='pending' && t.statusTxn!=='gagal';}).forEach(function(t){
       var k = window._arsipKlasifikasi(t);
-      rows.push({id:t.id,tanggal:t.tanggal,nama:_getNama2(t.kkId),kkId:t.kkId,jenis:k.jenis,jenisGrup:k.jenisGrup,kategori:k.kategori,jumlah:t.jumlah||0,ket:t.keterangan||k.jenis});
+      rows.push({id:t.id,tanggal:t.tanggal,nama:_getNama2(t.kkId),kkId:t.kkId,jenis:window._arsipJenisLabel(k, t, NK[t.id]),nonKas:!!NK[t.id],jenisGrup:k.jenisGrup,kategori:k.kategori,jumlah:t.jumlah||0,ket:t.keterangan||k.jenis});
     });
     allPin2.forEach(function(p){
       (p.cicilan||[]).filter(function(c){return _inB(c.tanggal||c.tglBayar);}).forEach(function(c){
@@ -58082,6 +58438,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
         var tglC5=(c.tanggal||c.tglBayar||'').slice(0,10); if(rows.some(function(r){ if(c.txnId) return r.id===c.txnId; return r.kkId===p.kkId&&r.jenisGrup==='Pembayaran Angsuran RC'&&Math.abs(r.jumlah-(c.jumlah||c.nominal||0))<1&&(r.tanggal||'').slice(0,10)===tglC5; })) return; rows.push({tanggal:c.tanggal||c.tglBayar,nama:_getNama2(p.kkId),kkId:p.kkId,jenis:'Angsuran Renco Capital',jenisGrup:'Pembayaran Angsuran RC',kategori:'masuk',jumlah:c.jumlah||c.nominal||0,ket:'Angsuran ke-'+(c.no||c.ke||'-')});
       });
     });
+    window._arsipTagihanLunasRows(rows, function(tgl){ return _inB(tgl); }).forEach(function(r){ rows.push(r); });
     allPin2.filter(function(p){return _inB(p.tanggal||p.tanggalDisetujui)&&(p.status==='aktif'||p.status==='lunas'||p.status==='menunggak');}).forEach(function(p){
       var sudahAda=rows.some(function(r){return r.kkId===p.kkId&&r.kategori==='keluar'&&r.jenisGrup==='Pembiayaan / Pinjaman'&&Math.abs(r.jumlah-(p.jumlah||0))<1;});
       if(!sudahAda) rows.push({tanggal:p.tanggal||p.tanggalDisetujui,nama:_getNama2(p.kkId),kkId:p.kkId,jenis:'Pencairan Pinjaman',jenisGrup:'Pembiayaan / Pinjaman',kategori:'keluar',jumlah:p.jumlah||0,ket:'Tenor '+(p.tenor||'-')+' bulan'});
@@ -58176,7 +58533,34 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     } catch (e) {}
     return 'assets/logo-renco-capital.png';
   })();
-  function _arsipMuatLogo() {
+  /* Logo halaman login saat ini berupa SVG inline (Renco Capital + Koperasi Renco). Diubah jadi PNG transparan
+     (warna hijau disesuaikan agar terbaca di latar gelap) supaya bisa dipasang di header PDF. */
+  function _arsipMuatLogoSvg() {
+    try {
+      var el = document.querySelector('svg.rc-login-logo');
+      if (!el) return false;
+      var c = el.cloneNode(true);
+      c.removeAttribute('class'); c.removeAttribute('style');
+      c.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      var vb = (c.getAttribute('viewBox') || '0 0 720 226').split(/\s+/).map(Number);
+      var W = Math.round(vb[2] * 3), H = Math.round(vb[3] * 3);
+      c.setAttribute('width', W); c.setAttribute('height', H);
+      Array.prototype.forEach.call(c.querySelectorAll('.rc-lg-green'), function (n) { n.setAttribute('fill', '#33c47b'); n.removeAttribute('class'); });
+      var im = new Image();
+      im.onload = function () {
+        try {
+          var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+          cv.getContext('2d').drawImage(im, 0, 0, W, H);
+          _arsipLogoImg = { data: cv.toDataURL('image/png'), w: W, h: H };
+        } catch (e) { console.warn('[RENCO] Logo login (SVG) gagal dikonversi:', e); _arsipMuatLogoGambar(); }
+      };
+      im.onerror = function () { _arsipMuatLogoGambar(); };
+      im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(c));
+      return true;
+    } catch (e) { return false; }
+  }
+  function _arsipMuatLogo() { if (!_arsipMuatLogoSvg()) _arsipMuatLogoGambar(); }
+  function _arsipMuatLogoGambar() {
     try {
       var im = new Image();
       im.onload = function () {
@@ -58266,11 +58650,17 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     _arsipOp(doc, 1);
 
     // Logo (sama dengan logo halaman login); cadangan: logo vektor + teks
-    var lg = _arsipLogoImg;
+    var lg = _arsipLogoImg, logoLogin = false;
     if (lg && lg.w && lg.h) {
-      var lw = 54, lh = lw * lg.h / lg.w;
-      if (lh > 20) { lh = 20; lw = lh * lg.w / lg.h; }
-      try { doc.addImage(lg.data, 'PNG', 18, 19.5 - lh / 2, lw, lh); lg = true; } catch (e) { lg = null; }
+      var lw = 58, lh = lw * lg.h / lg.w;
+      if (lh > 19) { lh = 19; lw = lh * lg.w / lg.h; }
+      try {
+        /* panel hijau gelap transparan di belakang logo agar tulisan putih/emas tetap terbaca di atas bukit */
+        doc.setFillColor(4, 58, 40); _arsipOp(doc, 0.62);
+        doc.roundedRect(12, 9, lw + 6, lh + 3, 3.5, 3.5, 'F'); _arsipOp(doc, 1);
+        doc.addImage(lg.data, 'PNG', 15, 9 + 1.5, lw, lh);
+        lg = true; logoLogin = true;
+      } catch (e) { lg = null; _arsipOp(doc, 1); }
     }
     if (!lg) {
       _arsipLogo(doc, 18, 9.5);
@@ -58279,15 +58669,17 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       doc.setFontSize(7.2); doc.setTextColor(209, 250, 229);
       doc.text('KOPERASI RENCO', 36.4, 27.2, { charSpace: 0.5 });
     }
-    doc.setDrawColor(167, 243, 208); doc.setLineWidth(0.25); _arsipOp(doc, 0.6);
-    doc.line(76, 11, 76, 28); _arsipOp(doc, 1);
+    if (!logoLogin) {   /* logo login sudah memuat slogan; pemisah & slogan teks hanya untuk logo cadangan */
+      doc.setDrawColor(167, 243, 208); doc.setLineWidth(0.25); _arsipOp(doc, 0.6);
+      doc.line(76, 11, 76, 28); _arsipOp(doc, 1);
 
-    // Slogan
-    doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(11); doc.setTextColor(255, 255, 255);
-    doc.text('Bersama Membangun', 81, 16.5);
-    doc.text('Kesejahteraan', 85, 23);
-    doc.setDrawColor(244, 190, 40); doc.setLineWidth(0.6);
-    _arsipPath(doc, [84, 27], [[92, 25.6, 102, 25.6, 111, 26.6]], 'S', false);
+      // Slogan
+      doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(11); doc.setTextColor(255, 255, 255);
+      doc.text('Bersama Membangun', 81, 16.5);
+      doc.text('Kesejahteraan', 85, 23);
+      doc.setDrawColor(244, 190, 40); doc.setLineWidth(0.6);
+      _arsipPath(doc, [84, 27], [[92, 25.6, 102, 25.6, 111, 26.6]], 'S', false);
+    }
 
     // Kapsul info laporan
     doc.setFillColor(4, 58, 40); _arsipOp(doc, 0.55);
@@ -58395,17 +58787,18 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       if (r._group) {
         if (y + 7.8 + lineH + 3 > LIM) { newPage(); drawHead(); }
         var kel = String(r._group).indexOf('Kas Keluar') === 0;
-        var cic = /Cicilan|Angsuran/.test(String(r._group));
+        var cic = /Cicilan|Angsuran/.test(String(r._group)), nt = !!r._neutral;
         y += 1.8;
-        if (kel) doc.setFillColor(254, 226, 226); else if (cic) doc.setFillColor(204, 244, 240); else doc.setFillColor(214, 246, 224);
+        if (nt) doc.setFillColor(226, 232, 240); else if (kel) doc.setFillColor(254, 226, 226); else if (cic) doc.setFillColor(204, 244, 240); else doc.setFillColor(214, 246, 224);
         doc.roundedRect(margin, y, usableW, 7.4, 2, 2, 'F');
-        if (kel) doc.setFillColor(220, 38, 38); else if (cic) doc.setFillColor(13, 148, 136); else doc.setFillColor(22, 163, 74);
+        if (nt) doc.setFillColor(100, 116, 139); else if (kel) doc.setFillColor(220, 38, 38); else if (cic) doc.setFillColor(13, 148, 136); else doc.setFillColor(22, 163, 74);
         doc.circle(margin + 4.6, y + 3.7, 2.4, 'F');
         doc.setFillColor(255, 255, 255);
-        if (kel) doc.triangle(margin + 3.4, y + 4.6, margin + 5.8, y + 4.6, margin + 4.6, y + 2.4, 'F');
+        if (nt) { doc.rect(margin + 3.5, y + 2.9, 2.2, 0.7, 'F'); doc.rect(margin + 3.5, y + 4.2, 2.2, 0.7, 'F'); }
+        else if (kel) doc.triangle(margin + 3.4, y + 4.6, margin + 5.8, y + 4.6, margin + 4.6, y + 2.4, 'F');
         else doc.triangle(margin + 3.4, y + 2.8, margin + 5.8, y + 2.8, margin + 4.6, y + 5, 'F');
         doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-        if (kel) doc.setTextColor(153, 27, 27); else if (cic) doc.setTextColor(15, 90, 86); else doc.setTextColor(21, 94, 52);
+        if (nt) doc.setTextColor(51, 65, 85); else if (kel) doc.setTextColor(153, 27, 27); else if (cic) doc.setTextColor(15, 90, 86); else doc.setTextColor(21, 94, 52);
         doc.text(String(r._group), margin + 9.5, y + 5, { maxWidth: usableW - 12 });
         y += 8.2; zi = 0;
         return;
@@ -58436,10 +58829,10 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
         var val = r[c.key] != null ? String(r[c.key]) : '';
         var right = c.align === 'right';
         if (c.pill && val) {
-          doc.setFillColor(r._masuk ? 209 : 254, r._masuk ? 250 : 226, r._masuk ? 229 : 226);
+          if (r._neutral) doc.setFillColor(226, 232, 240); else doc.setFillColor(r._masuk ? 209 : 254, r._masuk ? 250 : 226, r._masuk ? 229 : 226);
           doc.roundedRect(x + 3, y + 1.15, 12, 4, 2, 2, 'F');
           doc.setFont('helvetica', 'bold'); doc.setFontSize(6);
-          doc.setTextColor(r._masuk ? 21 : 185, r._masuk ? 128 : 28, r._masuk ? 61 : 28);
+          if (r._neutral) doc.setTextColor(71, 85, 105); else doc.setTextColor(r._masuk ? 21 : 185, r._masuk ? 128 : 28, r._masuk ? 61 : 28);
           doc.text(val, x + 9, y + 4, { align: 'center' });
         } else {
           doc.setFont('helvetica', c.bold ? 'bold' : 'normal'); doc.setFontSize(7.3);
@@ -58503,6 +58896,93 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     return sum;
   };
 
+  /* Label jenis untuk PDF/email: transaksi "Top Up RencoPay" yang keterangannya tidak baku (mis. "topup RencoPay")
+     sehingga terbaca "Tarik Tunai Sukarela", ditampilkan sesuai tujuannya: dipakai bayar Iuran Wajib / Cicilan.
+     Hanya mengubah teks tampilan — klasifikasi & total tidak berubah. */
+  window._arsipJenisPdf = function(r, rows) {
+    try {
+      if (r && r.nonKas && r.jenisGrup === 'Penarikan Simpanan') {
+        if (r.jenis === 'Potong Sukarela \u00b7 Bayar Cicilan') return 'Bayar Cicilan \u00b7 via RencoPay';
+        if (r.jenis === 'Potong Sukarela \u00b7 Iuran Wajib') return 'Simpanan Wajib \u00b7 via RencoPay';
+      }
+      if (!r || r.jenisGrup !== 'Penarikan Simpanan' || r.jenis !== 'Tarik Tunai Sukarela') return r ? r.jenis : '';
+      if (!/^\s*top\s*-?\s*up\s+rencopay/i.test(String(r.ket || ''))) return r.jenis;
+      var jml = r.jumlah || 0, hit = null, gapBest = 1e9;
+      function dn(v){ var t = Date.parse(String(v || '').slice(0, 10) + 'T00:00:00Z'); return isNaN(t) ? null : t / 864e5; }
+      var d0 = dn(r.tanggal);
+      function cek(tipe, tgl) {
+        var d1 = dn(tgl), gap = (d0 === null || d1 === null) ? 999 : Math.abs(d1 - d0);
+        if (gap <= 45 && gap < gapBest) { hit = tipe; gapBest = gap; }
+      }
+      (rows || []).forEach(function(x){
+        if (!x || x === r || x.id === r.id || x.kkId !== r.kkId || (x.jumlah || 0) !== jml) return;
+        if (x.jenisGrup === 'Pembayaran Cicilan') cek('cicilan', x.tanggal);
+        else if (x.jenisGrup === 'Simpanan' && String(x.jenis || '').indexOf('Simpanan Wajib') === 0) cek('wajib', x.tanggal);
+      });
+      (DB.transaksi || []).forEach(function(y){
+        if (!y || y.id === r.id || y.kkId !== r.kkId || (y.jumlah || 0) !== jml || y.statusTxn === 'pending' || y.statusTxn === 'gagal') return;
+        if (y.type === 'cicilan') cek('cicilan', y.tanggal || y.createdAt);
+        else if (y.type === 'simpanan' && y.jenis === 'wajib') cek('wajib', y.tanggal || y.createdAt);
+      });
+      if (!hit) {
+        (DB.pinjaman || []).forEach(function(p){
+          if (!p || p.kkId !== r.kkId) return;
+          (p.cicilan || []).forEach(function(c){ if ((c.jumlah || 0) === jml) cek('cicilan', c.tanggal || c.tglBayar); });
+        });
+      }
+      if (!hit) { var k = String(r.ket || '').toLowerCase(); hit = k.indexOf('cicil') >= 0 ? 'cicilan' : ((k.indexOf('wajib') >= 0 || k.indexOf('iuran') >= 0) ? 'wajib' : null); }
+      if (hit === 'cicilan') return 'Bayar Cicilan · via RencoPay';
+      if (hit === 'wajib') return 'Simpanan Wajib · via RencoPay';
+    } catch (e) {}
+    return r.jenis;
+  };
+
+  /* Ringkasan keuangan kompak (putih, bersih) — sama dengan "Ringkasan Keuangan" di Info Detail Nasabah, kondisi terkini */
+  function _pdfArsipRingkasanKompak(doc, y, margin, usableW, kkId) {
+    var v = { sim: 0, pin: 0, pokok: 0, wajib: 0, suk: 0, berjangka: 0 };
+    try {
+      var tx = (DB.transaksi || []).filter(function(t){ return t.kkId === kkId; });
+      v.sim = totalSimpananKK(kkId); v.pin = totalPinjamanAktifKK(kkId);
+      v.pokok = tx.filter(function(t){ return t.jenis === 'pokok'; }).reduce(function(a, b){ return a + (b.jumlah || 0); }, 0);
+      v.wajib = tx.filter(function(t){ return t.jenis === 'wajib'; }).reduce(function(a, b){ return a + (b.jumlah || 0); }, 0);
+      v.suk = saldoSukarelaNasabah(kkId);
+      v.berjangka = (DB.tabunganBerjangka || []).filter(function(t){ return t.kkId === kkId && t.status === 'aktif'; }).reduce(function(a, b){ return a + (b.jumlah || 0); }, 0);
+    } catch (e) { return y; }
+    var bersih = v.sim + v.berjangka - v.pin;
+    function f(n){ return (n < 0 ? '- ' : '') + _pdfFmt(Math.abs(n)); }
+    var cells = [
+      ['Total Simpanan', v.sim], ['Simpanan Pokok', v.pokok], ['Simpanan Wajib', v.wajib],
+      ['Simpanan Sukarela', v.suk], ['Simpanan Berjangka', v.berjangka], ['Sisa Pinjaman', v.pin]
+    ];
+    var hHead = 6.5, hRow = 9.5, hFoot = 7.5, panelH = hHead + hRow * 2 + hFoot;
+    doc.setFillColor(255, 255, 255); doc.setDrawColor(215, 222, 218); doc.setLineWidth(0.25);
+    doc.roundedRect(margin, y, usableW, panelH, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(30, 80, 55);
+    doc.text('RINGKASAN KEUANGAN', margin + 3, y + 4.4);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(5.8); doc.setTextColor(120, 130, 125);
+    doc.text('Informasi tambahan · kondisi terkini', margin + usableW - 3, y + 4.4, { align: 'right' });
+    doc.setDrawColor(230, 235, 232); doc.line(margin + 3, y + hHead, margin + usableW - 3, y + hHead);
+    var cw = (usableW - 6) / 3;
+    cells.forEach(function(c, i){
+      var cx = margin + 3 + (i % 3) * cw, cy = y + hHead + Math.floor(i / 3) * hRow;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(5.8); doc.setTextColor(110, 120, 115);
+      doc.text(c[0].toUpperCase(), cx, cy + 3.8);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.6);
+      if (c[1] < 0) doc.setTextColor(185, 28, 28); else doc.setTextColor(30, 41, 35);
+      doc.text(f(c[1]), cx, cy + 7.8, { maxWidth: cw - 3 });
+    });
+    var fy = y + hHead + hRow * 2;
+    doc.setDrawColor(230, 235, 232); doc.line(margin + 3, fy, margin + usableW - 3, fy);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.4); doc.setTextColor(60, 75, 68);
+    doc.text('POSISI BERSIH', margin + 3, fy + 4.9);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(5.6); doc.setTextColor(120, 130, 125);
+    doc.text('Simpanan + Berjangka − Sisa Pinjaman', margin + 26, fy + 4.9);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.6);
+    if (bersih < 0) doc.setTextColor(185, 28, 28); else doc.setTextColor(21, 128, 61);
+    doc.text(f(bersih), margin + usableW - 3, fy + 5, { align: 'right' });
+    return y + panelH + 5;
+  }
+
   function _pdfArsipBuildDoc(rows, judul, subJudul, opts) {
     opts = opts || {};
     var jsPDFCls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
@@ -58515,32 +58995,133 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
 
     var grupOrder = ['Simpanan','Pembayaran Cicilan','Pembayaran Angsuran RC','Penarikan Simpanan','Pembiayaan / Pinjaman','Lain-lain'];
     var byGrup = {};
-    rows.forEach(function(r){ var g=r.jenisGrup||'Lain-lain'; if(!byGrup[g])byGrup[g]=[]; byGrup[g].push(r); });
-    var totalMasuk = rows.filter(function(r){return r.kategori==='masuk';}).reduce(function(a,b){return a+b.jumlah;},0);
-    var totalKeluar = rows.filter(function(r){return r.kategori==='keluar';}).reduce(function(a,b){return a+b.jumlah;},0);
+    var nonKasRows = rows.filter(function(r){ return r.nonKas; });   /* pindah dana Sukarela → iuran/cicilan: bukan uang masuk/keluar baru */
+    rows.filter(function(r){ return !r.nonKas; }).forEach(function(r){ var g=r.jenisGrup||'Lain-lain'; if(!byGrup[g])byGrup[g]=[]; byGrup[g].push(r); });
+    var totalMasuk = rows.filter(function(r){return r.kategori==='masuk' && !r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0);
+    var totalKeluar = rows.filter(function(r){return r.kategori==='keluar' && !r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0) + window._arsipKeluarViaSuk(rows);
+    var viaSuk = rows.filter(function(r){return r.kategori==='masuk' && r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0);  /* iuran/cicilan dibayar dari Simpanan Sukarela (non-tunai) */
 
-    var tabMasukP  = (byGrup['Simpanan']||[]).reduce(function(a,b){return a+b.jumlah;},0);
-    var tabKeluarP = (byGrup['Penarikan Simpanan']||[]).reduce(function(a,b){return a+b.jumlah;},0);
+    /* pindah dana Sukarela → pembayaran iuran/cicilan (nonKas) bukan setoran/penarikan nyata */
+    var tabMasukP  = (byGrup['Simpanan']||[]).filter(function(r){return !r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0);
+    var tabKeluarP = (byGrup['Penarikan Simpanan']||[]).filter(function(r){return !r.nonKas;}).reduce(function(a,b){return a+b.jumlah;},0)
+                   + nonKasRows.filter(window._arsipPotongCicilan).reduce(function(a,b){return a+b.jumlah;},0);   /* dipotong dari Sukarela untuk bayar cicilan: tabungan berkurang */
     var saldoSimp = window._arsipSaldoSimpanan(opts.kkId || null, opts.idx === undefined ? null : opts.idx);
     var sisaKas = totalMasuk - totalKeluar;
-    var HIJAU = [21, 128, 61], MERAH = [185, 28, 28];
-    y = _pdfArsipLabel(doc, y, margin, 'Ringkasan Tabungan & Arus Kas', usableW);
+    var HIJAU = [21, 128, 61], MERAH = [185, 28, 28], ABU = [71, 85, 105];
+    var adaAwal = (typeof opts.idxAwal === 'number');
+    var saldoAwal = adaAwal ? window._arsipSaldoSimpanan(opts.kkId || null, opts.idxAwal) : 0;
+    /* Saldo Awal + Setoran − Penarikan (+/− pindah dana lintas bulan) = Saldo Akhir. Pindah dana Sukarela→Wajib
+       tidak menambah saldo; bila potongan & iurannya jatuh di bulan berbeda, selisihnya ditampilkan agar angka tetap cocok. */
+    var viaWajibP = nonKasRows.filter(window._arsipSetorNonKas).reduce(function(a,b){return a+b.jumlah;},0);   /* Iuran Wajib yang dibayar dari Sukarela */
+    var pindahNet = adaAwal ? (saldoSimp - saldoAwal - (tabMasukP - tabKeluarP)) : 0;
+    var itemsTab = [];
+    if (adaAwal) itemsTab.push({ label: opts.labelAwal || 'Saldo Bulan Lalu', value: _pdfFmt(saldoAwal), color: saldoAwal >= 0 ? HIJAU : MERAH, icon: 'people' });
+    itemsTab.push({ label: 'Setoran Tabungan', value: _pdfFmt(tabMasukP), color: HIJAU, icon: 'wallet' });
+    itemsTab.push({ label: 'Penarikan Tabungan', value: _pdfFmt(tabKeluarP), color: MERAH, icon: 'wallet' });
+    if (Math.abs(pindahNet) >= 1) itemsTab.push({ label: 'Selisih Pindah Dana', value: (pindahNet < 0 ? '- ' : '+ ') + _pdfFmt(Math.abs(pindahNet)), color: ABU, icon: 'wallet' });
+    if (viaWajibP > 0) itemsTab.push({ label: 'Perubahan Saldo', value: (tabMasukP - tabKeluarP < 0 ? '- ' : '+ ') + _pdfFmt(Math.abs(tabMasukP - tabKeluarP)), color: (tabMasukP - tabKeluarP) >= 0 ? HIJAU : MERAH, icon: 'wallet' });
+    itemsTab.push({ label: adaAwal ? 'Saldo Akhir' : 'Jumlah Saldo Simpanan', value: _pdfFmt(saldoSimp), color: saldoSimp >= 0 ? HIJAU : MERAH, icon: 'doc' });
+    if (!opts.hanyaTransaksi) {   /* PDF bulanan: hanya daftar transaksi bulan itu (tanpa ringkasan saldo, rincian simpanan, dll) */
+    y = _pdfArsipLabel(doc, y, margin, 'Ringkasan Tabungan (Saldo Simpanan)', usableW);
+    y = _pdfArsipRingkasan(doc, y, margin, usableW, itemsTab, itemsTab.length === 4 ? 2 : 3);
+    y = _pdfArsipLabel(doc, y, margin, 'Arus Kas (Tunai)', usableW);
     y = _pdfArsipRingkasan(doc, y, margin, usableW, [
-      { label: 'Setoran Tabungan', value: _pdfFmt(tabMasukP), color: HIJAU, icon: 'wallet' },
-      { label: 'Penarikan Tabungan', value: _pdfFmt(tabKeluarP), color: MERAH, icon: 'wallet' },
-      { label: 'Jumlah Saldo Simpanan', value: _pdfFmt(saldoSimp), color: saldoSimp >= 0 ? HIJAU : MERAH, icon: 'people' },
-      { label: 'Kas Masuk Total', value: _pdfFmt(totalMasuk), color: HIJAU, icon: 'cash' },
-      { label: 'Kas Keluar Total', value: _pdfFmt(totalKeluar), color: MERAH, icon: 'cash' },
+      { label: 'Kas Masuk (Tunai)', value: _pdfFmt(totalMasuk), color: HIJAU, icon: 'cash' },
+      { label: window._arsipKeluarViaSuk(rows) > 0 ? 'Kas Keluar (termasuk Top Up RencoPay)' : 'Kas Keluar (Tunai)', value: _pdfFmt(totalKeluar), color: MERAH, icon: 'cash' },
       { label: 'Sisa Kas', value: _pdfFmt(sisaKas), color: sisaKas >= 0 ? HIJAU : MERAH, icon: 'doc' }
-    ], 3);
+    ].concat(viaSuk > 0 ? [{ label: 'Bayar via Sukarela (bukan pemasukan)', value: _pdfFmt(viaSuk), color: ABU, icon: 'wallet' }] : []), viaSuk > 0 ? 2 : 3);
 
+    /* Rincian saldo per jenis (khusus PDF per anggota) — memudahkan pengecekan Pokok/Wajib/Sukarela */
+    if (opts.kkId) {
+      var sj = window._arsipSaldoPerJenis(opts.kkId, opts.idx === undefined ? null : opts.idx);
+      var itemsJ = [
+        { label: 'Simpanan Pokok', value: _pdfFmt(sj.pokok), color: sj.pokok >= 0 ? HIJAU : MERAH, icon: 'wallet' },
+        { label: 'Simpanan Wajib', value: _pdfFmt(sj.wajib), color: sj.wajib >= 0 ? HIJAU : MERAH, icon: 'wallet' },
+        { label: 'Simpanan Sukarela', value: _pdfFmt(sj.sukarela), color: sj.sukarela >= 0 ? HIJAU : MERAH, icon: 'wallet' }
+      ];
+      if (Math.abs(sj.lain) >= 1) itemsJ.push({ label: 'Simpanan Lainnya', value: _pdfFmt(sj.lain), color: ABU, icon: 'wallet' });
+      itemsJ.push({ label: 'Total Saldo', value: _pdfFmt(sj.total), color: sj.total >= 0 ? HIJAU : MERAH, icon: 'doc' });
+      y = _pdfArsipLabel(doc, y, margin, 'Rincian Saldo per Jenis Simpanan', usableW);
+      y = _pdfArsipRingkasan(doc, y, margin, usableW, itemsJ, itemsJ.length === 4 ? 2 : 3);
+    }
+
+    /* Keterangan Penarikan Tabungan (termasuk Top Up RencoPay) */
+    var penRows = rows.filter(function(r){ return r.jenisGrup === 'Penarikan Simpanan'; });   /* termasuk potongan Sukarela yang dipakai bayar Iuran Wajib (kembali sebagai simpanan) */
+    if (penRows.length) {
+      var kp = { tunai: 0, topup: 0, cicilan: 0, wajib: 0, adm: 0, transfer: 0, lain: 0 };
+      penRows.forEach(function(r){
+        var j = String(r.jenis || '');
+        if (r.nonKas) { if (window._arsipPotongCicilan(r)) kp.cicilan += r.jumlah; else kp.wajib += r.jumlah; }   /* Top Up yang langsung dipakai bayar Cicilan / Iuran Wajib */
+        else if (j === 'Top Up RencoPay') kp.topup += r.jumlah;
+        else if (j === 'Potong Biaya Admin') kp.adm += r.jumlah;
+        else if (j === 'Transfer Sukarela Keluar') kp.transfer += r.jumlah;
+        else if (j === 'Tarik Tunai Sukarela' || j === 'Tarik Sukarela' || j === 'Penarikan') kp.tunai += r.jumlah;
+        else kp.lain += r.jumlah;
+      });
+      var kpRows = [
+        ['Tarik Tunai Sukarela (diambil anggota)', kp.tunai],
+        ['Top Up RencoPay (dipindah ke dompet RencoPay)', kp.topup],
+        ['Top Up RencoPay \u2014 dipakai bayar Cicilan (keluar dari simpanan)', kp.cicilan],
+        ['Top Up RencoPay \u2014 dipakai bayar Iuran Wajib (kembali sebagai Simpanan Wajib)', kp.wajib],
+        ['Potong Biaya Admin', kp.adm],
+        ['Transfer Sukarela ke Anggota Lain', kp.transfer],
+        ['Penarikan Lainnya', kp.lain]
+      ].filter(function(a){ return a[1] > 0; }).map(function(a){ return { k: a[0], v: _pdfFmt(a[1]) }; });
+      if (kp.wajib > 0) {
+        var kpSemua = kp.tunai + kp.topup + kp.cicilan + kp.wajib + kp.adm + kp.transfer + kp.lain;
+        kpRows.push({ k: 'Total Penarikan Sukarela (termasuk yang kembali sebagai simpanan)', v: _pdfFmt(kpSemua) });
+        kpRows.push({ k: 'Dikurangi: kembali sebagai Simpanan Wajib', v: '- ' + _pdfFmt(kp.wajib) });
+      }
+      kpRows.push({ k: 'Total Penarikan Tabungan', v: _pdfFmt(tabKeluarP) });
+      y = _pdfArsipLabel(doc, y, margin, 'Keterangan Penarikan Tabungan', usableW);
+      y = _pdfArsipTabel(doc, y, margin, usableW, pageH, [
+        { header: 'Jenis Penarikan', key: 'k', width: usableW * 0.72 },
+        { header: 'Jumlah', key: 'v', width: usableW * 0.28, align: 'right', bold: true, colorFn: function(){ return [180, 45, 55]; } }
+      ], kpRows);
+      var catatan = 'Top Up RencoPay = saldo Simpanan Sukarela dipindahkan ke dompet RencoPay milik anggota (bukan diambil tunai); saldo simpanan Sukarela berkurang. Top Up yang dipakai membayar Cicilan dihitung sebagai penarikan tabungan. ' +
+                    'Top Up yang dipakai membayar Iuran Wajib kembali sebagai Simpanan Wajib: tidak dihitung sebagai setoran maupun penarikan tabungan, sehingga tidak mengubah total saldo.';
+      var nl = doc.splitTextToSize(catatan, usableW);
+      if (y + nl.length * 3.2 + 6 > pageH - 30) { doc.addPage(); y = _pdfArsipMiniHead(doc, pageW, margin); }
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(6.8); doc.setTextColor(100, 116, 139);
+      doc.text(nl, margin, y + 2);
+      y += nl.length * 3.2 + 5;
+    }
+
+    /* Rincian Perubahan Saldo per jenis simpanan (hanya bila ada Iuran Wajib yang dibayar dari Sukarela) */
+    if (viaWajibP > 0) {
+      var rp = { sukarela: 0, wajib: 0, pokok: 0 };
+      rows.forEach(function(r){
+        if (r.jenisGrup === 'Simpanan') {
+          var jn = String(r.jenis || '');
+          if (jn.indexOf('Simpanan Wajib') === 0) rp.wajib += r.jumlah;
+          else if (jn.indexOf('Simpanan Pokok') === 0) rp.pokok += r.jumlah;
+          else rp.sukarela += r.jumlah;
+        } else if (r.jenisGrup === 'Penarikan Simpanan') rp.sukarela -= r.jumlah;
+      });
+      var rpTotal = rp.sukarela + rp.wajib + rp.pokok;
+      if (Math.abs(rpTotal - (tabMasukP - tabKeluarP)) < 1) {   /* tampil hanya bila cocok dengan Setoran − Penarikan */
+        function _rpRow(label, v) { return { k: label, v: (v < 0 ? '- ' : '+ ') + _pdfFmt(Math.abs(v)), neg: v < 0 }; }
+        var rpRows = [_rpRow('Simpanan Sukarela', rp.sukarela), _rpRow('Simpanan Wajib', rp.wajib)];
+        if (Math.abs(rp.pokok) >= 1) rpRows.push(_rpRow('Simpanan Pokok', rp.pokok));
+        rpRows.push(_rpRow('Total Perubahan Saldo', rpTotal));
+        y = _pdfArsipLabel(doc, y, margin, 'Rincian Perubahan Saldo', usableW);
+        y = _pdfArsipTabel(doc, y, margin, usableW, pageH, [
+          { header: 'Jenis Simpanan', key: 'k', width: usableW * 0.72 },
+          { header: 'Perubahan', key: 'v', width: usableW * 0.28, align: 'right', bold: true, colorFn: function(r){ return r.neg ? [180, 45, 55] : [21, 128, 61]; } }
+        ], rpRows);
+      }
+    }
+
+    }   /* akhir bagian ringkasan (disembunyikan bila hanyaTransaksi) */
+
+    if (opts.hanyaTransaksi && opts.kkId && opts.ringkasanKeuangan) y = _pdfArsipRingkasanKompak(doc, y, margin, usableW, opts.kkId);
     y = _pdfArsipLabel(doc, y, margin, 'Detail Transaksi', usableW);
     var cols = [
       { header: 'Tanggal', key: 'tglF', width: usableW * 0.16 },
       { header: 'Anggota', key: 'nama', width: usableW * 0.28 },
       { header: 'Jenis', key: 'jenis', width: usableW * 0.28 },
       { header: 'Arus', key: 'arus', width: usableW * 0.11, pill: true },
-      { header: 'Jumlah', key: 'jumlahF', width: usableW * 0.17, align: 'right', bold: true, colorFn: function(r){ return r._masuk ? [26,71,42] : [180,45,55]; } }
+      { header: 'Jumlah', key: 'jumlahF', width: usableW * 0.17, align: 'right', bold: true, colorFn: function(r){ return r._neutral ? [71,85,105] : (r._masuk ? [26,71,42] : [180,45,55]); } }
     ];
     var tblRows = [];
     var months2 = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
@@ -58551,9 +59132,15 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       var totG = gRows.reduce(function(a,b){return a+b.jumlah;},0);
       tblRows.push({ _group: (isKel?'Kas Keluar':'Kas Masuk') + ' \u2014 ' + g + '  \u2022  ' + _pdfFmt(totG) });
       gRows.forEach(function(r){
-        tblRows.push({ tglF: fmtTglR(r.tanggal), nama: r.nama, jenis: r.jenis, jumlahF: (r.kategori==='masuk'?'+ ':'- ')+_pdfFmt(r.jumlah), arus: r.kategori==='masuk'?'Masuk':'Keluar', _masuk: r.kategori==='masuk' });
+        tblRows.push({ tglF: fmtTglR(r.tanggal), nama: r.nama, jenis: window._arsipJenisPdf(r, rows), jumlahF: (r.kategori==='masuk'?'+ ':'- ')+_pdfFmt(r.jumlah), arus: r.kategori==='masuk'?'Masuk':'Keluar', _masuk: r.kategori==='masuk' });
       });
     });
+    if (nonKasRows.length) {
+      tblRows.push({ _group: 'Non-Tunai \u2014 Pindah Dana Simpanan Sukarela ke Iuran / Cicilan  \u2022  ' + _pdfFmt(viaSuk), _neutral: true });
+      nonKasRows.forEach(function(r){
+        tblRows.push({ tglF: fmtTglR(r.tanggal), nama: r.nama, jenis: window._arsipJenisPdf(r, rows), jumlahF: _pdfFmt(r.jumlah), arus: 'Pindah', _neutral: true });
+      });
+    }
     if (!tblRows.length) tblRows.push({ tglF:'', nama:'Tidak ada transaksi pada periode ini', jenis:'', jumlahF:'', arus:'' });
     tblRows.push({ _total:true, masukF: _pdfFmt(totalMasuk), keluarF: _pdfFmt(totalKeluar), sisaF: _pdfFmt(sisaKas), sisaNeg: sisaKas < 0 });
     y = _pdfArsipTabel(doc, y, margin, usableW, pageH, cols, tblRows);
@@ -58575,7 +59162,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     try {
       var rows = _getRowsBulan(y, m);
       var fname = 'arsip-renco-'+months4[m]+'-'+y+'.pdf';
-      _pdfArsipNative(rows, 'ARSIP LAPORAN TRANSAKSI', months4[m]+' '+y, fname, { idx: y*12+m, ketSaldo: 'saldo s/d akhir ' + months4[m] + ' ' + y });
+      _pdfArsipNative(rows, 'ARSIP LAPORAN TRANSAKSI', months4[m]+' '+y, fname, { idx: y*12+m, idxAwal: y*12+m-1, ketSaldo: 'saldo s/d akhir ' + months4[m] + ' ' + y, hanyaTransaksi: true });
       if (typeof showToast === 'function') showToast('✅ PDF Arsip '+months4[m]+' '+y+' berhasil diunduh!');
     } catch(e) {
       if (typeof showToast === 'function') showToast('❌ Gagal membuat PDF. Coba lagi.');
@@ -58593,13 +59180,13 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
   function _arsipKumpulRowsAnggota(kkId) {
     var nb2  = (DB.nasabah||[]).find(function(a){return a.id===kkId;});
     var nama = nb2 ? nb2.nama : kkId;
-    var allRows2 = [];
+    var allRows2 = [], NK = window._arsipNonKasMap();
     var allTxA   = DB.transaksi||[];
     var allPinA  = DB.pinjaman||[];
     var allPemA  = [].concat(DB.pembiayaan||[], DB.pembiayaanSyariah||[]);
     allTxA.filter(function(t){return t.kkId===kkId && t.statusTxn!=='pending' && t.statusTxn!=='gagal';}).forEach(function(t){
       var k = window._arsipKlasifikasi(t);
-      allRows2.push({id:t.id, tanggal:t.tanggal,nama:nama,kkId,jenis:k.jenis,jenisGrup:k.jenisGrup,kategori:k.kategori,jumlah:t.jumlah||0,ket:t.keterangan||k.jenis});
+      allRows2.push({id:t.id, tanggal:t.tanggal,nama:nama,kkId,jenis:window._arsipJenisLabel(k, t, NK[t.id]),nonKas:!!NK[t.id],jenisGrup:k.jenisGrup,kategori:k.kategori,jumlah:t.jumlah||0,ket:t.keterangan||k.jenis});
     });
     allPinA.filter(function(p){return p.kkId===kkId;}).forEach(function(p){
       (p.cicilan||[]).forEach(function(c){
@@ -58625,6 +59212,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
         allRows2.push({tanggal:c.tanggal||c.tglBayar,nama,kkId,jenis:'Angsuran Renco Capital',jenisGrup:'Pembayaran Angsuran RC',kategori:'masuk',jumlah:c.jumlah||c.nominal||0,ket:'Angsuran ke-'+(c.no||c.ke||'-')});
       });
     });
+    window._arsipTagihanLunasRows(allRows2, function(){ return true; }, kkId).forEach(function(r){ allRows2.push(r); });
     allRows2.sort(function(a,b){return new Date(a.tanggal)-new Date(b.tanggal);});
     return { nama: nama, rows: allRows2 };
   }
@@ -58737,6 +59325,242 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
   };
 
 
+  /* ════════════════════════════════════════════════════════════════════
+     LAPORAN BULANAN PER NASABAH — Koperasi & RencoPay (untuk dikirim via email tiap akhir bulan)
+     Catatan teknis: app ini tidak punya server email, jadi pengiriman dilakukan dari HP Admin:
+     (1) menu share bawaan HP (PDF asli terlampir) bila didukung, atau (2) aplikasi Email dengan
+     isi rincian berupa teks. Semua tanggal/bulan dihitung dalam WITA (UTC+8).
+     ════════════════════════════════════════════════════════════════════ */
+  var LB_BLN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  var LB = { ym: '', mode: 'kop', onlyTx: true, data: [] };
+  function lbEsc(t){ return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function lbRp(n){ return typeof fmt === 'function' ? fmt(n || 0) : 'Rp ' + Number(n || 0).toLocaleString('id-ID'); }
+  function lbYmLabel(ym){ var a = ym.split('-'); return LB_BLN[+a[1] - 1] + ' ' + a[0]; }
+  function lbNowW(){ return rpWita(new Date()); }
+  function lbDefaultYm(){
+    var w = lbNowW(), y = w.y, m = w.m;               /* m: 0-11 */
+    if (w.d < 25) { m--; if (m < 0) { m = 11; y--; } }   /* sebelum tgl 25 → bulan lalu; tgl 25+ → bulan berjalan */
+    return y + '-' + (m + 1 < 10 ? '0' : '') + (m + 1);
+  }
+  function lbMonthOpts(){
+    var w = lbNowW(), y = w.y, m = w.m, out = [];
+    for (var i = 0; i < 14; i++) { out.push(y + '-' + (m + 1 < 10 ? '0' : '') + (m + 1)); m--; if (m < 0) { m = 11; y--; } }
+    return out;
+  }
+  function lbStore(){ if (!DB.laporanBulanan) DB.laporanBulanan = {}; return DB.laporanBulanan; }
+  function lbSentInfo(kind, ym, id){ var o = (lbStore()[ym] || {})[kind]; return o ? o[id] : null; }
+  function lbMarkSent(kind, ym, id){
+    var st = lbStore(); if (!st[ym]) st[ym] = {}; if (!st[ym][kind]) st[ym][kind] = {};
+    st[ym][kind][id] = new Date().toISOString();
+    try { saveDB(); } catch (e) {}
+  }
+  function lbDateTxt(key, jam){
+    if (!key) return '-'; var p = key.split('-');
+    return (+p[2]) + ' ' + _WT_MON[+p[1] - 1] + ' ' + p[0] + (jam ? ' ' + jam : '');
+  }
+  function lbInMonth(tanggal, ym){ var w = rpWitaWhen({ tanggal: tanggal }); return !!(w.key && w.key.slice(0, 7) === ym); }
+
+  /* ── Data per nasabah ── */
+  function lbRowsKop(kkId, ym){
+    var k = _arsipKumpulRowsAnggota(kkId);
+    return k.rows.filter(function(r){ return lbInMonth(r.tanggal, ym); });
+  }
+  function lbRowsRP(kkId, ym){
+    var all = getWalletNasabah(kkId) || [], awal = 0, akhir = 0, rows = [];
+    var first = ym + '-01', last = ym + '-31';
+    all.forEach(function(t){
+      var w = rpWitaWhen(t); if (!w.key) return;
+      var kredit = (t.tipe === 'kredit' || t.tipe === 'masuk' || t.tipe === 'topup'), v = (t.jumlah || 0) * (kredit ? 1 : -1);
+      if (w.key < first) awal += v;
+      if (w.key <= last) akhir += v;
+      if (w.key >= first && w.key <= last) rows.push({ key: w.key, jam: w.jam, ts: w.ts, ket: t.keterangan || t.kategori || 'Transaksi', kategori: t.kategori || '', kredit: kredit, jumlah: t.jumlah || 0 });
+    });
+    rows.sort(function(a, b){ return a.ts - b.ts || (a.key < b.key ? -1 : 1); });
+    return { rows: rows, awal: awal, akhir: akhir };
+  }
+  function lbCompute(){
+    var ym = LB.ym, y = +ym.slice(0, 4), m = +ym.slice(5) - 1, out = [];
+    (DB.nasabah || []).forEach(function(n){
+      if (!n || !n.id) return;
+      var d = { n: n, email: String(n.email || '').trim(), sent: lbSentInfo(LB.mode, ym, n.id) };
+      if (LB.mode === 'kop') {
+        var rows = lbRowsKop(n.id, ym);
+        d.rows = rows; d.count = rows.length;
+        d.masuk = rows.filter(function(r){ return r.kategori === 'masuk' && !r.nonKas; }).reduce(function(a, b){ return a + b.jumlah; }, 0);
+        d.keluar = rows.filter(function(r){ return r.kategori === 'keluar' && !r.nonKas; }).reduce(function(a, b){ return a + b.jumlah; }, 0) + window._arsipKeluarViaSuk(rows);
+        d.viaSuk = rows.filter(function(r){ return r.kategori === 'masuk' && r.nonKas; }).reduce(function(a, b){ return a + b.jumlah; }, 0);
+        try { d.saldo = window._arsipSaldoSimpanan(n.id, y * 12 + m); d.awal = window._arsipSaldoSimpanan(n.id, y * 12 + m - 1); } catch (e) { d.saldo = 0; d.awal = 0; }
+      } else {
+        var r2 = lbRowsRP(n.id, ym);
+        d.rows = r2.rows; d.count = r2.rows.length; d.awal = r2.awal; d.saldo = r2.akhir;
+        d.masuk = r2.rows.filter(function(r){ return r.kredit; }).reduce(function(a, b){ return a + b.jumlah; }, 0);
+        d.keluar = r2.rows.filter(function(r){ return !r.kredit; }).reduce(function(a, b){ return a + b.jumlah; }, 0);
+      }
+      out.push(d);
+    });
+    out.sort(function(a, b){ return String(a.n.nama || '').localeCompare(String(b.n.nama || ''), 'id'); });
+    return out;
+  }
+
+  /* ── PDF ── */
+  function lbBuildPdf(d){
+    var ym = LB.ym, y = +ym.slice(0, 4), m = +ym.slice(5) - 1, label = lbYmLabel(ym), nama = d.n.nama || 'Nasabah';
+    if (LB.mode === 'kop') {
+      var rows = d.rows.map(function(r){ var o = {}; for (var k in r) o[k] = r[k]; return o; });
+      return _pdfArsipBuildDoc(rows, 'LAPORAN BULANAN KOPERASI', nama + ' · ' + label, { kkId: d.n.id, idx: y * 12 + m, idxAwal: y * 12 + m - 1, ketSaldo: 'saldo s/d akhir ' + label, hanyaTransaksi: true, ringkasanKeuangan: true });
+    }
+    var jsPDFCls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; if (!jsPDFCls) return null;
+    var doc = new jsPDFCls({ orientation: 'p', unit: 'mm', format: 'a4' });
+    var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 16, usableW = pageW - margin * 2;
+    var judul = 'LAPORAN BULANAN RENCOPAY'; _arsipCtx.judul = judul;
+    var yy = _pdfArsipHeader(doc, pageW, margin, judul, nama + ' · ' + label);
+    var HIJAU = [21, 128, 61], MERAH = [185, 28, 28];
+    yy = _pdfArsipLabel(doc, yy, margin, 'Ringkasan Saldo RencoPay', usableW);
+    yy = _pdfArsipRingkasan(doc, yy, margin, usableW, [
+      { label: 'Saldo Awal', value: _pdfFmt(d.awal), color: d.awal >= 0 ? HIJAU : MERAH, icon: 'wallet' },
+      { label: 'Total Masuk', value: _pdfFmt(d.masuk), color: HIJAU, icon: 'cash' },
+      { label: 'Total Keluar', value: _pdfFmt(d.keluar), color: MERAH, icon: 'cash' },
+      { label: 'Saldo Akhir', value: _pdfFmt(d.saldo), color: d.saldo >= 0 ? HIJAU : MERAH, icon: 'doc' }
+    ], 2);
+    yy = _pdfArsipLabel(doc, yy, margin, 'Detail Transaksi (waktu WITA)', usableW);
+    var cols = [
+      { header: 'Tanggal & Jam', key: 'tglF', width: usableW * 0.25 },
+      { header: 'Keterangan', key: 'ket', width: usableW * 0.38 },
+      { header: 'Arus', key: 'arus', width: usableW * 0.12, pill: true },
+      { header: 'Jumlah', key: 'jumlahF', width: usableW * 0.25, align: 'right', bold: true, colorFn: function(r){ return r._masuk ? [26, 71, 42] : [180, 45, 55]; } }
+    ];
+    var tbl = d.rows.map(function(r){
+      return { tglF: lbDateTxt(r.key, r.jam), ket: r.ket, arus: r.kredit ? 'Masuk' : 'Keluar', jumlahF: (r.kredit ? '+ ' : '- ') + _pdfFmt(r.jumlah), _masuk: r.kredit };
+    });
+    if (!tbl.length) tbl.push({ tglF: '', ket: 'Tidak ada transaksi pada periode ini', arus: '', jumlahF: '' });
+    _pdfArsipTabel(doc, yy, margin, usableW, pageH, cols, tbl);
+    _pdfArsipFooter(doc, pageW, pageH, margin, judul);
+    return doc;
+  }
+  function lbFname(d){ return (LB.mode === 'kop' ? 'laporan-koperasi-' : 'laporan-rencopay-') + String(d.n.nama || 'nasabah').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + LB.ym + '.pdf'; }
+  function lbSubjek(){ return (LB.mode === 'kop' ? 'Laporan Bulanan Koperasi RENCO — ' : 'Laporan Bulanan RencoPay — ') + lbYmLabel(LB.ym); }
+  function lbBodyText(d){
+    var L = [], label = lbYmLabel(LB.ym), kop = LB.mode === 'kop';
+    L.push('Assalamualaikum ' + (d.n.nama || '') + ',', '');
+    L.push('Berikut laporan transaksi ' + (kop ? 'Koperasi RENCO' : 'RencoPay') + ' Anda periode ' + label + ':', '');
+    L.push('Total masuk  : ' + lbRp(d.masuk) + (kop ? ' (tunai)' : ''), 'Total keluar : ' + lbRp(d.keluar) + (kop ? ' (tunai)' : ''));
+    if (kop && d.viaSuk > 0) L.push('Dibayar dari Simpanan Sukarela : ' + lbRp(d.viaSuk) + ' (non-tunai)');
+    if (kop) L.push('Saldo simpanan bulan lalu : ' + lbRp(d.awal));
+    L.push((kop ? 'Saldo simpanan s/d akhir bulan : ' : 'Saldo akhir RencoPay : ') + lbRp(d.saldo), '', 'Rincian (' + d.count + ' transaksi):');
+    var len = L.join('\n').length, shown = 0;
+    for (var i = 0; i < d.rows.length; i++) {
+      var r = d.rows[i], key = kop ? (rpWitaWhen({ tanggal: r.tanggal }).key) : r.key, masuk = kop ? r.kategori === 'masuk' : r.kredit;
+      var line = '- ' + lbDateTxt(key, kop ? '' : r.jam) + ' · ' + (kop ? window._arsipJenisPdf(r, d.rows) : r.ket) + ' · ' + (masuk ? '+' : '-') + lbRp(r.jumlah);
+      if (len + line.length > 1500) break; L.push(line); len += line.length + 1; shown++;
+    }
+    if (shown < d.rows.length) L.push('... dan ' + (d.rows.length - shown) + ' transaksi lainnya (lihat PDF / aplikasi).');
+    L.push('', 'Waktu transaksi dalam WITA. Apabila ada yang tidak sesuai, mohon hubungi pengurus.', 'Terima kasih.', 'Koperasi Keluarga RENCO');
+    return L.join('\n');
+  }
+
+  /* ── Aksi ── */
+  function lbFind(id){ for (var i = 0; i < LB.data.length; i++) if (LB.data[i].n.id === id) return LB.data[i]; return null; }
+  window.lbPdf = function(id){
+    var d = lbFind(id); if (!d) return;
+    try { var doc = lbBuildPdf(d); if (!doc) { showToast('⚠️ Library PDF belum siap, coba lagi'); return; } doc.save(lbFname(d)); showToast('✅ PDF ' + d.n.nama + ' diunduh'); }
+    catch (e) { console.error(e); showToast('❌ Gagal membuat PDF'); }
+  };
+  async function lbShareOne(d, withConfirm){
+    var doc = lbBuildPdf(d); if (!doc) { showToast('⚠️ Library PDF belum siap, coba lagi'); return 'skip'; }
+    var file; try { file = new File([doc.output('blob')], lbFname(d), { type: 'application/pdf' }); } catch (e) { return 'skip'; }
+    if (!(navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] })))) return 'nosupport';
+    if (navigator.clipboard && navigator.clipboard.writeText) { try { await navigator.clipboard.writeText(d.email); } catch (e) {} }
+    try {
+      await navigator.share({ files: [file], title: lbSubjek(), text: 'Kirim ke email terdaftar: ' + d.email + '\n' + lbSubjek() + ' a.n. ' + d.n.nama });
+      lbMarkSent(LB.mode, LB.ym, d.n.id); return 'ok';
+    } catch (e) { return (e && e.name === 'AbortError') ? 'cancel' : 'skip'; }
+  }
+  window.lbKirim = async function(id){
+    var d = lbFind(id); if (!d) return;
+    if (d.email.indexOf('@') < 0) { showToast('⚠️ ' + d.n.nama + ' belum punya email terdaftar — lengkapi dulu di data nasabah'); return; }
+    var r = await lbShareOne(d);
+    if (r === 'nosupport') {
+      /* cadangan: aplikasi Email dengan isi rincian berupa teks */
+      var url = 'mailto:' + encodeURIComponent(d.email) + '?subject=' + encodeURIComponent(lbSubjek()) + '&body=' + encodeURIComponent(lbBodyText(d));
+      var o = window.open(url, '_blank'); if (!o) window.location.href = url;
+      lbMarkSent(LB.mode, LB.ym, d.n.id);
+      showToast('📧 Email dibuka untuk ' + d.n.nama + ' — tekan Kirim');
+    } else if (r === 'ok') showToast('✅ Pilih aplikasi Email, tempel ' + d.email + ' di kolom Kepada');
+    lbRender();
+  };
+  window.lbKirimSemua = async function(){
+    var list = LB.data.filter(function(d){ return d.email.indexOf('@') > 0 && (!LB.onlyTx || d.count > 0) && !d.sent; });
+    if (!list.length) { showToast('ℹ️ Tidak ada nasabah yang perlu dikirim (semua sudah diproses atau belum ber-email)'); return; }
+    if (!navigator.share) { showToast('⚠️ HP/browser ini tidak mendukung menu share. Gunakan tombol Email per nasabah.'); return; }
+    if (!confirm('Kirim laporan ' + (LB.mode === 'kop' ? 'Koperasi' : 'RencoPay') + ' ' + lbYmLabel(LB.ym) + ' ke ' + list.length + ' nasabah secara berurutan?\n\nMenu share muncul satu per satu; email tujuan otomatis disalin — tempel di kolom "Kepada", pilih Email, lalu Kirim. Setelah itu langsung lanjut ke nasabah berikutnya.')) return;
+    var ok = 0, skip = 0;
+    for (var i = 0; i < list.length; i++) {
+      showToast('📎 (' + (i + 1) + '/' + list.length + ') ' + list[i].n.nama + ' → ' + list[i].email);
+      var r = await lbShareOne(list[i]);
+      if (r === 'ok') ok++; else skip++;
+    }
+    showToast('✅ Selesai — ' + ok + ' diproses, ' + skip + ' dilewati'); lbRender();
+  };
+  window.lbSet = function(k, v){ LB[k] = v; if (k === 'ym' || k === 'mode') LB.data = []; lbRender(); };
+  window.lbClose = function(){ var o = document.getElementById('lbOv'); if (o) o.remove(); };
+
+  function lbRender(){
+    var host = document.getElementById('lbList'); if (!host) return;
+    LB.data = lbCompute();
+    var shown = LB.data.filter(function(d){ return !LB.onlyTx || d.count > 0; });
+    var withMail = shown.filter(function(d){ return d.email.indexOf('@') > 0; }).length, done = shown.filter(function(d){ return d.sent; }).length;
+    var sum = document.getElementById('lbSum');
+    if (sum) sum.textContent = shown.length + ' nasabah · ' + withMail + ' ber-email · ' + done + ' sudah diproses';
+    var kop = LB.mode === 'kop';
+    host.innerHTML = shown.length ? shown.map(function(d){
+      var hasMail = d.email.indexOf('@') > 0;
+      var st = d.sent ? '<span style="color:#15803d">✓ Diproses ' + lbDateTxt(rpWita(d.sent).key, '') + '</span>' : (hasMail ? lbEsc(d.email) : '<span style="color:#d97706">⚠ Belum ada email</span>');
+      return '<div style="display:flex;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #edf3ef">'
+        + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + lbEsc(d.n.nama) + '</div>'
+        + '<div style="font-size:10.5px;color:#5b6b63;margin-top:2px">' + d.count + ' transaksi · Masuk ' + lbRp(d.masuk) + ' · Keluar ' + lbRp(d.keluar) + '</div>'
+        + '<div style="font-size:10.5px;color:#5b6b63;margin-top:1px">' + (kop ? 'Saldo simpanan ' : 'Saldo akhir ') + lbRp(d.saldo) + '</div>'
+        + '<div style="font-size:10.5px;margin-top:1px;color:#6a7a72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + st + '</div></div>'
+        + '<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">'
+        + '<button type="button" onclick="lbKirim(\'' + lbEsc(d.n.id) + '\')" ' + (hasMail ? '' : 'disabled ') + 'style="padding:7px 13px;border:none;border-radius:9px;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;opacity:' + (hasMail ? 1 : .4) + '">Email</button>'
+        + '<button type="button" onclick="lbPdf(\'' + lbEsc(d.n.id) + '\')" style="padding:6px 13px;border:1px solid #cfe0d6;border-radius:9px;background:#fff;color:#1a6b57;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">PDF</button></div></div>';
+    }).join('') : '<div style="padding:28px 14px;text-align:center;font-size:12px;color:#6a7a72">Tidak ada transaksi pada periode ini.</div>';
+  }
+  window.lbOpen = function(){
+    if (typeof isAdmin === 'function' && !isAdmin()) { showToast('⛔ Hanya Admin yang bisa mengirim laporan bulanan'); return; }
+    if (!LB.ym) LB.ym = lbDefaultYm();
+    window.lbClose();
+    var o = document.createElement('div'); o.id = 'lbOv';
+    o.style.cssText = 'position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center';
+    o.onclick = function(e){ if (e.target === o) window.lbClose(); };
+    var opts = lbMonthOpts().map(function(v){ return '<option value="' + v + '"' + (v === LB.ym ? ' selected' : '') + '>' + lbYmLabel(v) + '</option>'; }).join('');
+    function seg(k, t){ var on = LB.mode === k; return '<button type="button" id="lbSeg_' + k + '" onclick="lbSet(\'mode\',\'' + k + '\');lbSeg()" style="flex:1;padding:8px;border:none;border-radius:9px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;background:' + (on ? '#1a6b57' : 'transparent') + ';color:' + (on ? '#fff' : '#1a6b57') + '">' + t + '</button>'; }
+    o.innerHTML = '<div style="background:#fff;color:#1c3025;width:100%;max-width:520px;height:92vh;border-radius:22px 22px 0 0;display:flex;flex-direction:column;overflow:hidden">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px"><div style="font-size:15px;font-weight:800">Laporan Bulanan per Nasabah</div><button type="button" onclick="lbClose()" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#6a7a72">×</button></div>'
+      + '<div style="padding:0 16px 8px"><select onchange="lbSet(\'ym\',this.value)" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid rgba(45,106,79,.25);font-size:13px;font-weight:600;font-family:inherit;background:#fff;color:#1c3025">' + opts + '</select>'
+      + '<div id="lbSegs" style="display:flex;gap:4px;margin-top:8px;padding:3px;border-radius:12px;background:#eef5f1">' + seg('kop', 'Koperasi') + seg('rp', 'RencoPay') + '</div>'
+      + '<label style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px;color:#44564d"><input type="checkbox" ' + (LB.onlyTx ? 'checked' : '') + ' onchange="lbSet(\'onlyTx\',this.checked)"> Hanya nasabah yang ada transaksi</label>'
+      + '<div id="lbSum" style="margin-top:6px;font-size:11px;font-weight:600;color:#6a7a72"></div></div>'
+      + '<div id="lbList" style="flex:1;overflow-y:auto;border-top:1px solid #edf3ef"></div>'
+      + '<div style="padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid #edf3ef"><button type="button" onclick="lbKirimSemua()" style="width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#d4a017,#f4c842);color:#3d2d00;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer">📎 Kirim ke Semua (berurutan)</button>'
+      + '<div style="font-size:10px;color:#9ca3af;text-align:center;margin-top:5px;line-height:1.4">Pengiriman lewat menu share / aplikasi Email di HP Admin — tiap email tetap perlu ditekan Kirim.</div></div></div>';
+    document.body.appendChild(o);
+    lbRender();
+  };
+  window.lbSeg = function(){ ['kop', 'rp'].forEach(function(k){ var b = document.getElementById('lbSeg_' + k); if (!b) return; var on = LB.mode === k; b.style.background = on ? '#1a6b57' : 'transparent'; b.style.color = on ? '#fff' : '#1a6b57'; }); };
+  /* tombol di halaman Arsip + pengingat akhir bulan */
+  window.lbBtnHTML = function(){
+    if (typeof isAdmin !== 'function' || !isAdmin()) return '';
+    var w = lbNowW(), ym = lbDefaultYm(), remind = (w.d >= 25 || w.d <= 5);
+    var pend = 0;
+    if (remind) {
+      var st = lbStore()[ym] || {}; var sent = Object.keys(st.kop || {}).length + Object.keys(st.rp || {}).length;
+      pend = sent === 0 ? 1 : 0;
+    }
+    return '<div style="padding:0 14px 14px"><button type="button" onclick="lbOpen()" style="width:100%;background:linear-gradient(135deg,#1e3a8a,#3b5ede);color:#fff;border:none;border-radius:12px;padding:11px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 3px 10px rgba(30,58,138,.25)">📧 Laporan Bulanan per Nasabah (Koperasi &amp; RencoPay)</button>'
+      + (pend ? '<div style="font-size:10.5px;font-weight:700;color:#b45309;background:#fff7dc;border-radius:9px;padding:7px 10px;margin-top:6px;text-align:center">🔔 Saatnya kirim laporan ' + lbYmLabel(ym) + ' — belum ada yang diproses</div>' : '')
+      + '</div>';
+  };
+
   window._arsipDownloadAllPDF = async function() {
     var filterT = window._arsipFilterTahun || 'semua';
     var allTxDB = DB.transaksi||[]; var allPinDB=DB.pinjaman||[]; var allPemDB=[].concat(DB.pembiayaan||[],DB.pembiayaanSyariah||[]);
@@ -58753,7 +59577,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     var label2 = filterT==='semua'?'Semua Periode':'Tahun '+filterT;
     try {
       var fname = 'arsip-renco-lengkap-'+label2.replace(/\s+/g,'-').toLowerCase()+'.pdf';
-      _pdfArsipNative(allRows3, 'ARSIP TRANSAKSI LENGKAP', label2 + ' · ' + allRows3.length + ' transaksi', fname, { idx: filterT==='semua' ? null : parseInt(filterT)*12+11, ketSaldo: filterT==='semua' ? 'saldo terkini' : 'saldo s/d akhir tahun ' + filterT });
+      _pdfArsipNative(allRows3, 'ARSIP TRANSAKSI LENGKAP', label2 + ' · ' + allRows3.length + ' transaksi', fname, { idx: filterT==='semua' ? null : parseInt(filterT)*12+11, idxAwal: filterT==='semua' ? undefined : parseInt(filterT)*12-1, labelAwal: 'Saldo Awal Tahun', ketSaldo: filterT==='semua' ? 'saldo terkini' : 'saldo s/d akhir tahun ' + filterT });
       if(typeof showToast==='function') showToast('✅ PDF Arsip Lengkap berhasil diunduh!');
     }catch(e){if(typeof showToast==='function')showToast('❌ Gagal membuat PDF');console.error(e);}
   };
@@ -59394,7 +60218,7 @@ window._renderTxnHistoryRows = function(list) {
     return '<div class="txn-wrap">'
       +'<div class="rp-txn-item">'
         +'<div class="rp-txn-icon" style="background:'+meta.bg+';color:'+meta.color+'">'+window._ico(meta.ico,16)+'</div>'
-        +'<div class="rp-txn-info"><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span class="rp-txn-name">'+(t.keterangan||tLbl[t.type]||t.type)+'</span>'+stB+'</div><div class="rp-txn-sub">'+(t.tanggal?new Date(t.tanggal).toLocaleDateString('id-ID',{day:'numeric',month:'short'}):'-')+'</div></div>'
+        +'<div class="rp-txn-info"><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span class="rp-txn-name">'+(t.keterangan||window._tLblTx(tLbl, t)||t.type)+'</span>'+stB+'</div><div class="rp-txn-sub">'+(t.tanggal?new Date(t.tanggal).toLocaleDateString('id-ID',{day:'numeric',month:'short'}):'-')+'</div></div>'
         +'<div class="rp-txn-amt '+(isOut?'debit':'kredit')+'">'+(isOut?'−':'+')+fmt2(t.jumlah||0)+'</div>'
       +'</div>'
       +'<div class="txn-share-row" style="display:flex;justify-content:flex-end;padding:3px 16px 8px">'
@@ -59432,7 +60256,7 @@ window.downloadTxnHistoryCSV = function() {
   var header = ['Tanggal','Jenis','Keterangan','Status','Jumlah'].map(function(h){return '"'+h+'"';}).join(',');
   var rows = list.map(function(t){
     var tgl = t.tanggal ? new Date(t.tanggal).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}) : '-';
-    var jenis = tLbl[t.type]||t.type||'-';
+    var jenis = window._tLblTx(tLbl, t)||t.type||'-';
     var ket = String(t.keterangan||jenis).replace(/"/g,'""');
     var status = t.statusTxn||'sukses';
     var jumlah = t.jumlah||0;
@@ -59507,7 +60331,7 @@ window.downloadLaporanPribadiPDF = async function() {
       simpanan:'💵 Simpanan', pinjaman:'📤 Pencairan Pinjaman',
       cicilan:'💳 Bayar Cicilan', 'tarik-sukarela':'💸 Penarikan Simpanan'
     };
-    var jenis  = typeLabel[t.type] || t.kategori || t.type || 'Transaksi';
+    var jenis  = window._tLblTx(typeLabel, t) || t.kategori || t.type || 'Transaksi';
     var isOut  = t.type==='pinjaman'||t.type==='tarik-sukarela'||t.tipe==='debit';
     var tandaAmt = isOut ? '(-) ' : '(+) ';
 
@@ -59759,7 +60583,7 @@ window.openModalRencoPayMini = function() {
       riwayatEl.innerHTML = txns.map(function(t) {
         var isKeluar = t.type==='pinjaman'||t.type==='tarik-sukarela'||t.tipe==='debit';
         var icon     = icons[t.type||t.tipe] || (isKeluar?'📤':'📥');
-        var label    = t.keterangan || labels[t.type] || t.type || 'Transaksi';
+        var label    = t.keterangan || window._tLblTx(labels, t) || t.type || 'Transaksi';
         var tgl      = (typeof fmtDate==='function') ? fmtDate(t.tanggal) : (t.tanggal||'').slice(0,10);
         var txnDataAttr = JSON.stringify({type:t.type||'',tipe:t.tipe||'',jumlah:t.jumlah||0,keterangan:t.keterangan||'',tanggal:t.tanggal||''}).replace(/"/g,'&quot;');
         return '<div class="txn-wrap">' +
@@ -62195,20 +63019,7 @@ window.nsBayarCicilan = function(pinId) {
 })();
 </script>
 
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
-      .then(registration => {
-        try { registration.update(); } catch(e) {}
-        console.log('Service Worker registered:', registration);
-      })
-      .catch(error => {
-        console.log('Service Worker registration failed:', error);
-      });
-  });
-}
-</script>
+<!-- Pendaftaran service worker kedua dihapus: sudah ditangani satu kali di blok SW di atas. -->
 
 
 <!-- =====================================================
@@ -65025,6 +65836,7 @@ console.log('✅ Modul Berjangka & Transparansi termuat');
       keterangan: 'Top Up RencoPay dari Simpanan Sukarela — ' + labelJenis + ' (dicatat admin)',
       tanggal: _tglPotAdm
     });
+    _catatPotonganSukarela._lastId = _potIdAdm;
     /* Dicatat lagi sebagai transaksi RencoPay independen di dompet nasabah — terpisah dari transaksi koperasi */
     if (typeof getWalletNasabah === 'function') {
       var wAdm = getWalletNasabah(kkId);
@@ -65062,6 +65874,8 @@ console.log('✅ Modul Berjangka & Transparansi termuat');
         var totalBayar = added.reduce(function(s,t){ return s + (t.jumlah||0); }, 0);
         if (totalBayar > 0) {
           _catatPotonganSukarela(kkId, totalBayar, 'Bayar Cicilan');
+          added.forEach(function(t){ t.viaSukarela = true; t.potonganId = _catatPotonganSukarela._lastId; });
+          if (typeof saveDB === 'function') saveDB();
           if (typeof showToast === 'function') showToast('✅ Cicilan dibayar dari Simpanan Sukarela nasabah');
         }
       }
@@ -65097,6 +65911,8 @@ console.log('✅ Modul Berjangka & Transparansi termuat');
         var totalBayar = added.reduce(function(s,t){ return s + (t.jumlah||0); }, 0);
         if (totalBayar > 0) {
           _catatPotonganSukarela(kkId, totalBayar, 'Iuran Simpanan Wajib');
+          added.forEach(function(t){ t.viaSukarela = true; t.potonganId = _catatPotonganSukarela._lastId; });
+          if (typeof saveDB === 'function') saveDB();
           if (typeof showToast === 'function') showToast('✅ Iuran Wajib dibayar dari Simpanan Sukarela nasabah');
         }
       }
@@ -69919,7 +70735,7 @@ html.renco-dark #page-forum .keu-menu-hero{box-shadow:0 12px 28px rgba(17,17,17,
   box-shadow:0 1px 2px rgba(13,32,22,.04),0 12px 28px rgba(13,32,22,.09);
 }
 #page-forum #forumGridInner::before{
-  content:'Menu Hiburan'; grid-column:1 / -1; margin:0 8px 4px;
+  content:'Menu Semeton®'; grid-column:1 / -1; margin:0 8px 4px;
   font-size:11px; font-weight:800; letter-spacing:.9px; text-transform:uppercase;
   color:var(--forest-mid); opacity:.85; line-height:1.1; padding-left:9px; border-left:3px solid #d4aa28;
 }
@@ -76408,6 +77224,9 @@ var FITUR = [];
 function F(id, nama, emo, adm, re, lok, isi, go, chips){ FITUR.push({ id: id, nama: nama, emo: emo, adm: adm, re: re, lok: lok, isi: isi, go: go || [], chips: chips || [] }); }
 var ADM_ONLY = function(){ return typeof isAdmin === 'function' && isAdmin(); };
 
+F('hpp', 'Hitung HPP & Margin', '🧮', false, /\b(hitung hpp|hpp|harga pokok (produksi|penjualan)|margin (dan|&) untung|markup|titik impas|bep|harga jual)\b/, '**Semeton® → Keuangan & Bisnis** (ketuk judul kategorinya dulu).',
+  ['• **Hitung HPP**: masukkan biaya produksi dan jumlah produk jadi, lalu lihat HPP per unit dan **saran harga jual** sesuai target untung (%).', '• **Margin & Untung**: isi harga jual dan modal per unit untuk melihat laba kotor, laba bersih, margin, markup, dan **titik impas (BEP)**.', '• **Anggaran**: atur batas pengeluaran dan pantau progresnya.'],
+  [{ t: 'Buka Semeton®', go: 'nav:forum' }], ['Menu Semeton®', 'Catat Uang']);
 F('beranda', 'Beranda', '🏠', false, /\b(beranda|halaman utama|home|dashboard|total aset koperasi|dana kelola|catatan khusus)\b/, 'Tombol **Beranda** di navigasi bawah.',
   ['• Ringkasan: **Dana Kelola Koperasi** (hanya Simpanan Pokok + Wajib) dan **Kas Tersedia** (setelah dikurangi pinjaman & pembiayaan aktif), jumlah nasabah, total simpanan, total pinjaman, dan pembiayaan.', '• **Catatan Khusus** (khusus admin) mencatat **Simpanan Sukarela, Tabungan Berjangka, dan PHU** secara terpisah dari dana kelola. Ketuk banner untuk rinciannya.', '• **Aksi cepat**: Simpanan, Tarik Tunai, Transfer, Pinjaman, RencoPay, Laporan.', '• **Transaksi Terkini**, **Tagihan & Cicilan**, **Kesehatan Kas**, **Prediksi Kas Bulan Depan**, dan **Challenge 1 Milyar**.', '• Ada slide/banner info koperasi di bagian atas.'],
   [{ t: 'Buka Beranda', go: 'nav:home' }], ['Tagihan & cicilan', 'Kesehatan kas', 'Peta aplikasi']);
@@ -76427,7 +77246,7 @@ F('nasabah', 'Menu Nasabah', '👥', false, /\b(menu nasabah|halaman nasabah|daf
   ['• Daftar anggota/KK dengan filter **Semua · Aktif · Tidak Aktif · Blacklist** dan **Kategori**.', '• Ada **Kartu** nasabah dan pemberitahuan untuk **akun tidak aktif**.', '• Khusus **admin**: tambah nasabah (tombol +), **Rekap Iuran**, **Unduh**, serta memasukkan atau **mencabut blacklist** (wajib isi alasan).'],
   [{ t: 'Daftar Nasabah', go: 'ns:daftar' }, { t: 'Kartu Nasabah', go: 'ns:kartu' }, { t: 'Kategori Anggota', go: 'ns:reward' }, { t: 'Rekap Iuran', go: 'ns:admin-iuran', adm: true }, { t: 'Unduh Data', go: 'ns:download', adm: true }], ['Iuran saya', 'Peta aplikasi']);
 F('keuangan', 'Menu Keuangan', '💼', false, /\b(menu keuangan|halaman keuangan|isi (menu )?keuangan|keuangan.*(ada apa|apa saja))\b/, 'Tombol **Keuangan** di navigasi bawah.',
-  ['Isinya berupa kartu menu:', '• **Simpanan**: kelola tabungan dan simpanan.', '• **Koperasi Renco**: ajukan pinjaman.', '• **Renco Capital**: pembiayaan syariah & konvensional.', '• **Pembayaran**: bayar tagihan & transaksi cepat.', '• **Hasil Usaha** (admin): pantau pendapatan hasil usaha koperasi.', '• **SHU**: lihat pembagian SHU.', '• **Aset**: kelola aset.', '• **Catat Uang**: pencatatan keuangan pribadi.', '• **Kalkulator**: 4% Rule, tabungan koperasi, PPh & HPP.'],
+  ['Isinya berupa kartu menu:', '• **Simpanan**: kelola tabungan dan simpanan.', '• **Koperasi Renco**: ajukan pinjaman.', '• **Renco Capital**: pembiayaan syariah & konvensional.', '• **Pembayaran**: bayar tagihan & transaksi cepat.', '• **Hasil Usaha** (admin): pantau pendapatan hasil usaha koperasi.', '• **SHU**: lihat pembagian SHU.', '• **Aset**: kelola aset.', '• **Catat Uang**: pencatatan keuangan pribadi.', '• **Kalkulator**: 4% Rule, tabungan koperasi, PPh & HPP.', '', 'Di bawah grid menu (untuk akun anggota) ada **grafik Pertumbuhan Tabungan**: sentuh dan geser untuk melihat saldo tiap bulan, pilih 3B/6B/12B, dan ganti tampilan Garis atau Batang. Di bawahnya ada **Pedoman Muamalah**.'],
   [{ t: 'Buka Keuangan', go: 'nav:keuangan' }], ['Menu Simpanan', 'Menu Pembayaran', 'Menu Kalkulator', 'Menu Aset']);
 F('simpananMenu', 'Menu Simpanan', '🏦', false, /\b(menu|tab|halaman|kartu) simpanan\b|simpanan.*(dimana|letak)/, '**Keuangan → Simpanan**.',
   ['• Kelola **Simpanan Pokok, Wajib, dan Sukarela**.', '• Dari sini kamu setor, tarik sukarela, dan lihat riwayatnya.', '• Setoran/penarikan **diverifikasi admin**.'],
@@ -76457,8 +77276,20 @@ F('laporan', 'Menu Laporan', '📊', false, /\b(menu laporan|halaman laporan|lap
   ['Tab yang tersedia:', '• **Nasabah**, **Koperasi**, **Renco Capital**, dan **Keseluruhan**: laporan per bagian.', '• **Arsip**: laporan yang tersimpan.', '• **Tunggakan**: daftar yang menunggak.', '• **History** dan **Laporan Kerja**: khusus **admin**.'],
   [{ t: 'Laporan Saya', go: 'lap:nasabah-pribadi', na: true }, { t: 'Laporan Koperasi', go: 'lap:koperasi' }, { t: 'Arsip', go: 'lap:arsip', adm: true }, { t: 'Tunggakan', go: 'lap:tunggakan', adm: true }], ['Peta aplikasi']);
 F('forum', 'Menu Forum', '💬', false, /\b(menu forum|halaman forum|forum (ada apa|apa saja)|isi forum|join us)\b/, 'Tombol **Forum** di navigasi bawah.',
-  ['Isinya:', '• **Join Us** (tautan ke Renco Vision 2045) · **Diskusi** · **Polling** · **Games**', '• **Arisan** · **Berita** · **Kalender** · **100 Nasehat** · **Edukasi**'],
+  ['Isinya:', '• **Join Us** (tautan ke Renco Vision 2045) · **Diskusi** · **Polling** · **Games**', '• **Arisan** · **Berita** · **Kalender** · **100 Nasehat** · **Edukasi**', '• Menu dikelompokkan per kategori (Komunitas & Hiburan, Keuangan & Bisnis, Pekerjaan & Aktivitas, Alat Bantu Digital, Perencanaan Diri). **Komunitas & Hiburan** terbuka otomatis; kategori lain tersembunyi, **ketuk judul kategori** untuk membuka dan ketuk lagi untuk menutup.'],
   [{ t: 'Buka Forum', go: 'nav:forum' }], ['Menu Diskusi', 'Menu Polling', 'Menu Games', 'Menu Arisan', 'Menu Edukasi']);
+F('semeton', 'Menu Semeton®', '🎮', false, /\b(semeton|menu semeton|isi semeton|kategori semeton|alat bantu (digital|usaha))\b/, 'Tombol **Semeton®** di navigasi bawah.',
+  ['Menu dikelompokkan dalam **5 kategori**:', '• 💬 **Komunitas & Hiburan**: Diskusi, Polling, Games, Arisan, Berita, Kalender, 100 Nasehat, Edukasi', '• 💰 **Keuangan & Bisnis**: Catat Uang, Kalkulator, Hitung HPP, Margin & Untung, Anggaran', '• 📋 **Pekerjaan & Aktivitas**: Daftar Tugas, Catatan, Pengingat, Invoice', '• 🧰 **Alat Bantu Digital**: QR Generator, Kompres Foto, Konversi satuan', '• 🎯 **Perencanaan Diri**: Target Pribadi, Jurnal Harian, Bank Ide', '', '**Cara pakai:** hanya **Komunitas & Hiburan** yang terbuka saat pertama kali. Kategori lain tersembunyi, jadi **ketuk judul kategorinya** untuk membuka menu, ketuk lagi untuk menutup. Tiap kategori bisa dibuka dan ditutup sendiri-sendiri.', 'Alat Bantu Digital (QR, Kompres Foto, Konversi) diproses di perangkatmu. Foto yang dikompres **tidak diunggah ke server**.'],
+  [{ t: 'Buka Semeton®', go: 'nav:forum' }], ['Hitung HPP', 'Catat Uang', 'Menu Forum', 'Vision 2045']);
+F('smtkerja', 'Pekerjaan, Alat Bantu & Perencanaan Diri', '🧰', false, /\b(daftar tugas|pengingat semeton|invoice|buat invoice|konversi satuan|kompres foto|qr generator|buat qr|bank ide|jurnal harian|target pribadi)\b/, '**Semeton®**, kategori **Pekerjaan & Aktivitas**, **Alat Bantu Digital**, dan **Perencanaan Diri**.',
+  ['• **Daftar Tugas, Catatan, Pengingat**: pengelola kegiatan harian.', '• **Invoice**: buat tagihan untuk usahamu.', '• **QR Generator**: buat kode QR dari teks, tautan, nomor HP, atau info rekening, lalu unduh sebagai gambar (butuh internet saat pertama dipakai).', '• **Kompres Foto**: kecilkan ukuran foto agar mudah dikirim. Diproses di perangkatmu.', '• **Konversi**: ubah satuan panjang, berat, volume, luas, data, dan suhu.', '• **Target Pribadi, Jurnal Harian, Bank Ide**: catat tujuan, refleksi harian, dan ide-idemu.'],
+  [{ t: 'Buka Semeton®', go: 'nav:forum' }], ['Menu Semeton®', 'Hitung HPP']);
+F('kontribusiV45', 'Cara Kontribusi Vision 2045', '🤝', false, /\b(kontribusi|danai|mendanai|pendanaan|menyumbang|sumbang|donasi|ikut (serta|berpartisipasi)|berpartisipasi|setor)\b.{0,30}\b(vision|2045|lapangan renco|dana abadi|program renco)\b|\b(vision|2045)\b.{0,30}\b(kontribusi|danai|pendanaan|donasi|sumbang|berpartisipasi)\b|\bcara (ikut|gabung|bantu|kontribusi) (vision|2045)/, 'Tombol **Vision 2045** di navigasi bawah, atau kartu **Vision 2045** di menu **RencoPay**. Khusus akun **nasabah**.',
+  ['Kontribusi diambil dari **saldo RencoPay**. Langkahnya:', '1. Buka **Vision 2045**, lalu pilih program: Aset Bersama (Lapangan Renco), Pendidikan dan Beasiswa, Perpustakaan Renco, Wirausaha Renco, Sampah Jadi Berkah, Gumi Renco, atau Dana Abadi Renco.', '2. Isi **jumlah pendanaan** (minimal **Rp 1.000**). Ada pilihan cepat 10 rb, 25 rb, 50 rb, 100 rb, 250 rb, atau **Semua saldo**. Catatan boleh diisi, boleh dikosongkan.', '3. Ketuk **Lanjut**, cek rincian di layar **Konfirmasi Pendanaan**, lalu ketuk **Danai Sekarang**.', '4. Masukkan **PIN RencoPay**. Setelah berhasil muncul layar **Terima Kasih**.', '', '• Kalau saldo kurang, **Top Up** RencoPay dulu.', '• PIN RencoPay harus sudah aktif (atur di menu **Login Cepat**).', '• Dana yang sudah disalurkan **tidak bisa dibatalkan** dari aplikasi, jadi pastikan program dan jumlahnya benar.', '• Total kontribusi dan **riwayat pendanaan** pribadimu tampil di halaman Vision 2045. Ketuk **Lihat rincian kontribusi per program** untuk rinciannya.', '• Akun **admin** tidak memakai fitur ini. Pencatatan setoran Lapangan Renco dan dana program dilakukan admin di panel masing-masing.'],
+  [{ t: 'Buka Vision 2045', go: 'nav:vision2045' }, { t: 'Top Up RencoPay', go: 'rp:topup' }], ['Menu Vision 2045', 'Apa itu Vision 2045?']);
+F('vision2045', 'Vision 2045', '🎯', false, /\b(vision ?2045|renco vision|menu vision|lapangan renco|gerakan 100 pemuda|aset bersama|dana abadi|peta masa depan|indeks kesejahteraan|gumi renco|sampah jadi berkah|satu rumah satu (sarjana|hafiz)|1000 buku|100 umkm)\b/, 'Tombol **Vision 2045** di navigasi bawah (untuk akun **nasabah**) atau kartu **Vision 2045** di menu RencoPay.',
+  ['**Vision 2045** adalah halaman gerakan bersama warga Renco menuju 2045, berpusat pada **Lapangan Renco · Gerakan 100 Pemuda**. Tagline-nya **"Dari Kita untuk Generasi"**, dan ini merupakan **Gerakan Pemuda Aren Community**. Isinya:', '• 🏞️ **Aset Bersama (Lapangan Renco)**: kontribusi untuk pembelian tanah bersama, **target 2030**. Setoran bebas nominal.', '• 🎓 **Pendidikan dan Beasiswa**: **Satu Rumah Satu Sarjana** (beasiswa kuliah) dan **Satu Rumah Satu Hafiz** (hafalan dan pembinaan Al-Qur’an).', '• 📚 **Perpustakaan Renco**: Gerakan **1000 Buku**.', '• 🛍️ **Wirausaha Renco**: Gerakan **100 UMKM Baru**.', '• ♻️ **Sampah Jadi Berkah**: bank sampah, penjemputan, dan pengolahan.', '• 🌍 **Gumi Renco**: penghijauan, air bersih, dan ketahanan pangan.', '• 🏦 **Dana Abadi Renco**, 🗺️ **Peta Masa Depan**, dan 📈 **Indeks Kesejahteraan** sebagai penopang jangka panjang.', '', 'Ada juga tombol **Join Us** di menu Semeton® yang membuka situs Renco Vision 2045. Ketuk sekali untuk mengaktifkan, ketuk lagi untuk membukanya di tab baru.'],
+  [{ t: 'Buka Vision 2045', go: 'nav:vision2045' }, { t: 'Buka Semeton®', go: 'nav:forum' }], ['Aset Bersama', 'Pendidikan & Beasiswa', 'Menu Semeton®']);
 F('diskusi', 'Diskusi', '🗣️', false, /\b(menu|tab|fitur)? ?diskusi\b|review koperasi|rating aplikasi|bersihkan chat|ruang obrol/, '**Forum → Diskusi**.',
   ['• Ngobrol dengan sesama anggota (tombol **Tulis**).', '• Ada **Review Koperasi** dan **Rating Aplikasi** untuk memberi masukan.', '• **Bersihkan Chat** untuk merapikan percakapan.'],
   [{ t: 'Buka Diskusi', go: 'forum:diskusi' }], ['Menu Forum']);
@@ -76552,7 +77383,7 @@ function jawabPeta(){
   var L = ['**Peta Aplikasi Renco** 🗺️', 'Navigasi bawah berisi 6 menu:', '• 🏠 **Beranda**: ringkasan aset, aksi cepat, tagihan, kesehatan kas, Challenge 1 Milyar', '• 👥 **Nasabah**: daftar anggota, kategori, kartu' + (adm ? ', rekap iuran, unduh, blacklist' : ''), '• 💼 **Keuangan**: Simpanan, Koperasi Renco (pinjaman), Renco Capital, Pembayaran, ' + (adm ? 'Hasil Usaha, ' : '') + 'SHU, Aset, Catat Uang, Kalkulator', '• 📊 **Laporan**: Nasabah, Koperasi, Renco Capital, Keseluruhan, Arsip, Tunggakan' + (adm ? ', History, Laporan Kerja' : ''), '• 💬 **Forum**: Join Us, Diskusi, Polling, Games, Arisan, Berita, Kalender, 100 Nasehat', '• 📲 **RencoPay**: dompet digital (Transfer, Bayar, Top Up, QRIS, Net Worth, Riwayat, Pengingat, Setting)', '', 'Di bagian atas ada **Mode Malam**, **Backup**, **Notifikasi**, dan **Profil**. Mau kujelaskan yang mana? Ketuk salah satu di bawah, atau tanya aja pakai bahasamu sendiri 😊'];
   return { text: L.join('\n'), chips: ['Menu Keuangan', 'Menu RencoPay', 'Menu Forum', 'Menu Laporan', 'Menu Nasabah', 'Perbedaan admin & nasabah'], actions: [], intent: 'f:peta' };
 }
-var TANYA_FITUR = /\b(dimana|letak|menu|fitur|tombol|buka|masuk|akses|fungsi|kegunaan|isinya|ada apa|apa itu|apa saja|untuk apa|cara (pakai|akses|buka|lihat|melihat|menggunakan|ke)|lihat|melihat|temukan|nemu|nemuin|kenalin|jelaskan|jelasin|ceritakan|ceritain|tentang)\b/;
+var TANYA_FITUR = /\b(dimana|letak|menu|fitur|tombol|buka|masuk|akses|fungsi|kegunaan|isinya|ada apa|apa itu|apa saja|untuk apa|cara (pakai|akses|buka|lihat|melihat|menggunakan|ke|kontribusi|ikut|donasi|mendanai|danai|menyumbang|berpartisipasi)|lihat|melihat|temukan|nemu|nemuin|kenalin|jelaskan|jelasin|ceritakan|ceritain|tentang)\b/;
 function cariFitur(t){
   var short = t.split(' ').length <= 4, i;
   if (FITUR[FITUR.length - 1].re.test(t)) return FITUR[FITUR.length - 1];
@@ -76618,6 +77449,15 @@ var KB = [
   { id: 'k:blacklist', kw: ['blacklist'],
     re: /blacklist|daftar hitam/,
     build: function(){ return { text: '**Blacklist** 🚫\nStatus dari **admin** buat manajemen risiko. Anggota yang di-blacklist **tidak bisa mengajukan pinjaman**. Kalau kamu merasa ada yang keliru, bicarakan baik-baik dengan pengurus ya.\n\nCara paling aman: bayar cicilan dan iuran tepat waktu ✅', chips: ['Cek pengingat', 'Pinjaman saya'] }; } },
+  { id: 'k:semeton', kw: ['semeton', 'hpp', 'margin', 'invoice', 'qr'],
+    re: /apa itu semeton|tentang semeton|semeton®?\s*(itu|adalah)|kategori semeton|alat bantu usaha/,
+    build: function(){ return { text: '**Semeton®** 🎮\nSemeton® adalah ruang komunitas, hiburan, dan **alat bantu** harian untuk anggota Renco. Menunya terbagi dalam 5 kategori: **Komunitas & Hiburan** (Diskusi, Polling, Games, Arisan, Berita, Kalender, 100 Nasehat, Edukasi), **Keuangan & Bisnis** (Catat Uang, Kalkulator, Hitung HPP, Margin & Untung, Anggaran), **Pekerjaan & Aktivitas** (Tugas, Catatan, Pengingat, Invoice), **Alat Bantu Digital** (QR, Kompres Foto, Konversi) dan **Perencanaan Diri** (Target Pribadi, Jurnal Harian, Bank Ide).\n\nSaat pertama dibuka, hanya **Komunitas & Hiburan** yang tampil. Ketuk judul kategori lain untuk membuka atau menutup menunya.', chips: ['Menu Semeton®', 'Hitung HPP', 'Vision 2045'] }; } },
+  { id: 'k:vision2045', kw: ['vision', '2045', 'lapangan', 'gerakan'],
+    re: /apa itu (renco )?vision|tentang (renco )?vision|vision ?2045 (itu|adalah)|tujuan (renco )?vision|visi 2045|gerakan 100 pemuda|lapangan renco itu/,
+    build: function(){ return { text: '**Renco Vision 2045** 🎯\nGerakan jangka panjang warga Renco untuk membangun kesejahteraan bersama menuju tahun **2045**. Tagline-nya **"Dari Kita untuk Generasi"**, dan ini merupakan **Gerakan Pemuda Aren Community**. Titik awalnya **Lapangan Renco · Gerakan 100 Pemuda**: mengumpulkan kontribusi untuk **aset bersama** (tanah bersama, target 2030) yang dikelola amanah dan produktif.\n\nProgram turunannya: **Satu Rumah Satu Sarjana** dan **Satu Rumah Satu Hafiz** (pendidikan), **Gerakan 1000 Buku** (Perpustakaan Renco), **Gerakan 100 UMKM Baru** (Wirausaha Renco), **Sampah Jadi Berkah**, dan **Gumi Renco** (lingkungan dan pangan). Penopang jangka panjangnya: **Dana Abadi Renco**, **Peta Masa Depan** (tahapan menuju 2045), dan **Indeks Kesejahteraan** (mengukur perubahan kondisi masyarakat).\n\nSemangatnya sama dengan koperasi: **gotong royong**, transparan, dan hasilnya dinikmati bersama.', chips: ['Menu Vision 2045', 'Menu Semeton®', 'Tentang Koperasi Renco'] }; } },
+  { id: 'k:chatadmin', kw: ['chat', 'admin', 'balasan'],
+    re: /balasan admin (otomatis|langsung)|chat admin (otomatis|langsung|real ?time)|(kapan|bagaimana|gimana).{0,20}balasan admin|auto ?(tampil|refresh).{0,15}chat/,
+    build: function(){ return { text: '**Chat dengan Admin** 💬\nKetuk ikon **chat admin** di bagian atas Asisten Renco, lalu tulis pesanmu. Selama halaman chat admin terbuka, **balasan admin tampil otomatis** di layar (dicek berkala), jadi kamu tidak perlu menekan Balasan admin. Pesan baru langsung ditandai terbaca. Ketuk **Akhiri** untuk kembali ke asisten. Balasan tetap bisa dilihat kapan saja lewat **Balasan admin**.', chips: ['Hubungi Admin', 'Balasan admin'] }; } },
   { id: 'k:arisan', kw: ['arisan'],
     re: /arisan/,
     build: function(){ return { text: '**Arisan Renco** 🎲\nPeserta menyetor iuran tiap putaran, lalu satu peserta dapat giliran menerima dana terkumpul lewat **undian**. Di aplikasi ada daftar peserta, undian (spin), dan **riwayat putaran**. Nominal iuran dan jadwal diatur pengurus, jadi cek bagian Arisan di aplikasi ya.\n\nTips: pilih arisan yang aturannya jelas dan tercatat rapi, dan pastikan iurannya nggak bikin kamu ngutang buat nyetor.', chips: ['Tips berhemat', 'Tentang Koperasi Renco'] }; } },
@@ -76705,6 +77545,15 @@ KB.push(
 var KBORDER = ['k:berkah', 'k:kontak', 'k:legalitas', 'k:produk', 'k:nilai', 'k:akadlain', 'k:syariah', 'k:istilah', 'k:shu', 'k:rencopay', 'k:capital', 'k:nonaktif', 'k:blacklist', 'k:arisan', 'k:kartu', 'k:forum', 'k:kalkulator', 'k:zakat', 'k:inflasi', 'k:daruratedu', 'k:utang', 'k:investasi', 'k:penipuan', 'k:gabung', 'k:prinsip', 'k:koperasi'];
 KB.sort(function(x, y){ return KBORDER.indexOf(x.id) - KBORDER.indexOf(y.id); });
 var WAWASAN = [
+  'Grafik **Pertumbuhan Tabungan** kini ada di menu **Keuangan**, tepat di bawah grid menu dan di atas Pedoman Muamalah. Sentuh dan geser untuk melihat saldo tiap bulan. 📈',
+  'Di **chat admin**, balasan dari admin kini **tampil otomatis** selama halamannya terbuka. Tidak perlu lagi menekan tombol Balasan admin. 💬',
+  'Tagline **Renco Vision 2045**: **"Dari Kita untuk Generasi"**. Ini adalah **Gerakan Pemuda Aren Community** yang mengajak warga membangun aset dan program untuk generasi mendatang. 🌱',
+  'Cara berkontribusi ke **Vision 2045**: buka menu **Vision 2045**, pilih program, isi jumlah (minimal Rp 1.000), cek konfirmasi, lalu masukkan **PIN RencoPay**. Dananya diambil dari saldo RencoPay, jadi Top Up dulu kalau kurang. 🤝',
+  'Di **Semeton®**, menu kini dikelompokkan jadi 5 kategori. Hanya **Komunitas & Hiburan** yang terbuka di awal. **Ketuk judul kategori** (ada ikon panahnya) untuk membuka atau menutup menunya. 🎮',
+  'Mau tahu untung usahamu? Pakai **Semeton® → Keuangan & Bisnis → Hitung HPP** untuk menghitung harga pokok dan saran harga jual, lalu **Margin & Untung** untuk laba, markup, dan titik impas (BEP). 🧮',
+  '**Kompres Foto** dan **QR Generator** di Semeton® (kategori Alat Bantu Digital) memudahkan mengirim foto dan membagikan tautan atau nomor rekening. Foto diproses di perangkatmu, **tidak diunggah ke server**. 📸',
+  '**Renco Vision 2045** bergerak lewat **Lapangan Renco · Gerakan 100 Pemuda**: aset bersama (tanah, target 2030), Satu Rumah Satu Sarjana dan Hafiz, 1000 Buku, 100 UMKM Baru, Sampah Jadi Berkah, serta Gumi Renco. 🎯',
+  'Di menu **Vision 2045**, **Dana Abadi Renco** dikumpulkan untuk keberlanjutan program jangka panjang, **Peta Masa Depan** memuat tahapan menuju 2045, dan **Indeks Kesejahteraan** mengukur perubahan kondisi masyarakat. 🗺️',
   'Kartu **Skor Kepercayaan** di menu Nasabah kini **tersembunyi secara default**. Ketuk tombol **🛡️ Skor Kepercayaan → Tampilkan** untuk melihat skor dan detailnya. 🛡️',
   '**Statistik di Beranda** (grafik donat dan kartu ringkasan) kini **tersembunyi secara default**. Ketuk **📊 Tampilkan Statistik** di Beranda kalau mau melihatnya. 📊',
   'Di **Pendidikan dan Beasiswa** (Satu Rumah Satu Sarjana dan Satu Rumah Satu Hafiz), ketuk ikon **🎓 toga** untuk membuka menunya. Ikon **📚 buku** membuka Perpustakaan Renco dan **🛍️ tas belanja** membuka Wirausaha Renco. 🎓',
@@ -77634,7 +78483,7 @@ function mInbox(ctx){
       var lastAdmin = list.filter(function(m){ return m.dari === 'admin'; }).length;
       if (!lastAdmin) L.push('_Belum ada balasan. Admin akan menanggapi secepatnya._');
       psTandai(kk, 'anggota', list[list.length - 1].ts); UI.psN = 0;
-      return { text: L.join('\n'), thread: th, chips: keep ? ['Balasan admin', 'Selesai chat admin'] : ['Hubungi Admin', 'Balasan admin'], keep: keep, noFb: true };
+      return { text: L.join('\n'), thread: th, thrKk: kk, thrTs: list[list.length - 1].ts, chips: keep ? ['Balasan admin', 'Selesai chat admin'] : ['Hubungi Admin', 'Balasan admin'], keep: keep, noFb: true };
     }).catch(function(){ return { text: 'Pesan belum dapat dimuat karena koneksi ke server bermasalah. Silakan coba beberapa saat lagi.', chips: ['Balasan admin'], keep: keep, noFb: true }; });
   } };
 }
@@ -77683,7 +78532,7 @@ function aBuka(q){
       if (!list.length) L.push('_Belum ada percakapan._');
       L.push(''); L.push('Tulis balasan Anda sekarang; pesan akan langsung terkirim kepada ' + n.nama.split(' ')[0] + '. Tekan **Akhiri** untuk keluar.');
       if (list.length) psTandai(n.id, 'admin', list[list.length - 1].ts);
-      return { text: L.join('\n'), thread: th, chips: ['Segarkan chat', 'Pesan masuk', 'Selesai chat'], keep: keep, noFb: true };
+      return { text: L.join('\n'), thread: th, thrKk: n.id, thrTs: list.length ? list[list.length - 1].ts : 0, chips: ['Segarkan chat', 'Pesan masuk', 'Selesai chat'], keep: keep, noFb: true };
     }).catch(function(){ return psGagal(keep); });
   } };
 }
@@ -78555,7 +79404,7 @@ function fillBot(sh, r){
     sh.bubble.appendChild(g);
   }
   if (r.viz && r.viz.length) sh.bubble.appendChild(barsEl(r.viz));
-  if (r.thread && r.thread.length) sh.bubble.appendChild(threadEl(r.thread));
+  if (r.thread && r.thread.length) { sh.bubble.appendChild(threadEl(r.thread)); UI.thrKk = r.thrKk || null; UI.thrTs = r.thrTs || 0; if (UI.cw && r.thrTs) UI.cw.last = Math.max(UI.cw.last, r.thrTs); }
   if (r.actions && r.actions.length) {
     var a = document.createElement('div'); a.className = 'ra-acts';
     r.actions.forEach(function(x){ var b = document.createElement('button'); b.type = 'button'; b.className = 'ra-act'; b.textContent = x.t + ' →'; b.onclick = function(){ go(x.go); }; a.appendChild(b); });
@@ -78683,7 +79532,8 @@ function applyMode(){
   if (bar.getAttribute('data-k') === key) return;
   bar.setAttribute('data-k', key); bar.innerHTML = '';
   bar.classList.toggle('on', !!mi);
-  if (!mi) return;
+  if (!mi) { UI.cw = null; UI.thrKk = null; UI.thrTs = 0; return; }
+  UI.cw = null; setTimeout(function(){ try { chatPoll(); } catch(e){} }, 350);
   var lv = document.createElement('div'); lv.className = 'ra-live';
   var dot = document.createElement('i'), sp = document.createElement('span');
   var b1 = document.createElement('b'), s1 = document.createElement('small');
@@ -78703,6 +79553,36 @@ function toggle(on){
   var fab = $('raFab'); if (fab) { fab.style.display = UI.open ? 'none' : (me() && !window._rencoPayOnly ? 'flex' : 'none'); }
   if (UI.open) { try { applyMode(); } catch(e){} if (!log().children.length) greet(); setTimeout(function(){ var i = $('raIn'); if (i && window.innerWidth > 700) i.focus(); }, 120); }
   else wake();
+}
+/* ── Balasan chat admin tampil otomatis selama halaman chat admin terbuka ── */
+function chatPoll(){
+  if (!UI.built || !UI.open || UI.cwBusy) return;
+  if (typeof document !== 'undefined' && document.hidden) return;
+  var mi = modeInfo(); if (!mi) { UI.cw = null; return; }
+  var adm = mi.t === 'a', kk = adm ? (UI.ctx.balas && UI.ctx.balas.kk) : kkId();
+  if (!kk) return;
+  var pihak = adm ? 'admin' : 'anggota';
+  if (UI.cw && UI.cw.kk !== kk) UI.cw = null;
+  var first = !UI.cw; if (first) UI.cw = { kk: kk, last: 0 };
+  var shown = first && UI.thrKk === kk;
+  UI.cwBusy = true;
+  psThread(kk, 40).then(function(list){
+    var cw = UI.cw; if (!cw || cw.kk !== kk || !modeInfo() || !list.length) return;
+    var newest = list[list.length - 1].ts;
+    var chips = adm ? ['Segarkan chat', 'Pesan masuk', 'Selesai chat'] : ['Balasan admin', 'Selesai chat admin'];
+    if (first && !shown) {
+      cw.last = newest;
+      addBot({ text: adm ? '**Percakapan dengan ' + (mi.nama || 'anggota') + '**' : '**Percakapan dengan Admin**', thread: psThreadData(list, pihak), chips: chips, keep: UI.ctx, noFb: true });
+      psTandai(kk, pihak, newest); if (!adm) UI.psN = 0;
+      return;
+    }
+    if (first && shown) cw.last = UI.thrTs || newest;
+    var baru = list.filter(function(m){ return m.ts > cw.last && m.dari !== pihak; });
+    cw.last = Math.max(cw.last, newest);
+    if (!baru.length) return;
+    addBot({ text: adm ? '💬 **Pesan baru dari ' + (mi.nama || 'anggota') + '**' : '💬 **Balasan baru dari Admin**', thread: psThreadData(baru, pihak), chips: chips, keep: UI.ctx, noFb: true });
+    psTandai(kk, pihak, newest); if (!adm) UI.psN = 0;
+  }).catch(function(){}).then(function(){ UI.cwBusy = false; });
 }
 function sync(){
   if (typeof document === 'undefined') return;
@@ -78726,11 +79606,25 @@ function sync(){
 window.RencoAsisten = { answer: answer, open: function(){ toggle(true); }, close: function(){ toggle(false); }, _parse: { uang: parseUang, durasi: parseDurasi } };
 try { var _ks = []; for (var _i = 0; _i < localStorage.length; _i++) { var _k = localStorage.key(_i); if (_k && _k.indexOf('raLearn:') === 0) _ks.push(_k); } _ks.forEach(function(k){ localStorage.removeItem(k); }); } catch(e){}
 if (typeof document !== 'undefined') {
-  var start = function(){ sync(); setInterval(sync, 3000); };
+  var start = function(){ sync(); setInterval(sync, 3000); setInterval(chatPoll, 4000); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 }
 })();
 </script>
+<style id="nav-aksi-tweaks">
+/* Nav bawah: saat menu aktif, ikon naik sedikit dan tulisan lebih besar */
+html body .bottom-nav .nav-item.active .nav-icon{transform:translateY(-5px) !important}
+html body .bottom-nav .nav-item.active .nav-label{font-size:11.5px !important;font-weight:800 !important}
+html body .bottom-nav .nav-item[data-nav="vision2045"].active .nav-label{font-size:10.5px !important}
+html body #bottomNavRencoPay .nav-item.active .nav-icon{transform:translateY(-5px) scale(1.08) !important}
+html body #bottomNavRencoPay .nav-item.active .nav-label{font-size:12.5px !important}
+html body #bottomNavRencoPay .nav-item-kembali.active .nav-label{font-size:11.5px !important}
+/* Beranda: Aksi Cepat naik sedikit */
+html body #app #page-home .quick-actions{margin-top:-8px !important}
+/* Grafik Pertumbuhan Tabungan kini di menu Keuangan (di atas Pedoman Muamalah) */
+#page-keuangan #nsMemberStats{padding:0 !important;width:100%;box-sizing:border-box}
+#page-keuangan #nsMemberStats .nms-card{margin-bottom:0}
+</style>
 <script id="ns-member-stats">
 /* ── Statistik Anggota di menu Nasabah: Grafik Pertumbuhan Tabungan ── */
 (function(){
@@ -79014,7 +79908,14 @@ if (typeof document !== 'undefined') {
     bind(wrap); S.idx = null; paint(wrap, true);
   }
   window.renderNsMemberStats = render;
-  setInterval(function(){ try { var p = document.getElementById('page-nasabah'); if (p && p.classList.contains('active')) { var w = document.getElementById('nsMemberStats'); if (w && !w.innerHTML) render(); } } catch(e){} }, 1000);
+  setInterval(function(){ try { var p = document.getElementById('page-keuangan'); if (p && p.classList.contains('active')) { var w = document.getElementById('nsMemberStats'); if (w && !w.innerHTML) render(); } } catch(e){} }, 1000);
+  // Segarkan grafik setiap grid Keuangan dirender ulang (data tabungan terbaru)
+  var origKG = window.renderKeuanganGrid;
+  if (typeof origKG === 'function' && !origKG._nmsWrapped) {
+    var wk = function(){ var r = origKG.apply(this, arguments); try { render(); } catch(e){} return r; };
+    wk._nmsWrapped = true; window.renderKeuanganGrid = wk;
+    try { renderKeuanganGrid = wk; } catch(e){}
+  }
 
   // Sambungkan ke renderNasabah (dipanggil setiap halaman/tab Nasabah dirender ulang)
   var orig = window.renderNasabah;
@@ -83000,4 +83901,499 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
 })();
 </script>
 
+<!-- ═══ SEMETON® — Alat Bantu: Keuangan & Bisnis · Pekerjaan · Alat Bantu Digital · Perencanaan Diri ═══ -->
+<style id="smt-css">
+#page-forum #forumGridInner .smt-cat{grid-column:1 / -1;display:flex;align-items:center;gap:8px;margin:6px 4px 0;padding:10px 8px;border-top:none;border-radius:12px;background:rgba(45,106,79,.07);cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;transition:background .15s}
+#page-forum #forumGridInner .smt-cat.first{margin-top:2px}
+#page-forum #forumGridInner .smt-cat:active{background:rgba(45,106,79,.14)}
+#page-forum #forumGridInner .smt-cat:focus-visible{outline:2px solid var(--forest-mid);outline-offset:1px}
+#page-forum #forumGridInner .smt-cat .ci{display:inline-flex;color:var(--forest-mid)}
+#page-forum #forumGridInner .smt-cat b{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--forest-mid)}
+#page-forum #forumGridInner .smt-cat .smt-chev{margin-left:auto;color:var(--forest-mid);transition:transform .2s}
+#page-forum #forumGridInner .smt-cat[aria-expanded="true"] .smt-chev{transform:rotate(180deg)}
+html body #app #page-forum #forumGridInner .forum-grid-btn.smt-h{display:none !important}
+body.rp-theme #page-forum #forumGridInner .smt-cat b{color:var(--t-acc)}
+body.rp-theme #page-forum #forumGridInner .smt-cat{background:rgba(212,170,40,.10)}
+body.rp-theme #page-forum #forumGridInner .smt-cat .ci,body.rp-theme #page-forum #forumGridInner .smt-cat .smt-chev{color:var(--t-acc)}
+
+.smt-wrap{padding:14px 14px 40px;font-family:inherit;color:#1c3025}
+.smt-hint{font-size:11.5px;color:#5b6b62;line-height:1.5;margin:0 2px 12px}
+.smt-card{background:#fff;border:1px solid rgba(45,106,79,.12);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(13,32,22,.05)}
+.smt-lbl{display:block;font-size:10.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#4f6558;margin:0 0 5px}
+.smt-in,.smt-sel,.smt-ta{width:100%;box-sizing:border-box;border:1.5px solid rgba(45,106,79,.22);border-radius:11px;background:#fff;padding:10px 12px;font-size:14px;font-family:inherit;color:#14281c;outline:none}
+.smt-in:focus,.smt-sel:focus,.smt-ta:focus{border-color:#2d6a4f;box-shadow:0 0 0 3px rgba(45,106,79,.12)}
+.smt-ta{min-height:110px;resize:vertical;line-height:1.45}
+.smt-g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.smt-fld{margin-bottom:11px}
+.smt-btn{border:none;border-radius:11px;padding:11px 14px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#1a472a,#40916c);color:#fff;-webkit-tap-highlight-color:transparent}
+.smt-btn.ghost{background:rgba(45,106,79,.1);color:#1a472a}
+.smt-btn.gold{background:linear-gradient(135deg,#f4a922,#ffd166);color:#1a472a}
+.smt-btn.red{background:rgba(220,38,38,.1);color:#b91c1c}
+.smt-btn.sm{padding:6px 10px;font-size:11px;border-radius:9px}
+.smt-btn.full{width:100%}
+.smt-bar{display:flex;gap:8px;margin-bottom:12px}
+.smt-res{border-radius:14px;background:linear-gradient(160deg,#eef7f1,#fff);border:1px solid rgba(45,106,79,.18);padding:12px 14px}
+.smt-res .rw{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(45,106,79,.15);font-size:12.5px}
+.smt-res .rw:last-child{border-bottom:none}
+.smt-res .rw span{color:#4f6558}
+.smt-res .rw b{font-size:14px;color:#14281c;text-align:right}
+.smt-res .rw.big b{font-size:17px;color:#1a6b57}
+.smt-res .rw b.neg{color:#b91c1c}.smt-res .rw b.pos{color:#15803d}
+.smt-item{background:#fff;border:1px solid rgba(45,106,79,.12);border-radius:14px;padding:12px;margin-bottom:9px;box-shadow:0 2px 8px rgba(13,32,22,.04)}
+.smt-item.done{opacity:.55}
+.smt-item.done .tt{text-decoration:line-through}
+.smt-item .tt{font-size:14px;font-weight:700;color:#14281c;word-break:break-word}
+.smt-item .mt{font-size:11px;color:#66756d;margin-top:3px}
+.smt-item .bd{font-size:12.5px;color:#2b3b32;line-height:1.5;margin-top:6px;white-space:pre-wrap;word-break:break-word}
+.smt-item .ac{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.smt-row{display:flex;gap:10px;align-items:flex-start}
+.smt-chk{width:22px;height:22px;border-radius:7px;border:2px solid #2d6a4f;background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:14px;font-weight:900;margin-top:1px}
+.smt-chk.on{background:#2d6a4f}
+.smt-pill{display:inline-block;font-size:9.5px;font-weight:800;border-radius:99px;padding:2px 8px;margin-right:4px;background:rgba(45,106,79,.12);color:#1a472a}
+.smt-pill.r{background:rgba(220,38,38,.12);color:#b91c1c}.smt-pill.y{background:rgba(244,169,34,.2);color:#8a5a00}.smt-pill.g{background:rgba(21,128,61,.14);color:#15803d}
+.smt-prog{height:9px;border-radius:99px;background:rgba(45,106,79,.12);overflow:hidden;margin-top:8px}
+.smt-prog>div{height:100%;border-radius:99px;background:linear-gradient(90deg,#40916c,#f4a922)}
+.smt-prog.over>div{background:linear-gradient(90deg,#f59e0b,#dc2626)}
+.smt-empty{text-align:center;color:#8b9a92;font-size:12.5px;padding:26px 10px;line-height:1.6}
+.smt-chips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.smt-chip{border:1.5px solid rgba(45,106,79,.25);background:#fff;color:#1a472a;border-radius:99px;padding:5px 12px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit}
+.smt-chip.on{background:#1a472a;color:#fff;border-color:#1a472a}
+.smt-qr{display:flex;justify-content:center;padding:14px;background:#fff;border-radius:14px;border:1px solid rgba(45,106,79,.15);margin-top:10px;min-height:60px}
+.smt-note{font-size:10.5px;color:#7b8a82;margin-top:10px;line-height:1.5}
+.smt-inv-row{display:grid;grid-template-columns:1fr 54px 92px 28px;gap:6px;margin-bottom:6px;align-items:center}
+.smt-inv-row .smt-in{padding:9px 8px;font-size:13px}
+.smt-x{border:none;background:rgba(220,38,38,.1);color:#b91c1c;border-radius:8px;width:28px;height:34px;font-weight:900;cursor:pointer}
+</style>
+<script id="smt-cat-js">
+(function(){
+  var g=null, open={0:true};
+  function cats(){return g?Array.prototype.slice.call(g.querySelectorAll('.smt-cat')):[];}
+  function apply(){
+    if(!g)return;
+    var idx=-1, kids=Array.prototype.slice.call(g.children);
+    kids.forEach(function(el){
+      if(el.classList.contains('smt-cat')){idx++;el.setAttribute('aria-expanded',open[idx]?'true':'false');}
+      else if(idx>=0&&el.classList.contains('forum-grid-btn')){el.classList.toggle('smt-h',!open[idx]);}
+    });
+  }
+  function placeEdukasi(){
+    var e=document.getElementById('forumTabEdukasi'),n=document.getElementById('forumTabNasehat');
+    if(e&&n&&n.nextElementSibling!==e&&!e.dataset.smtPlaced){n.parentNode.insertBefore(e,n.nextSibling);e.dataset.smtPlaced='1';}
+  }
+  function toggle(h){
+    var i=cats().indexOf(h); if(i<0)return;
+    open[i]=!open[i]; apply();
+  }
+  function init(){
+    g=document.getElementById('forumGridInner'); if(!g||g.dataset.smtCat)return;
+    g.dataset.smtCat='1';
+    g.addEventListener('click',function(e){var h=e.target.closest&&e.target.closest('.smt-cat');if(h&&g.contains(h))toggle(h);});
+    g.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')return;var h=e.target.closest&&e.target.closest('.smt-cat');if(h){e.preventDefault();toggle(h);}});
+    try{new MutationObserver(function(){placeEdukasi();apply();}).observe(g,{childList:true});}catch(_){}
+    placeEdukasi(); apply();
+  }
+  init(); document.addEventListener('DOMContentLoaded',init); setTimeout(function(){init();placeEdukasi();apply();},1600);
+})();
+</script>
+<script id="smt-js">
+(function () {
+  if (window.__smt) return; window.__smt = 1;
+
+  /* ── util ── */
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+  function num(v) { var n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function rp(n) { n = Math.round(n || 0); return (n < 0 ? '- ' : '') + 'Rp ' + Math.abs(n).toLocaleString('id-ID'); }
+  function nf(n, d) { return (n || 0).toLocaleString('id-ID', { maximumFractionDigits: d == null ? 2 : d }); }
+  function uid() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function toast(m) { try { if (typeof showToast === 'function') showToast(m); } catch (e) {} }
+  function userKey() { try { return String(AUTH.user.id || AUTH.user.nasabahId || AUTH.user.username || 'tamu'); } catch (e) { return 'tamu'; } }
+  function lsGet(k, def) { try { var v = localStorage.getItem('smt_' + userKey() + '_' + k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+  function lsSet(k, v) { try { localStorage.setItem('smt_' + userKey() + '_' + k, JSON.stringify(v)); } catch (e) { toast('⚠️ Penyimpanan perangkat penuh / diblokir'); } }
+  function todayStr() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function tglId(s) { if (!s) return ''; var d = new Date(s.length <= 10 ? s + 'T00:00:00' : s); return isNaN(d) ? s : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }); }
+  function fld(id, label, attrs, val) { return '<div class="smt-fld"><label class="smt-lbl" for="' + id + '">' + label + '</label><input class="smt-in" id="' + id + '" ' + (attrs || '') + ' value="' + esc(val == null ? '' : val) + '"></div>'; }
+  function numf(id, label, val, ph) { return fld(id, label, 'type="number" inputmode="decimal" min="0" placeholder="' + (ph || '0') + '"', val); }
+  function rows(list) { return '<div class="smt-res">' + list.map(function (r) { return '<div class="rw' + (r[3] ? ' big' : '') + '"><span>' + r[0] + '</span><b' + (r[2] ? ' class="' + r[2] + '"' : '') + '>' + r[1] + '</b></div>'; }).join('') + '</div>'; }
+  function $(sec, id) { return sec.querySelector('#' + id); }
+  function v(sec, id) { var e = $(sec, id); return e ? e.value : ''; }
+
+  /* ── tool: HPP ── */
+  var HPP = {
+    title: 'Hitung HPP',
+    html: function () {
+      return '<div class="smt-wrap"><p class="smt-hint">Hitung Harga Pokok Produksi per unit lalu lihat saran harga jual sesuai target keuntungan.</p><div class="smt-card">' +
+        numf('h_bahan', 'Biaya bahan baku (Rp)') + numf('h_tenaga', 'Biaya tenaga kerja (Rp)') + numf('h_ovh', 'Overhead: listrik, sewa, kemasan (Rp)') +
+        '<div class="smt-g2">' + numf('h_jml', 'Jumlah produk jadi', '', '1') + numf('h_mrg', 'Target untung (%)', 30, '30') + '</div></div><div id="h_out"></div></div>';
+    },
+    calc: function (s) {
+      var tot = num(v(s, 'h_bahan')) + num(v(s, 'h_tenaga')) + num(v(s, 'h_ovh')), jml = num(v(s, 'h_jml')), m = num(v(s, 'h_mrg'));
+      if (!tot || !jml) { $(s, 'h_out').innerHTML = '<div class="smt-empty">Isi biaya dan jumlah produk untuk melihat hasil.</div>'; return; }
+      var hpp = tot / jml, jual = hpp * (1 + m / 100);
+      $(s, 'h_out').innerHTML = rows([['Total biaya produksi', rp(tot)], ['HPP per unit', rp(hpp), '', 1], ['Saran harga jual / unit', rp(jual), 'pos', 1], ['Untung per unit', rp(jual - hpp)], ['Untung jika semua terjual', rp((jual - hpp) * jml)]]);
+    }
+  };
+
+  /* ── tool: Margin & Untung ── */
+  var MRG = {
+    title: 'Margin & Untung',
+    html: function () {
+      return '<div class="smt-wrap"><p class="smt-hint">Hitung laba kotor, laba bersih, margin, markup dan titik impas (BEP) usaha Anda.</p><div class="smt-card"><div class="smt-g2">' +
+        numf('m_jual', 'Harga jual / unit (Rp)') + numf('m_hpp', 'HPP / modal per unit (Rp)') + '</div><div class="smt-g2">' +
+        numf('m_qty', 'Jumlah terjual (unit)') + numf('m_ops', 'Biaya operasional total (Rp)') + '</div></div><div id="m_out"></div></div>';
+    },
+    calc: function (s) {
+      var j = num(v(s, 'm_jual')), h = num(v(s, 'm_hpp')), q = num(v(s, 'm_qty')), o = num(v(s, 'm_ops'));
+      if (!j) { $(s, 'm_out').innerHTML = '<div class="smt-empty">Isi harga jual dan modal per unit.</div>'; return; }
+      var omz = j * q, mod = h * q, kotor = omz - mod, bersih = kotor - o, per = j - h;
+      var bep = per > 0 ? Math.ceil(o / per) : 0;
+      $(s, 'm_out').innerHTML = rows([
+        ['Omzet (penjualan)', rp(omz)], ['Total modal', rp(mod)], ['Laba kotor', rp(kotor), kotor < 0 ? 'neg' : 'pos'],
+        ['Laba bersih', rp(bersih), bersih < 0 ? 'neg' : 'pos', 1],
+        ['Margin laba / unit', nf(j ? per / j * 100 : 0, 1) + '%'], ['Markup atas modal', nf(h ? per / h * 100 : 0, 1) + '%'],
+        ['Titik impas (BEP)', per > 0 ? nf(bep, 0) + ' unit' : (o ? 'tidak tercapai' : '-')]]);
+    }
+  };
+
+  /* ── tool: Konversi Satuan ── */
+  var UNITS = {
+    'Panjang': { mm: .001, cm: .01, m: 1, km: 1000, inci: .0254, kaki: .3048, yard: .9144, mil: 1609.344 },
+    'Berat': { mg: 1e-6, g: .001, ons: .1, kg: 1, kuintal: 100, ton: 1000, pon: .45359237 },
+    'Volume': { ml: .001, 'sendok makan': .015, gelas: .25, liter: 1, 'm³': 1000, 'galon (US)': 3.785411784 },
+    'Luas': { 'm²': 1, 'ft²': .09290304, are: 100, hektar: 10000, 'km²': 1e6 },
+    'Data': { B: 1, KB: 1024, MB: 1048576, GB: 1073741824, TB: 1099511627776 },
+    'Suhu': { '°C': 1, '°F': 1, K: 1 }
+  };
+  function konv(val, kat, a, b) {
+    if (kat === 'Suhu') {
+      var c = a === '°C' ? val : (a === '°F' ? (val - 32) * 5 / 9 : val - 273.15);
+      return b === '°C' ? c : (b === '°F' ? c * 9 / 5 + 32 : c + 273.15);
+    }
+    return val * UNITS[kat][a] / UNITS[kat][b];
+  }
+  var SAT = {
+    title: 'Konversi Satuan',
+    html: function () {
+      var kats = Object.keys(UNITS);
+      return '<div class="smt-wrap"><p class="smt-hint">Ubah satuan panjang, berat, volume, luas, data, dan suhu dengan cepat.</p><div class="smt-card">' +
+        '<div class="smt-fld"><label class="smt-lbl">Kategori</label><select class="smt-sel" id="k_kat">' + kats.map(function (k) { return '<option>' + k + '</option>'; }).join('') + '</select></div>' +
+        fld('k_val', 'Nilai', 'type="number" inputmode="decimal" placeholder="0"', 1) +
+        '<div class="smt-g2"><div><label class="smt-lbl">Dari</label><select class="smt-sel" id="k_a"></select></div><div><label class="smt-lbl">Ke</label><select class="smt-sel" id="k_b"></select></div></div></div><div id="k_out"></div></div>';
+    },
+    init: function (s) { SAT.fill(s); SAT.calc(s); },
+    fill: function (s) {
+      var kat = v(s, 'k_kat'), us = Object.keys(UNITS[kat]), o = us.map(function (u) { return '<option>' + u + '</option>'; }).join('');
+      $(s, 'k_a').innerHTML = o; $(s, 'k_b').innerHTML = o; $(s, 'k_b').selectedIndex = Math.min(1, us.length - 1);
+    },
+    calc: function (s, e) {
+      if (e && e.target && e.target.id === 'k_kat') SAT.fill(s);
+      var kat = v(s, 'k_kat'), a = v(s, 'k_a'), b = v(s, 'k_b'), x = num(v(s, 'k_val'));
+      var hasil = konv(x, kat, a, b), all = Object.keys(UNITS[kat]).map(function (u) { return [u, nf(konv(x, kat, a, u), 6)]; });
+      $(s, 'k_out').innerHTML = '<div class="smt-res"><div class="rw big"><span>' + nf(x, 6) + ' ' + a + ' =</span><b>' + nf(hasil, 6) + ' ' + b + '</b></div></div>' +
+        '<div class="smt-card" style="margin-top:12px"><div class="smt-lbl">Semua satuan</div>' + all.map(function (r) { return '<div class="rw" style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px;border-bottom:1px dashed rgba(45,106,79,.15)"><span style="color:#4f6558">' + r[0] + '</span><b>' + r[1] + '</b></div>'; }).join('') + '</div>';
+    }
+  };
+
+  /* ── tool: QR Generator ── */
+  var QR = {
+    title: 'QR Generator',
+    html: function () {
+      return '<div class="smt-wrap"><p class="smt-hint">Buat kode QR dari teks, tautan, nomor HP atau info rekening lalu unduh sebagai gambar.</p><div class="smt-card">' +
+        '<div class="smt-fld"><label class="smt-lbl" for="q_txt">Isi QR</label><textarea class="smt-ta" id="q_txt" style="min-height:80px" placeholder="https://… atau teks apa saja"></textarea></div>' +
+        '<div class="smt-bar"><button class="smt-btn" data-smt="qr_make" style="flex:1">Buat QR</button><button class="smt-btn ghost" data-smt="qr_dl">Unduh PNG</button></div>' +
+        '<div class="smt-qr" id="q_box"><span style="font-size:12px;color:#8b9a92;align-self:center">QR akan tampil di sini</span></div>' +
+        '<div class="smt-note">Pembuatan QR memerlukan koneksi internet saat pertama dipakai (memuat pustaka QR).</div></div></div>';
+    },
+    act: function (a, s) {
+      if (a === 'qr_make') {
+        var t = v(s, 'q_txt').trim(); if (!t) { toast('Isi teks QR dulu'); return; }
+        var go = function () { var b = $(s, 'q_box'); b.innerHTML = ''; try { new QRCode(b, { text: t, width: 220, height: 220, colorDark: '#1c3025', colorLight: '#ffffff' }); } catch (e) { b.textContent = 'Gagal membuat QR (teks terlalu panjang?)'; } };
+        if (typeof _rpEnsureQRCodeLib === 'function') _rpEnsureQRCodeLib(go); else if (typeof QRCode !== 'undefined') go(); else toast('Pustaka QR belum tersedia');
+      } else if (a === 'qr_dl') {
+        var b = $(s, 'q_box'), c = b.querySelector('canvas'), im = b.querySelector('img'), url = c ? c.toDataURL('image/png') : (im && im.src);
+        if (!url) { toast('Buat QR dulu'); return; }
+        var l = document.createElement('a'); l.href = url; l.download = 'qr-semeton.png'; document.body.appendChild(l); l.click(); l.remove();
+      }
+    }
+  };
+
+  /* ── tool: Kompres Foto ── */
+  var KMP = {
+    title: 'Kompres Foto',
+    html: function () {
+      return '<div class="smt-wrap"><p class="smt-hint">Kecilkan ukuran foto agar mudah dikirim/diunggah. Foto diproses di perangkat Anda, tidak diunggah ke server.</p><div class="smt-card">' +
+        '<div class="smt-fld"><label class="smt-lbl">Pilih foto</label><input type="file" id="c_file" accept="image/*" class="smt-in"></div>' +
+        '<div class="smt-g2"><div><label class="smt-lbl">Sisi terpanjang</label><select class="smt-sel" id="c_max"><option value="1920">1920 px</option><option value="1280" selected>1280 px</option><option value="1024">1024 px</option><option value="800">800 px</option><option value="600">600 px</option></select></div>' +
+        '<div><label class="smt-lbl">Kualitas</label><select class="smt-sel" id="c_q"><option value="0.9">Tinggi</option><option value="0.75" selected>Sedang</option><option value="0.55">Kecil</option><option value="0.4">Sangat kecil</option></select></div></div>' +
+        '<div class="smt-bar" style="margin-top:12px"><button class="smt-btn" data-smt="kmp_go" style="flex:1">Kompres</button><button class="smt-btn ghost" data-smt="kmp_dl">Unduh</button></div></div><div id="c_out"></div></div>';
+    },
+    blob: null, name: 'foto',
+    act: function (a, s) {
+      if (a === 'kmp_dl') {
+        if (!KMP.blob) { toast('Kompres foto dulu'); return; }
+        var l = document.createElement('a'); l.href = URL.createObjectURL(KMP.blob); l.download = KMP.name + '-kecil.jpg'; document.body.appendChild(l); l.click(); l.remove(); return;
+      }
+      var f = $(s, 'c_file').files[0]; if (!f) { toast('Pilih foto dulu'); return; }
+      var mx = num(v(s, 'c_max')), q = num(v(s, 'c_q')), im = new Image(), u = URL.createObjectURL(f);
+      im.onload = function () {
+        var sc = Math.min(1, mx / Math.max(im.width, im.height)), w = Math.round(im.width * sc), h = Math.round(im.height * sc);
+        var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        var cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); cx.drawImage(im, 0, 0, w, h);
+        cv.toBlob(function (b) {
+          URL.revokeObjectURL(u);
+          if (!b) { toast('Gagal mengompres'); return; }
+          KMP.blob = b; KMP.name = (f.name || 'foto').replace(/\.[^.]+$/, '');
+          var kb = function (n) { return n > 1048576 ? nf(n / 1048576, 2) + ' MB' : nf(n / 1024, 0) + ' KB'; };
+          $(s, 'c_out').innerHTML = rows([['Ukuran asli', kb(f.size)], ['Setelah kompres', kb(b.size), 'pos', 1], ['Hemat', nf(Math.max(0, (1 - b.size / f.size) * 100), 0) + '%'], ['Dimensi', w + ' × ' + h + ' px']]) +
+            '<img src="' + URL.createObjectURL(b) + '" style="width:100%;border-radius:12px;margin-top:12px;border:1px solid rgba(45,106,79,.15)">';
+        }, 'image/jpeg', q);
+      };
+      im.onerror = function () { toast('Foto tidak bisa dibaca'); };
+      im.src = u;
+    }
+  };
+
+  /* ── tool: Anggaran Bulanan ── */
+  var ANG = {
+    title: 'Anggaran Bulanan', mon: null,
+    key: function () { return 'ang_' + (ANG.mon || (ANG.mon = todayStr().slice(0, 7))); },
+    html: function () {
+      var d = lsGet(ANG.key(), { masuk: 0, pos: [] }), jat = 0, pak = 0;
+      d.pos.forEach(function (p) { jat += p.jatah; pak += p.pakai; });
+      var sisa = d.masuk - pak;
+      return '<div class="smt-wrap"><p class="smt-hint">Rencanakan pemasukan dan jatah tiap pos, lalu catat pengeluaran agar terlihat sisa dan pos yang melebihi anggaran. Data tersimpan di perangkat ini.</p>' +
+        '<div class="smt-card"><div class="smt-g2"><div><label class="smt-lbl">Bulan</label><input class="smt-in" type="month" id="a_mon" value="' + ANG.mon + '" data-smt-change="ang_mon"></div>' +
+        '<div><label class="smt-lbl">Pemasukan (Rp)</label><input class="smt-in" type="number" inputmode="numeric" id="a_masuk" value="' + (d.masuk || '') + '" placeholder="0" data-smt-change="ang_masuk"></div></div></div>' +
+        rows([['Total jatah pos', rp(jat)], ['Total terpakai', rp(pak)], ['Sisa dari pemasukan', rp(sisa), sisa < 0 ? 'neg' : 'pos', 1], ['Belum dijatahkan', rp(d.masuk - jat), d.masuk - jat < 0 ? 'neg' : '']]) +
+        '<div class="smt-card" style="margin-top:12px"><div class="smt-lbl">Tambah pos anggaran</div><div class="smt-g2"><input class="smt-in" id="a_nm" placeholder="mis. Makan"><input class="smt-in" id="a_jt" type="number" inputmode="numeric" placeholder="Jatah Rp"></div>' +
+        '<button class="smt-btn full" style="margin-top:10px" data-smt="ang_add">＋ Tambah Pos</button></div>' +
+        (d.pos.length ? d.pos.map(function (p) {
+          var pc = p.jatah ? Math.min(100, p.pakai / p.jatah * 100) : 0, over = p.pakai > p.jatah;
+          return '<div class="smt-item"><div class="tt">' + esc(p.nama) + (over ? ' <span class="smt-pill r">Melebihi</span>' : '') + '</div><div class="mt">' + rp(p.pakai) + ' dari ' + rp(p.jatah) + ' · sisa ' + rp(p.jatah - p.pakai) + '</div>' +
+            '<div class="smt-prog' + (over ? ' over' : '') + '"><div style="width:' + pc + '%"></div></div>' +
+            '<div class="ac"><button class="smt-btn sm" data-smt="ang_pakai|' + p.id + '">＋ Catat pengeluaran</button><button class="smt-btn sm ghost" data-smt="ang_jatah|' + p.id + '">Ubah jatah</button><button class="smt-btn sm red" data-smt="ang_del|' + p.id + '">Hapus</button></div></div>';
+        }).join('') : '<div class="smt-empty">Belum ada pos anggaran.</div>') + '</div>';
+    },
+    change: function (a, s, el) {
+      if (a === 'ang_mon') { ANG.mon = el.value || todayStr().slice(0, 7); redraw('ang'); return; }
+      if (a === 'ang_masuk') { var d = lsGet(ANG.key(), { masuk: 0, pos: [] }); d.masuk = num(el.value); lsSet(ANG.key(), d); redraw('ang'); }
+    },
+    act: function (a, s, id) {
+      var d = lsGet(ANG.key(), { masuk: 0, pos: [] }), p = d.pos.filter(function (x) { return x.id === id; })[0];
+      if (a === 'ang_add') { var nm = v(s, 'a_nm').trim(), jt = num(v(s, 'a_jt')); if (!nm) { toast('Isi nama pos'); return; } d.pos.push({ id: uid(), nama: nm, jatah: jt, pakai: 0 }); }
+      else if (a === 'ang_pakai' && p) { var n = prompt('Jumlah pengeluaran untuk "' + p.nama + '" (Rp):'); if (n === null) return; p.pakai += num(n); }
+      else if (a === 'ang_jatah' && p) { var j = prompt('Jatah baru untuk "' + p.nama + '" (Rp):', p.jatah); if (j === null) return; p.jatah = num(j); }
+      else if (a === 'ang_del' && p) { if (!confirm('Hapus pos "' + p.nama + '"?')) return; d.pos = d.pos.filter(function (x) { return x.id !== id; }); }
+      lsSet(ANG.key(), d); redraw('ang');
+    }
+  };
+
+  /* ── tool: Pembuat Invoice ── */
+  var INV = {
+    title: 'Pembuat Invoice', items: null,
+    html: function () {
+      if (!INV.items) INV.items = [{ n: '', q: 1, h: 0 }];
+      var pf = lsGet('inv_profil', { dari: 'Koperasi Renco', kontak: '' });
+      return '<div class="smt-wrap"><p class="smt-hint">Buat invoice / nota PDF untuk pelanggan atau usaha Anda.</p><div class="smt-card">' +
+        '<div class="smt-g2">' + fld('i_no', 'No. Invoice', '', 'INV-' + todayStr().replace(/-/g, '') + '-' + String(Math.floor(Math.random() * 900) + 100)) + fld('i_tgl', 'Tanggal', 'type="date"', todayStr()) + '</div>' +
+        fld('i_dari', 'Dari (nama usaha)', '', pf.dari) + fld('i_kontak', 'Kontak / alamat usaha', 'placeholder="No. HP atau alamat"', pf.kontak) + fld('i_kpd', 'Kepada', 'placeholder="Nama pelanggan"', '') +
+        '<div class="smt-lbl">Rincian barang / jasa</div><div id="i_rows"></div>' +
+        '<button class="smt-btn ghost sm" data-smt="inv_add">＋ Tambah baris</button>' +
+        '<div style="margin-top:12px">' + fld('i_cat', 'Catatan', 'placeholder="mis. Transfer ke rekening …"', '') + '</div></div>' +
+        '<div id="i_tot"></div><button class="smt-btn full" style="margin-top:12px" data-smt="inv_pdf">Buat PDF Invoice</button></div>';
+    },
+    init: function (s) { INV.rows(s); INV.tot(s); },
+    rows: function (s) {
+      $(s, 'i_rows').innerHTML = INV.items.map(function (it, i) {
+        return '<div class="smt-inv-row"><input class="smt-in" data-inv="' + i + ':n" placeholder="Nama item" value="' + esc(it.n) + '"><input class="smt-in" data-inv="' + i + ':q" type="number" inputmode="numeric" placeholder="Qty" value="' + it.q + '"><input class="smt-in" data-inv="' + i + ':h" type="number" inputmode="numeric" placeholder="Harga" value="' + (it.h || '') + '"><button class="smt-x" data-smt="inv_del|' + i + '">×</button></div>';
+      }).join('');
+    },
+    total: function () { return INV.items.reduce(function (a, b) { return a + b.q * b.h; }, 0); },
+    tot: function (s) { $(s, 'i_tot').innerHTML = rows([['Total tagihan', rp(INV.total()), 'pos', 1]]); },
+    calc: function (s, e) {
+      var t = e && e.target, m = t && t.getAttribute && t.getAttribute('data-inv'); if (!m) return;
+      var p = m.split(':'), it = INV.items[+p[0]]; if (!it) return;
+      it[p[1]] = p[1] === 'n' ? t.value : num(t.value); INV.tot(s);
+    },
+    act: function (a, s, id) {
+      if (a === 'inv_add') { INV.items.push({ n: '', q: 1, h: 0 }); INV.rows(s); return; }
+      if (a === 'inv_del') { INV.items.splice(+id, 1); if (!INV.items.length) INV.items.push({ n: '', q: 1, h: 0 }); INV.rows(s); INV.tot(s); return; }
+      var cls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; if (!cls) { toast('⚠️ Library PDF belum siap, coba lagi'); return; }
+      var items = INV.items.filter(function (x) { return x.n.trim() && x.q && x.h; });
+      if (!items.length) { toast('Isi minimal satu baris barang/jasa'); return; }
+      var dari = v(s, 'i_dari').trim() || 'Usaha', kontak = v(s, 'i_kontak').trim(); lsSet('inv_profil', { dari: dari, kontak: kontak });
+      var doc = new cls({ unit: 'mm', format: 'a4' }); doc._rcSkipStempel = true;
+      var W = 210, m = 16, y = 0;
+      doc.setFillColor(26, 71, 42); doc.rect(0, 0, W, 34, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text('INVOICE', m, 17);
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.text(v(s, 'i_no'), m, 24); doc.text('Tanggal: ' + tglId(v(s, 'i_tgl')), m, 29);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text(dari, W - m, 15, { align: 'right' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); if (kontak) doc.text(doc.splitTextToSize(kontak, 70), W - m, 20.5, { align: 'right' });
+      y = 46; doc.setTextColor(90, 100, 95); doc.setFontSize(8); doc.text('DITAGIHKAN KEPADA', m, y);
+      doc.setTextColor(20, 40, 28); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(v(s, 'i_kpd').trim() || '-', m, y + 6);
+      y += 16; doc.setFillColor(238, 247, 241); doc.rect(m, y, W - 2 * m, 8, 'F');
+      doc.setFontSize(8.5); doc.setTextColor(26, 71, 42); doc.text('ITEM', m + 3, y + 5.3); doc.text('QTY', 118, y + 5.3, { align: 'right' }); doc.text('HARGA', 150, y + 5.3, { align: 'right' }); doc.text('JUMLAH', W - m - 3, y + 5.3, { align: 'right' });
+      y += 8; doc.setFont('helvetica', 'normal'); doc.setTextColor(20, 40, 28); doc.setFontSize(9.5);
+      items.forEach(function (it) {
+        var nm = doc.splitTextToSize(it.n, 88), h = Math.max(8, nm.length * 4.6 + 3.4);
+        if (y + h > 270) { doc.addPage(); y = 20; }
+        doc.text(nm, m + 3, y + 5.2); doc.text(nf(it.q, 2), 118, y + 5.2, { align: 'right' }); doc.text(rp(it.h), 150, y + 5.2, { align: 'right' }); doc.text(rp(it.q * it.h), W - m - 3, y + 5.2, { align: 'right' });
+        doc.setDrawColor(225, 232, 228); doc.line(m, y + h, W - m, y + h); y += h;
+      });
+      y += 6; doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(26, 71, 42);
+      doc.text('TOTAL', 130, y + 4, { align: 'right' }); doc.setFontSize(13); doc.text(rp(INV.total()), W - m - 3, y + 4.2, { align: 'right' });
+      var cat = v(s, 'i_cat').trim();
+      if (cat) { y += 14; doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(70, 85, 76); doc.text(doc.splitTextToSize('Catatan: ' + cat, W - 2 * m), m, y); }
+      doc.setFontSize(7.5); doc.setTextColor(140, 150, 145); doc.text('Dibuat dengan Semeton® · Koperasi Renco', W / 2, 288, { align: 'center' });
+      doc.save('invoice-' + v(s, 'i_no') + '.pdf'); toast('✅ Invoice PDF dibuat');
+    }
+  };
+
+  /* ── pabrik daftar (Tugas, Catatan, Pengingat, Target, Jurnal, Ide) ── */
+  var LIST = {};
+  function mkList(key, spec) {
+    spec.key = key; spec.edit = null; spec.adding = false; spec.q = ''; spec.f = 'semua';
+    spec.html = function () {
+      var L = lsGet(key, []), it = spec.edit ? L.filter(function (x) { return x.id === spec.edit; })[0] : null, h = '<div class="smt-wrap"><p class="smt-hint">' + spec.hint + ' Data tersimpan di perangkat ini.</p>';
+      if (spec.adding || it) {
+        h += '<div class="smt-card"><div class="smt-lbl">' + (it ? 'Ubah' : 'Tambah') + '</div>' + spec.fields.map(function (f) {
+          var val = it ? it[f.k] : (typeof f.def === 'function' ? f.def() : (f.def == null ? '' : f.def)), id = 'f_' + f.k;
+          if (f.t === 'textarea') return '<div class="smt-fld"><label class="smt-lbl" for="' + id + '">' + f.l + '</label><textarea class="smt-ta" id="' + id + '" placeholder="' + esc(f.ph || '') + '">' + esc(val) + '</textarea></div>';
+          if (f.t === 'select') return '<div class="smt-fld"><label class="smt-lbl" for="' + id + '">' + f.l + '</label><select class="smt-sel" id="' + id + '">' + f.o.map(function (o) { return '<option' + (o === val ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></div>';
+          return fld(id, f.l, 'type="' + (f.t || 'text') + '"' + (f.t === 'number' ? ' inputmode="numeric" min="0"' : '') + ' placeholder="' + esc(f.ph || '') + '"', val);
+        }).join('') + '<div class="smt-bar"><button class="smt-btn" style="flex:1" data-smt="l_save">Simpan</button><button class="smt-btn ghost" data-smt="l_cancel">Batal</button></div></div>';
+      } else h += '<button class="smt-btn full" style="margin-bottom:12px" data-smt="l_new">＋ ' + spec.add + '</button>';
+      if (spec.chips) h += '<div class="smt-chips">' + spec.chips.map(function (c) { return '<button class="smt-chip' + (spec.f === c ? ' on' : '') + '" data-smt="l_f|' + c + '">' + c + '</button>'; }).join('') + '</div>';
+      if (spec.search) h += '<div class="smt-fld"><input class="smt-in" id="l_q" placeholder="Cari…" value="' + esc(spec.q) + '" data-smt-q="1"></div>';
+      var V = L.filter(function (x) { return (!spec.filter || spec.filter(x, spec.f)) && (!spec.q || JSON.stringify(x).toLowerCase().indexOf(spec.q.toLowerCase()) >= 0); }).sort(spec.sort);
+      h += '<div id="l_list">' + (V.length ? V.map(function (x) { return spec.item(x); }).join('') : '<div class="smt-empty">' + spec.empty + '</div>') + '</div></div>';
+      return h;
+    };
+    spec.act = function (a, s, id) {
+      var L = lsGet(key, []), it = L.filter(function (x) { return x.id === id; })[0];
+      if (a === 'l_new') { spec.adding = true; spec.edit = null; }
+      else if (a === 'l_cancel') { spec.adding = false; spec.edit = null; }
+      else if (a === 'l_edit') { spec.edit = id; spec.adding = false; }
+      else if (a === 'l_f') { spec.f = id; }
+      else if (a === 'l_del') { if (!confirm('Hapus item ini?')) return; L = L.filter(function (x) { return x.id !== id; }); lsSet(key, L); }
+      else if (a === 'l_tog' && it) { it.done = !it.done; lsSet(key, L); }
+      else if (a === 'l_star' && it) { it.fav = !it.fav; lsSet(key, L); }
+      else if (a === 'l_save') {
+        var o = {}; for (var i = 0; i < spec.fields.length; i++) { var f = spec.fields[i], e = s.querySelector('#f_' + f.k); o[f.k] = e ? (f.t === 'number' ? num(e.value) : e.value.trim()) : ''; if (f.req && !o[f.k]) { toast('Isi ' + f.l.toLowerCase() + ' dulu'); return; } }
+        if (spec.edit) { var t = L.filter(function (x) { return x.id === spec.edit; })[0]; if (t) for (var k in o) t[k] = o[k]; }
+        else { o.id = uid(); o.dibuat = new Date().toISOString(); L.push(o); }
+        lsSet(key, L); spec.adding = false; spec.edit = null; toast('✅ Tersimpan');
+      } else if (spec.extra && spec.extra(a, it, L)) { lsSet(key, L); }
+      redraw(key);
+    };
+    spec.search && (spec.input = function (s, e) { if (e.target && e.target.id === 'l_q') { spec.q = e.target.value; var pos = e.target.selectionStart; redraw(key); var n = $(s, 'l_q'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {} } } });
+    LIST[key] = spec; return spec;
+  }
+  function acts(extra) { return '<div class="ac">' + (extra || '') + '</div>'; }
+  function btnEd(x) { return '<button class="smt-btn sm ghost" data-smt="l_edit|' + x.id + '">Ubah</button><button class="smt-btn sm red" data-smt="l_del|' + x.id + '">Hapus</button>'; }
+
+  var TGS = mkList('tugas', {
+    title: 'Daftar Tugas', add: 'Tambah Tugas', hint: 'Catat pekerjaan harian lengkap dengan tenggat dan prioritas.', empty: 'Belum ada tugas.<br>Ketuk “Tambah Tugas” untuk mulai.',
+    chips: ['semua', 'belum', 'selesai'], filter: function (x, f) { return f === 'semua' || (f === 'selesai' ? !!x.done : !x.done); },
+    fields: [{ k: 'teks', l: 'Tugas', req: 1, ph: 'Apa yang harus dikerjakan?' }, { k: 'tempo', l: 'Tenggat', t: 'date' }, { k: 'prio', l: 'Prioritas', t: 'select', o: ['Sedang', 'Tinggi', 'Rendah'], def: 'Sedang' }],
+    sort: function (a, b) { return (a.done ? 1 : 0) - (b.done ? 1 : 0) || String(a.tempo || '9999').localeCompare(String(b.tempo || '9999')); },
+    item: function (x) {
+      var tel = x.tempo && !x.done && x.tempo < todayStr(), pc = x.prio === 'Tinggi' ? 'r' : (x.prio === 'Rendah' ? 'g' : 'y');
+      return '<div class="smt-item' + (x.done ? ' done' : '') + '"><div class="smt-row"><div class="smt-chk' + (x.done ? ' on' : '') + '" data-smt="l_tog|' + x.id + '">' + (x.done ? '✓' : '') + '</div><div style="flex:1;min-width:0"><div class="tt">' + esc(x.teks) + '</div><div class="mt"><span class="smt-pill ' + pc + '">' + esc(x.prio) + '</span>' + (x.tempo ? (tel ? '<span class="smt-pill r">Terlambat</span>' : '') + tglId(x.tempo) : 'Tanpa tenggat') + '</div></div></div>' + acts(btnEd(x)) + '</div>';
+    }
+  });
+  var CTN = mkList('catatan', {
+    title: 'Catatan Digital', add: 'Catatan Baru', hint: 'Simpan catatan penting, daftar belanja, atau hasil rapat.', empty: 'Belum ada catatan.', search: 1,
+    fields: [{ k: 'judul', l: 'Judul', req: 1, ph: 'Judul catatan' }, { k: 'isi', l: 'Isi', t: 'textarea', ph: 'Tulis catatan…' }],
+    sort: function (a, b) { return String(b.dibuat).localeCompare(String(a.dibuat)); },
+    item: function (x) { return '<div class="smt-item"><div class="tt">' + esc(x.judul) + '</div><div class="mt">' + tglId(String(x.dibuat).slice(0, 10)) + '</div>' + (x.isi ? '<div class="bd">' + esc(x.isi) + '</div>' : '') + acts(btnEd(x)) + '</div>'; }
+  });
+  var PGT = mkList('pengingat', {
+    title: 'Pengingat', add: 'Tambah Pengingat', hint: 'Atur pengingat dengan tanggal & jam. Peringatan muncul saat aplikasi sedang terbuka.', empty: 'Belum ada pengingat.',
+    chips: ['semua', 'aktif', 'selesai'], filter: function (x, f) { return f === 'semua' || (f === 'selesai' ? !!x.done : !x.done); },
+    fields: [{ k: 'teks', l: 'Pengingat', req: 1, ph: 'mis. Bayar cicilan' }, { k: 'waktu', l: 'Waktu', t: 'datetime-local', req: 1 }],
+    sort: function (a, b) { return (a.done ? 1 : 0) - (b.done ? 1 : 0) || String(a.waktu).localeCompare(String(b.waktu)); },
+    item: function (x) {
+      var d = new Date(x.waktu), tel = !x.done && d < new Date();
+      return '<div class="smt-item' + (x.done ? ' done' : '') + '"><div class="smt-row"><div class="smt-chk' + (x.done ? ' on' : '') + '" data-smt="l_tog|' + x.id + '">' + (x.done ? '✓' : '') + '</div><div style="flex:1;min-width:0"><div class="tt">⏰ ' + esc(x.teks) + '</div><div class="mt">' + (tel ? '<span class="smt-pill r">Lewat waktu</span>' : '') + (isNaN(d) ? '' : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })) + '</div></div></div>' + acts(btnEd(x)) + '</div>';
+    }
+  });
+  var TRG = mkList('target', {
+    title: 'Target Pribadi', add: 'Target Baru', hint: 'Tetapkan target tabungan atau cita-cita, pantau kemajuannya, dan lihat berapa yang perlu disisihkan tiap bulan.', empty: 'Belum ada target.<br>Contoh: Umroh, Motor baru, Dana darurat.',
+    fields: [{ k: 'nama', l: 'Nama target', req: 1, ph: 'mis. Dana darurat' }, { k: 'target', l: 'Nominal target (Rp)', t: 'number', req: 1 }, { k: 'terkumpul', l: 'Sudah terkumpul (Rp)', t: 'number', def: 0 }, { k: 'tempo', l: 'Tenggat', t: 'date' }],
+    sort: function (a, b) { return String(a.tempo || '9999').localeCompare(String(b.tempo || '9999')); },
+    item: function (x) {
+      var pc = x.target ? Math.min(100, x.terkumpul / x.target * 100) : 0, sisa = Math.max(0, x.target - x.terkumpul), info = '';
+      if (x.tempo && sisa > 0) { var bl = Math.max(1, Math.ceil((new Date(x.tempo + 'T00:00:00') - new Date()) / 2592000000)); info = ' · perlu ' + rp(sisa / bl) + '/bulan'; }
+      return '<div class="smt-item"><div class="tt">🎯 ' + esc(x.nama) + (pc >= 100 ? ' <span class="smt-pill g">Tercapai</span>' : '') + '</div><div class="mt">' + rp(x.terkumpul) + ' dari ' + rp(x.target) + ' (' + nf(pc, 0) + '%)' + (x.tempo ? ' · ' + tglId(x.tempo) : '') + info + '</div><div class="smt-prog"><div style="width:' + pc + '%"></div></div>' +
+        acts('<button class="smt-btn sm" data-smt="trg_add|' + x.id + '">＋ Setor</button>' + btnEd(x)) + '</div>';
+    },
+    extra: function (a, it) { if (a === 'trg_add' && it) { var n = prompt('Tambah setoran untuk "' + it.nama + '" (Rp):'); if (n === null) return false; it.terkumpul = (it.terkumpul || 0) + num(n); return true; } return false; }
+  });
+  var MOODS = ['😊 Senang', '🙂 Biasa', '😔 Sedih', '😤 Kesal', '🤩 Semangat', '😴 Lelah'];
+  var JRN = mkList('jurnal', {
+    title: 'Jurnal Harian', add: 'Tulis Jurnal', hint: 'Tulis refleksi harian: apa yang disyukuri, dipelajari, dan direncanakan.', empty: 'Belum ada jurnal.', search: 1,
+    fields: [{ k: 'tgl', l: 'Tanggal', t: 'date', def: todayStr, req: 1 }, { k: 'mood', l: 'Suasana hati', t: 'select', o: MOODS }, { k: 'isi', l: 'Isi jurnal', t: 'textarea', req: 1, ph: 'Hari ini aku…' }],
+    sort: function (a, b) { return String(b.tgl).localeCompare(String(a.tgl)); },
+    item: function (x) { return '<div class="smt-item"><div class="tt">' + tglId(x.tgl) + ' <span class="smt-pill y">' + esc(x.mood || '') + '</span></div><div class="bd">' + esc(x.isi) + '</div>' + acts(btnEd(x)) + '</div>'; }
+  });
+  var IDE = mkList('ide', {
+    title: 'Bank Ide', add: 'Simpan Ide', hint: 'Tampung ide usaha, program koperasi, atau proyek. Beri bintang untuk ide terbaik.', empty: 'Belum ada ide tersimpan.', search: 1,
+    chips: ['semua', '⭐ favorit'], filter: function (x, f) { return f === 'semua' || !!x.fav; },
+    fields: [{ k: 'ide', l: 'Ide', req: 1, t: 'textarea', ph: 'Tuliskan idenya…' }, { k: 'kat', l: 'Kategori', t: 'select', o: ['Usaha', 'Koperasi', 'Pribadi', 'Lainnya'] }],
+    sort: function (a, b) { return (b.fav ? 1 : 0) - (a.fav ? 1 : 0) || String(b.dibuat).localeCompare(String(a.dibuat)); },
+    item: function (x) { return '<div class="smt-item"><div class="tt">💡 ' + esc(x.kat) + '</div><div class="bd">' + esc(x.ide) + '</div>' + acts('<button class="smt-btn sm ' + (x.fav ? 'gold' : 'ghost') + '" data-smt="l_star|' + x.id + '">' + (x.fav ? '⭐ Favorit' : '☆ Favorit') + '</button>' + btnEd(x)) + '</div>'; }
+  });
+
+  /* ── registri & mesin tampilan ── */
+  var TOOLS = { hpp: HPP, margin: MRG, anggaran: ANG, invoice: INV, qr: QR, kompres: KMP, satuan: SAT, tugas: TGS, catatan: CTN, pengingat: PGT, target: TRG, jurnal: JRN, ide: IDE };
+  ANG.id = 'anggaran'; var ALIAS = { ang: 'anggaran' };
+  function secOf(key) {
+    var id = 'forumSeksiSmt' + cap(key), el = document.getElementById(id);
+    if (!el) { el = document.createElement('div'); el.id = id; el.className = 'smt-sec'; el.style.display = 'none'; el.setAttribute('data-smt-key', key); var pg = document.getElementById('page-forum') || document.body; pg.appendChild(el); bind(el); }
+    return el;
+  }
+  function draw(key) {
+    key = ALIAS[key] || key; var T = TOOLS[key], s = secOf(key);
+    s.innerHTML = T.html(); if (T.init) T.init(s); if (T.calc && !T.init) try { T.calc(s); } catch (e) {}
+    return s;
+  }
+  function redraw(key) { key = ALIAS[key] || key; var s = document.getElementById('forumSeksiSmt' + cap(key)); if (!s) return; var st = s.parentNode && s.parentNode.scrollTop; var T = TOOLS[key]; s.innerHTML = T.html(); if (T.init) T.init(s); else if (T.calc) try { T.calc(s); } catch (e) {} if (st) s.parentNode.scrollTop = st; }
+  function bind(s) {
+    var key = s.getAttribute('data-smt-key');
+    s.addEventListener('click', function (e) {
+      var el = e.target.closest && e.target.closest('[data-smt]'); if (!el) return;
+      var p = el.getAttribute('data-smt').split('|'), T = TOOLS[key]; if (T.act) T.act(p[0], s, p[1]);
+    });
+    s.addEventListener('change', function (e) {
+      var T = TOOLS[key], el = e.target.closest && e.target.closest('[data-smt-change]'); if (el && T.change) { T.change(el.getAttribute('data-smt-change'), s, el); return; }
+      if (T.calc && e.target.tagName === 'SELECT') T.calc(s, e);
+    });
+    s.addEventListener('input', function (e) {
+      var T = TOOLS[key]; if (T.input) T.input(s, e); if (T.calc && e.target.tagName !== 'SELECT' && !e.target.getAttribute('data-smt-change')) T.calc(s, e);
+    });
+  }
+  window.smtOpen = function (key) {
+    if (!TOOLS[key]) return;
+    if (key === 'kompres') KMP.blob = null;
+    if (key === 'invoice') INV.items = null;
+    draw(key);
+    if (typeof forumTab === 'function') forumTab('smt' + cap(key));
+  };
+
+  /* ── pengingat: periksa tiap 30 dtk selama aplikasi terbuka ── */
+  setInterval(function () {
+    try {
+      var L = lsGet('pengingat', []), now = new Date(), ubah = false;
+      L.forEach(function (x) {
+        if (x.done || x.notif) return; var d = new Date(x.waktu); if (isNaN(d) || d > now || now - d > 86400000) return;
+        x.notif = true; ubah = true; toast('⏰ Pengingat: ' + x.teks);
+        try { if (window.Notification && Notification.permission === 'granted') new Notification('Semeton® · Pengingat', { body: x.teks }); } catch (e) {}
+      });
+      if (ubah) lsSet('pengingat', L);
+    } catch (e) {}
+  }, 30000);
+  document.addEventListener('click', function (e) { try { if (e.target.closest && e.target.closest('#forumTabSmtPengingat') && window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (x) {} }, true);
+})();
+</script>
 </body></html>
