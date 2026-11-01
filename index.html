@@ -21548,7 +21548,7 @@ window._adminCatatIuran = function(kkId, nama) {
       DB.transaksi.push({
         id:'txn'+(DB.nextTxnId++), kkId, type:'simpanan', jenis:'wajib',
         jumlah, keterangan:'Iuran Wajib '+label+' — '+nama,
-        tanggal: tglJT.toISOString(), bulanIuran: key
+        tanggal: (tglJT.getTime() > Date.now() ? new Date() : tglJT).toISOString(), bulanIuran: key   /* belum jatuh tempo = dibayar lebih awal → tanggal pembayaran saat ini */
       });
       dicatat++;
       bulanDicatat.push(key);
@@ -58160,7 +58160,14 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
               ${tabelGrup}
             </div>
           </div>
-          <div style="display:flex;gap:8px;padding:8px 10px;background:#f9fafb;border-top:1px solid rgba(0,0,0,0.06);flex-wrap:wrap">
+          <div style="display:flex;gap:8px;padding:8px 10px 0;background:#f9fafb;border-top:1px solid rgba(0,0,0,0.06);align-items:center">
+            <select id="arsipBlnSel_${kkId}" style="flex:1;min-width:0;padding:8px 9px;border-radius:9px;border:1px solid #cfe0d6;font-size:11px;font-weight:600;background:#fff;color:#1c3025">${typeof window._arsipBulanOpsiAnggota==='function' ? window._arsipBulanOpsiAnggota(kkId) : ''}</select>
+            <button onclick="window._arsipBulananAnggotaPDF('${kkId}', document.getElementById('arsipBlnSel_${kkId}').value)"
+              style="flex-shrink:0;background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:white;border:none;border-radius:9px;padding:8px 12px;font-size:10px;font-weight:700;cursor:pointer">
+              📅 PDF Bulanan
+            </button>
+          </div>
+          <div style="display:flex;gap:8px;padding:8px 10px;background:#f9fafb;flex-wrap:wrap">
             <button onclick="window._arsipDownloadPDFAnggota('${kkId}')"
               style="flex:1;min-width:90px;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:white;border:none;border-radius:9px;padding:8px;font-size:10px;font-weight:700;cursor:pointer">
               📑 Download PDF
@@ -58697,7 +58704,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(6.9); doc.setTextColor(224, 250, 235);
     doc.setDrawColor(209, 250, 229); doc.setLineWidth(0.25);
     doc.roundedRect(135, 22.4, 3.2, 3.2, 0.5, 0.5, 'S');
-    doc.text('Periode  : ' + _pdfTglPanjang(), 141, 25);
+    doc.text((_arsipCtx.periode ? 'Periode  : ' + _arsipCtx.periode : 'Dicetak  : ' + _pdfTglPanjang()), 141, 25);
     doc.setFillColor(209, 250, 229); doc.circle(136.6, 27.1, 0.75, 'F');
     doc.roundedRect(135.3, 28, 2.6, 1.7, 0.8, 0.8, 'F');
     doc.text(String(subJudul), 141, 29.1, { maxWidth: 50 });
@@ -58991,6 +58998,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
     var margin = 16, usableW = pageW - margin * 2;
     _arsipCtx.judul = judul;
+    _arsipCtx.periode = opts.periodeLabel || '';
     var y = _pdfArsipHeader(doc, pageW, margin, judul, subJudul);
 
     var grupOrder = ['Simpanan','Pembayaran Cicilan','Pembayaran Angsuran RC','Penarikan Simpanan','Pembiayaan / Pinjaman','Lain-lain'];
@@ -59135,6 +59143,22 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
         tblRows.push({ tglF: fmtTglR(r.tanggal), nama: r.nama, jenis: window._arsipJenisPdf(r, rows), jumlahF: (r.kategori==='masuk'?'+ ':'- ')+_pdfFmt(r.jumlah), arus: r.kategori==='masuk'?'Masuk':'Keluar', _masuk: r.kategori==='masuk' });
       });
     });
+    /* PDF per anggota: pembayaran Cicilan / Angsuran / Simpanan Wajib juga dicatat sebagai PENGELUARAN anggota
+       (baris pasangan "Keluar"). Hanya catatan sudut pandang anggota — sudah dihitung sebagai Kas Masuk koperasi di atas,
+       jadi TIDAK menambah Kas Keluar maupun mengubah total/saldo. Pembayaran via Sukarela (nonKas) ikut ditampilkan
+       (jenisnya bertanda "via Sukarela"); dananya sudah terhitung lewat baris Top Up/Potong di bagian Non-Tunai. */
+    if (opts.kkId) {
+      var _bayarAng = rows.filter(function(r){
+        return r.kategori === 'masuk' && (r.jenisGrup === 'Pembayaran Cicilan' || r.jenisGrup === 'Pembayaran Angsuran RC' || (r.jenisGrup === 'Simpanan' && String(r.jenis || '').indexOf('Simpanan Wajib') === 0));
+      });
+      if (_bayarAng.length) {
+        var _totBayarAng = _bayarAng.reduce(function(a, b){ return a + b.jumlah; }, 0);
+        tblRows.push({ _group: 'Pengeluaran Anggota \u2014 Pembayaran Cicilan & Simpanan Wajib  \u2022  ' + _pdfFmt(_totBayarAng) + '  (catatan sisi anggota, tidak menambah total di bawah)' });
+        _bayarAng.forEach(function(r){
+          tblRows.push({ tglF: fmtTglR(r.tanggal), nama: r.nama, jenis: 'Bayar ' + String(r.jenis || '').replace(/^Bayar\s+/i, ''), jumlahF: '- ' + _pdfFmt(r.jumlah), arus: 'Keluar', _masuk: false });
+        });
+      }
+    }
     if (nonKasRows.length) {
       tblRows.push({ _group: 'Non-Tunai \u2014 Pindah Dana Simpanan Sukarela ke Iuran / Cicilan  \u2022  ' + _pdfFmt(viaSuk), _neutral: true });
       nonKasRows.forEach(function(r){
@@ -59162,7 +59186,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     try {
       var rows = _getRowsBulan(y, m);
       var fname = 'arsip-renco-'+months4[m]+'-'+y+'.pdf';
-      _pdfArsipNative(rows, 'ARSIP LAPORAN TRANSAKSI', months4[m]+' '+y, fname, { idx: y*12+m, idxAwal: y*12+m-1, ketSaldo: 'saldo s/d akhir ' + months4[m] + ' ' + y, hanyaTransaksi: true });
+      _pdfArsipNative(rows, 'ARSIP LAPORAN TRANSAKSI', months4[m]+' '+y, fname, { idx: y*12+m, idxAwal: y*12+m-1, ketSaldo: 'saldo s/d akhir ' + months4[m] + ' ' + y, hanyaTransaksi: true, periodeLabel: months4[m] + ' ' + y });
       if (typeof showToast === 'function') showToast('✅ PDF Arsip '+months4[m]+' '+y+' berhasil diunduh!');
     } catch(e) {
       if (typeof showToast === 'function') showToast('❌ Gagal membuat PDF. Coba lagi.');
@@ -59407,12 +59431,12 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     var ym = LB.ym, y = +ym.slice(0, 4), m = +ym.slice(5) - 1, label = lbYmLabel(ym), nama = d.n.nama || 'Nasabah';
     if (LB.mode === 'kop') {
       var rows = d.rows.map(function(r){ var o = {}; for (var k in r) o[k] = r[k]; return o; });
-      return _pdfArsipBuildDoc(rows, 'LAPORAN BULANAN KOPERASI', nama + ' · ' + label, { kkId: d.n.id, idx: y * 12 + m, idxAwal: y * 12 + m - 1, ketSaldo: 'saldo s/d akhir ' + label, hanyaTransaksi: true, ringkasanKeuangan: true });
+      return _pdfArsipBuildDoc(rows, 'LAPORAN BULANAN KOPERASI', nama + ' · ' + label, { kkId: d.n.id, idx: y * 12 + m, idxAwal: y * 12 + m - 1, ketSaldo: 'saldo s/d akhir ' + label, hanyaTransaksi: true, ringkasanKeuangan: true, periodeLabel: label });
     }
     var jsPDFCls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; if (!jsPDFCls) return null;
     var doc = new jsPDFCls({ orientation: 'p', unit: 'mm', format: 'a4' });
     var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 16, usableW = pageW - margin * 2;
-    var judul = 'LAPORAN BULANAN RENCOPAY'; _arsipCtx.judul = judul;
+    var judul = 'LAPORAN BULANAN RENCOPAY'; _arsipCtx.judul = judul; _arsipCtx.periode = label;
     var yy = _pdfArsipHeader(doc, pageW, margin, judul, nama + ' · ' + label);
     var HIJAU = [21, 128, 61], MERAH = [185, 28, 28];
     yy = _pdfArsipLabel(doc, yy, margin, 'Ringkasan Saldo RencoPay', usableW);
@@ -59547,6 +59571,36 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
     lbRender();
   };
   window.lbSeg = function(){ ['kop', 'rp'].forEach(function(k){ var b = document.getElementById('lbSeg_' + k); if (!b) return; var on = LB.mode === k; b.style.background = on ? '#1a6b57' : 'transparent'; b.style.color = on ? '#fff' : '#1a6b57'; }); };
+
+  /* ── Akses periode bulan sebelumnya: Laporan Bulanan Koperasi untuk SATU anggota, bulan apa pun yang ada datanya ── */
+  window._arsipBulanOpsiAnggota = function(kkId){
+    try {
+      var seen = {}, list = [];
+      _arsipKumpulRowsAnggota(kkId).rows.forEach(function(r){
+        var w = rpWitaWhen({ tanggal: r.tanggal }); if (!w.key) return;
+        var ym = w.key.slice(0, 7); if (!seen[ym]) { seen[ym] = 1; list.push(ym); }
+      });
+      var cur = lbNowW(), nowYm = cur.y + '-' + (cur.m + 1 < 10 ? '0' : '') + (cur.m + 1);
+      if (!seen[nowYm]) list.push(nowYm);
+      list.sort().reverse();
+      var def = lbDefaultYm(); if (list.indexOf(def) < 0) def = list[0];
+      return list.map(function(v){ return '<option value="' + v + '"' + (v === def ? ' selected' : '') + '>' + lbYmLabel(v) + '</option>'; }).join('');
+    } catch (e) { return ''; }
+  };
+  window._arsipBulananAnggotaPDF = function(kkId, ym){
+    if (!ym) { showToast('⚠️ Pilih bulan dulu'); return; }
+    var sm = LB.mode, sy = LB.ym;
+    try {
+      var n = (DB.nasabah || []).find(function(a){ return a.id === kkId; }); if (!n) { showToast('⚠️ Data nasabah tidak ditemukan'); return; }
+      LB.mode = 'kop'; LB.ym = ym;
+      var rows = lbRowsKop(kkId, ym);
+      if (!rows.length) { showToast('ℹ️ Tidak ada transaksi ' + n.nama + ' pada ' + lbYmLabel(ym)); return; }
+      var d = { n: n, rows: rows, count: rows.length };
+      var doc = lbBuildPdf(d); if (!doc) { showToast('⚠️ Library PDF belum siap, coba lagi'); return; }
+      doc.save(lbFname(d)); showToast('✅ PDF ' + n.nama + ' · ' + lbYmLabel(ym) + ' diunduh');
+    } catch (e) { console.error(e); showToast('❌ Gagal membuat PDF'); }
+    finally { LB.mode = sm; LB.ym = sy; }
+  };
   /* tombol di halaman Arsip + pengingat akhir bulan */
   window.lbBtnHTML = function(){
     if (typeof isAdmin !== 'function' || !isAdmin()) return '';
@@ -61533,7 +61587,7 @@ window.nsBayarCicilan = function(pinId) {
         // Bulan iuran yang dibayar tetap tersimpan di field bulanIuran.
         var txnTanggal = new Date().toISOString();
         var bulanIuranApv = item.data && item.data.bulan;
-        if (item.jenis==='wajib' && bulanIuranApv && item.tanggal && !isNaN(new Date(item.tanggal))) txnTanggal = new Date(item.tanggal).toISOString();
+        if (item.jenis==='wajib' && item.tanggal && !isNaN(new Date(item.tanggal))) txnTanggal = new Date(item.tanggal).toISOString();
         // ── Bulan iuran yang sama sudah tercatat (mis. admin sudah mencatat langsung) → jangan dobel ──
         if (item.jenis==='wajib' && bulanIuranApv && (DB.transaksi||[]).some(function(t){
           if (t.kkId!==item.kkId || t.type!=='simpanan' || (t.jenis||'')!=='wajib') return false;
@@ -61596,7 +61650,9 @@ window.nsBayarCicilan = function(pinId) {
         if(pin.sisaPokok<=0){pin.status='lunas';pin.sisaPokok=0;}
         if(!Array.isArray(pin.cicilan)) pin.cicilan=[];
         var _cicilanApvTxnId='txn'+(DB.nextTxnId++);
-        pin.cicilan.push({jumlah:jml,tanggal:new Date().toISOString(),txnId:_cicilanApvTxnId});
+        /* Tanggal transaksi = tanggal PEMBAYARAN (saat nasabah mengajukan), bukan tanggal admin menyetujui / jatuh tempo */
+        var _tglBayarApv=(item.tanggal && !isNaN(new Date(item.tanggal)))?new Date(item.tanggal).toISOString():new Date().toISOString();
+        pin.cicilan.push({jumlah:jml,tanggal:_tglBayarApv,txnId:_cicilanApvTxnId});
         // Hapus ujrahCicilan untuk angsuran yang baru dibayar + catat ke PHU
         if(Array.isArray(pin.ujrahCicilan)){
           var ujrahAngP = pin.ujrahCicilan.filter(function(u){return u.no===noAngP;});
@@ -61637,7 +61693,7 @@ window.nsBayarCicilan = function(pinId) {
           pin.ujrahCicilan=[];
         }
         if(!Array.isArray(DB.transaksi)) DB.transaksi=[];
-        DB.transaksi.push({id:_cicilanApvTxnId,kkId:item.kkId,type:'cicilan',jumlah:jml,keterangan:'Bayar cicilan (disetujui admin)',tanggal:new Date().toISOString(),approvalId:item.id});
+        DB.transaksi.push({id:_cicilanApvTxnId,kkId:item.kkId,type:'cicilan',jumlah:jml,keterangan:'Bayar cicilan (disetujui admin)',tanggal:_tglBayarApv,approvalId:item.id});
         if(window.TagihanApp&&typeof TagihanApp._syncAfterPay==='function'){ var nowM=new Date().toISOString().substring(0,7); TagihanApp._syncAfterPay(pinId,nowM); }
         if(typeof rerenderCicilan==='function') setTimeout(rerenderCicilan,100);
         return true;
@@ -65629,19 +65685,21 @@ console.log('✅ Modul Berjangka & Transparansi termuat');
     var labelBulan = item.data.bulanLabel ? ' ' + item.data.bulanLabel : '';
     /* 1) Top Up RencoPay dari Simpanan Sukarela — satu-satunya titik yang memotong saldo Sukarela koperasi */
     var _potIdApv = 'txn' + (DB.nextTxnId++);
+    /* tanggal = saat pembayaran diajukan (bukan saat disetujui / jatuh tempo) */
+    var _tglBayarSuk = (item.tanggal && !isNaN(new Date(item.tanggal))) ? new Date(item.tanggal).toISOString() : new Date().toISOString();
     DB.transaksi.push({
       id: _potIdApv, kkId: item.kkId, type: 'tarik-sukarela', jenis: 'sukarela',
       jumlah: item.jumlah,
       keterangan: 'Top Up RencoPay dari Simpanan Sukarela — ' + labelJenis + labelBulan,
-      tanggal: new Date().toISOString(), approvalId: item.id
+      tanggal: _tglBayarSuk, approvalId: item.id
     });
     /* 2) Pembayaran sendiri dicatat sebagai transaksi RencoPay independen (dompet nasabah),
           terpisah dari pencatatan transaksi koperasi — top up masuk lalu langsung dipakai bayar */
     if (typeof getWalletNasabah === 'function') {
       var wSukarela = getWalletNasabah(item.kkId);
-      var tglSukarela = new Date().toISOString().slice(0,10);
-      wSukarela.push({ id:'wu'+Date.now()+'a'+Math.random().toString(36).slice(2,5), tipe:'kredit', jumlah:item.jumlah, keterangan:'Top Up dari Simpanan Sukarela', kategori:'Topup Sukarela', tanggal:tglSukarela, createdAt:new Date().toISOString(), ref:_potIdApv });
-      wSukarela.push({ id:'wu'+Date.now()+'b'+Math.random().toString(36).slice(2,5), tipe:'debit', jumlah:item.jumlah, keterangan:labelJenis + labelBulan, kategori:'Pembayaran', tanggal:tglSukarela, createdAt:new Date().toISOString(), ref:_potIdApv });
+      var tglSukarela = _tglBayarSuk.slice(0,10);
+      wSukarela.push({ id:'wu'+Date.now()+'a'+Math.random().toString(36).slice(2,5), tipe:'kredit', jumlah:item.jumlah, keterangan:'Top Up dari Simpanan Sukarela', kategori:'Topup Sukarela', tanggal:tglSukarela, createdAt:_tglBayarSuk, ref:_potIdApv });
+      wSukarela.push({ id:'wu'+Date.now()+'b'+Math.random().toString(36).slice(2,5), tipe:'debit', jumlah:item.jumlah, keterangan:labelJenis + labelBulan, kategori:'Pembayaran', tanggal:tglSukarela, createdAt:_tglBayarSuk, ref:_potIdApv });
     }
     item._sukarelaProcessed = true;
     return true;
