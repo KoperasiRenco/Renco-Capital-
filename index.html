@@ -18047,10 +18047,12 @@ function _skorBungkus(html, kkId){
       + '.skor-fold.open .skor-fold-btn{display:none}'
       + '.skor-fold-body{display:none;margin:0 -16px}'
       + '.skor-fold.open .skor-fold-body{display:block}'
-      + '.skor-close{display:none;margin:-8px auto 4px;padding:6px 18px;font:inherit;font-size:11px;font-weight:800;border-radius:99px;border:1.5px solid rgba(45,106,79,.45);background:transparent;color:#2d6a4f;cursor:pointer;-webkit-tap-highlight-color:transparent}'
-      + 'html.renco-dark .skor-close{color:#86efac;border-color:rgba(134,239,172,.45)}'
-      + '.skor-fold.open .skor-close{display:block}'
-      + '.skor-fold .skf-wrap{margin:8px 16px 10px}'
+      + '.skor-fold{position:relative}'
+      + '.skor-close{display:none;position:absolute;top:11px;right:9px;z-index:3;width:24px;height:24px;padding:0;align-items:center;justify-content:center;border-radius:50%;border:0;background:rgba(0,0,0,.06);color:inherit;opacity:.75;cursor:pointer;-webkit-tap-highlight-color:transparent}'
+      + '.skor-close:active{transform:scale(.92)}'
+      + 'html.renco-dark .skor-close{background:rgba(255,255,255,.12)}'
+      + '.skor-fold.open .skor-close{display:flex}'
+      + '.skor-fold .skf-wrap{margin:4px 16px 6px}'
       + '#nasabahListCard{margin-bottom:6px}#nsMemberStats{padding-top:0!important}';
     document.head.appendChild(st);
   }
@@ -18058,7 +18060,7 @@ function _skorBungkus(html, kkId){
   for (var i = 1; i <= 5; i++) {
     stars += '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.100l-5.700 3.200 1.200-6.400L2.800 9.500l6.400-.8z" fill="' + (i <= lv ? '#f4b400' : 'none') + '" stroke="' + (i <= lv ? '#e09f00' : '#9ca3af') + '" stroke-width="1.6" stroke-linejoin="round"/></svg>';
   }
-  return '<div class="skor-fold"><button type="button" class="skor-fold-btn" aria-expanded="false" aria-label="Skor Kepercayaan: ' + lv + ' dari 5 bintang. Ketuk untuk melihat" onclick="_skorFoldToggle(this)">' + stars + '</button>' + '<div class="skor-fold-body">' + html + '</div><button type="button" class="skor-close" onclick="_skorFoldClose(this)">Tutup</button></div>';
+  return '<div class="skor-fold"><button type="button" class="skor-fold-btn" aria-expanded="false" aria-label="Skor Kepercayaan: ' + lv + ' dari 5 bintang. Ketuk untuk melihat" onclick="_skorFoldToggle(this)">' + stars + '</button>' + '<div class="skor-fold-body">' + html + '</div><button type="button" class="skor-close" aria-label="Tutup" onclick="_skorFoldClose(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button></div>';
 }
 function _skorFoldToggle(btn){
   var f = btn.closest('.skor-fold'); if (!f) return;
@@ -18079,57 +18081,55 @@ window._skorBungkus = _skorBungkus; window._skorFoldToggle = _skorFoldToggle; wi
    tampilan & bahasa yang diubah (tanpa istilah "saran untuk pengurus").
 ════════════════════════════════════════════════════════════════ */
 function _skorEnsureStyleAnggota() {
-  var old = document.getElementById('skorFriendlyCSS'); if (old && old.getAttribute('data-v') === '3') return; if (old) old.remove();
+  var old = document.getElementById('skorFriendlyCSS'); if (old && old.getAttribute('data-v') === '4') return; if (old) old.remove();
   var st = document.createElement('style');
-  st.id = 'skorFriendlyCSS'; st.setAttribute('data-v', '3');
+  st.id = 'skorFriendlyCSS'; st.setAttribute('data-v', '4');
   st.textContent = [
-    '.skf-wrap{margin:10px 16px 14px;font-family:inherit}',
-    '.skf-hero{position:relative;overflow:hidden;border-radius:22px;padding:12px 0 10px;color:#fff;background:linear-gradient(135deg,var(--skf-a),var(--skf-b) 62%,var(--skf-c));box-shadow:0 14px 26px -14px var(--skf-glow);border:1px solid rgba(244,197,66,.35);animation:skfPop .45s cubic-bezier(.22,1,.36,1) both}',
-    '.skf-hero::before{content:"";position:absolute;width:140px;height:140px;right:-46px;top:-54px;border-radius:50%;background:rgba(244,197,66,.16);pointer-events:none}',
-    '.skf-hero::after{content:"";position:absolute;width:80px;height:80px;left:-28px;bottom:-34px;border-radius:50%;background:rgba(244,197,66,.10);pointer-events:none}',
-    '.skf-eyebrow{position:relative;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.3px;padding:3px 10px 3px 7px;margin-left:14px;border-radius:99px;background:rgba(244,197,66,.18);color:#f8d66d}',
-    '.skf-track{position:relative;display:flex;align-items:stretch;min-height:300px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;transition:height .3s ease;margin-top:8px}',
+    '.skf-wrap{margin:6px 16px 10px;font-family:inherit;--skf-ink:#0b4a2f;--skf-ink2:#3d6650;--skf-line:rgba(11,74,47,.24);--skf-fill:rgba(11,74,47,.06);--skf-trk:rgba(11,74,47,.16);--skf-acc:#8a6500;--skf-gold:#d49a00}',
+    'html.renco-dark .skf-wrap{--skf-ink:#eaf5ee;--skf-ink2:#b9d4c4;--skf-line:rgba(244,197,66,.32);--skf-fill:rgba(255,255,255,.07);--skf-trk:rgba(255,255,255,.2);--skf-acc:#f8d66d;--skf-gold:#f4c542}',
+    '.skf-hero{position:relative;overflow:hidden;border-radius:18px;padding:8px 0 6px;color:var(--skf-ink);background:transparent;box-shadow:none;border:1px solid var(--skf-line);animation:skfPop .45s cubic-bezier(.22,1,.36,1) both}',
+            '.skf-eyebrow{position:relative;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.3px;padding:2px 9px 2px 6px;margin-left:12px;border-radius:99px;background:var(--skf-fill);color:var(--skf-acc)}',
+    '.skf-track{position:relative;display:flex;align-items:stretch;min-height:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;transition:height .3s ease;margin-top:4px}',
     '.skf-track::-webkit-scrollbar{display:none}',
-    '.skf-slide{flex:0 0 100%;min-width:0;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;scroll-snap-align:start;scroll-snap-stop:always;padding:0 14px}',
-    '.skf-main{display:flex;align-items:center;gap:12px}',
-    '.skf-ring{position:relative;width:72px;height:72px;flex-shrink:0}',
+    '.skf-slide{flex:0 0 100%;min-width:0;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;scroll-snap-align:start;scroll-snap-stop:always;padding:0 12px}',
+    '.skf-main{display:flex;align-items:center;gap:10px;padding-right:24px}',
+    '.skf-ring{position:relative;width:58px;height:58px;flex-shrink:0}',
     '.skf-ring svg{width:100%;height:100%;transform:rotate(-90deg);display:block}',
-    '.skf-ring .trk{stroke:rgba(255,255,255,.2)}',
-    '.skf-ring .bar{stroke:#f4c542;stroke-linecap:round;stroke-dasharray:314.16;animation:skfRing 1.2s cubic-bezier(.22,1,.36,1) both}',
+    '.skf-ring .trk{stroke:var(--skf-trk)}',
+    '.skf-ring .bar{stroke:var(--skf-gold);stroke-linecap:round;stroke-dasharray:314.16;animation:skfRing 1.2s cubic-bezier(.22,1,.36,1) both}',
     '.skf-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}',
-    '.skf-num b{font-size:23px;font-weight:900;letter-spacing:-1px;color:#fff}',
-    '.skf-num small{font-size:8px;font-weight:700;opacity:.8;margin-top:2px}',
+    '.skf-num b{font-size:19px;font-weight:900;letter-spacing:-1px;color:var(--skf-ink)}',
+    '.skf-num small{font-size:7px;font-weight:700;opacity:.8;margin-top:2px}',
     '.skf-txt{min-width:0}',
-    '.skf-title{font-size:15px;font-weight:900;line-height:1.2;color:#f8d66d}',
-    '.skf-sapa{font-size:10.5px;line-height:1.45;opacity:.95;margin-top:3px}',
-    '.skf-lv{display:flex;gap:4px;margin-top:10px}',
-    '.skf-lv i{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.2)}',
-    '.skf-lv i.on{background:#f4c542}',
-    '.skf-lvl{display:flex;gap:4px;font-size:8px;font-weight:700;opacity:.85;margin-top:4px}',
+    '.skf-title{font-size:13.5px;font-weight:900;line-height:1.2;color:var(--skf-acc)}',
+    '.skf-sapa{font-size:10px;line-height:1.4;opacity:.9;margin-top:2px}',
+    '.skf-lv{display:flex;gap:4px;margin-top:8px}',
+    '.skf-lv i{flex:1;height:4px;border-radius:99px;background:var(--skf-trk)}',
+    '.skf-lv i.on{background:var(--skf-gold)}',
+    '.skf-lvl{display:flex;gap:4px;font-size:8px;font-weight:700;opacity:.85;margin-top:3px}',
     '.skf-lvl span{flex:1;text-align:center}',
-    '.skf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}',
-    '.skf-tile{background:rgba(255,255,255,.09);border:1px solid rgba(244,197,66,.25);border-radius:14px;padding:9px 10px}',
+    '.skf-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}',
+    '.skf-tile{background:var(--skf-fill);border:1px solid var(--skf-line);border-radius:12px;padding:7px 9px}',
     '.skf-th{display:flex;align-items:center;justify-content:space-between;gap:6px}',
-    '.skf-ic{width:26px;height:26px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:rgba(244,197,66,.18)}',
-    '.skf-sc{font-size:15px;font-weight:900;letter-spacing:-.5px}',
-    '.skf-lb{font-size:10.5px;font-weight:800;color:#fff;margin-top:6px}',
-    '.skf-bar{height:5px;border-radius:99px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:5px}',
+        '.skf-sc{font-size:14px;font-weight:900;letter-spacing:-.5px}',
+    '.skf-lb{font-size:10.5px;font-weight:800;color:var(--skf-ink)}',
+    '.skf-bar{height:4px;border-radius:99px;background:var(--skf-trk);overflow:hidden;margin-top:4px}',
     '.skf-bar span{display:block;height:100%;border-radius:99px;transform-origin:left;animation:skfBar .9s cubic-bezier(.22,1,.36,1) both}',
-    '.skf-kt{font-size:9px;line-height:1.4;color:rgba(255,255,255,.8);margin-top:5px}',
-    '.skf-tips{border-radius:14px;padding:10px 12px;background:rgba(244,197,66,.14);border:1px solid rgba(244,197,66,.35)}',
-    '.skf-tips h4{margin:0 0 5px;font-size:11.5px;font-weight:900;color:#f8d66d}',
-    '.skf-tip{display:flex;gap:7px;align-items:flex-start;font-size:10.5px;line-height:1.45;color:#fff;margin-top:4px}',
+    '.skf-kt{font-size:9px;line-height:1.35;color:var(--skf-ink2);margin-top:4px}',
+    '.skf-tips{border-radius:12px;padding:8px 10px;background:var(--skf-fill);border:1px solid var(--skf-line)}',
+    '.skf-tips h4{margin:0 0 4px;font-size:11px;font-weight:900;color:var(--skf-acc)}',
+    '.skf-tip{display:flex;gap:7px;align-items:flex-start;font-size:10px;line-height:1.4;color:var(--skf-ink);margin-top:3px}',
     '.skf-tip em{font-style:normal;flex-shrink:0}',
     '.skf-warn{margin-top:8px;font-size:10px;line-height:1.5;color:#92400e;background:#fef3c7;border-radius:12px;padding:8px 10px}',
-    '.skf-foot{font-size:9px;line-height:1.55;color:rgba(255,255,255,.85);text-align:center;margin-top:9px}',
+    '.skf-foot{font-size:9px;line-height:1.5;color:var(--skf-ink2);text-align:center;margin-top:7px}',
     '.skf-kmswrap{margin-top:8px;background:#fff;color:#1c3025;border-radius:14px;padding:10px}',
     '.skf-kmswrap:empty{display:none}',
     'html.renco-dark .skf-kmswrap{background:#15231b;color:#e8f3ec}',
-    '.skf-nav{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px 0}',
+    '.skf-nav{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 12px 0}',
     '.skf-dots{display:flex;gap:6px;align-items:center}',
-    '.skf-dot{width:7px;height:7px;padding:0;border:0;border-radius:99px;background:rgba(255,255,255,.3);cursor:pointer;transition:width .25s,background .25s;-webkit-tap-highlight-color:transparent}',
-    '.skf-dot.on{width:20px;background:#f4c542}',
-    '.skf-hint{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:#f8d66d;white-space:nowrap}',
+    '.skf-dot{width:7px;height:7px;padding:0;border:0;border-radius:99px;background:var(--skf-trk);cursor:pointer;transition:width .25s,background .25s;-webkit-tap-highlight-color:transparent}',
+    '.skf-dot.on{width:20px;background:var(--skf-gold)}',
+    '.skf-hint{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;color:var(--skf-acc);white-space:nowrap}',
     '.skf-hint svg{animation:skfNudgeX 1.4s ease-in-out infinite}',
     '.skf-hero.last .skf-hint svg{animation:none;transform:rotate(180deg)}',
     '@keyframes skfNudgeX{0%,100%{transform:translateX(-1px)}50%{transform:translateX(3px)}}',
@@ -18178,7 +18178,7 @@ function _renderSkorKepercayaanAnggotaHTML(kkId, skorSudahHitung) {
   var offset = ada ? (C * (1 - Math.max(0, Math.min(100, s.total)) / 100)) : C;
 
   // warna terang agar terbaca di atas latar hijau tua
-  var warnaBar = function(v){ return v>=85?'#4ade80':v>=70?'#7dd3fc':v>=55?'#fcd34d':v>=40?'#fb923c':'#f87171'; };
+  var warnaBar = function(v){ return v>=85?'#16a34a':v>=70?'#2563eb':v>=55?'#d97706':v>=40?'#ea580c':'#dc2626'; };
   var meta = {
     iuran:     { ic:'💰', lb:'Iuran Wajib' },
     angsuran:  { ic:'🗓️', lb:'Angsuran Tepat' },
@@ -18191,9 +18191,8 @@ function _renderSkorKepercayaanAnggotaHTML(kkId, skorSudahHitung) {
     var has = b.skor !== null;
     var c = has ? warnaBar(b.skor) : '#9ca3af';
     return '<div class="skf-tile">'
-      + '<div class="skf-th"><div class="skf-ic">'+m.ic+'</div>'
+      + '<div class="skf-th"><div class="skf-lb">'+m.lb+'</div>'
       + '<div class="skf-sc" style="color:'+c+'">'+(has?b.skor:'–')+'</div></div>'
-      + '<div class="skf-lb">'+m.lb+'</div>'
       + '<div class="skf-bar">'+(has?'<span style="width:'+Math.max(3,b.skor)+'%;background:'+c+'"></span>':'')+'</div>'
       + '<div class="skf-kt">'+b.ket+'</div>'
       + '</div>';
@@ -18262,13 +18261,13 @@ function _renderSkorKepercayaanAnggotaHTML(kkId, skorSudahHitung) {
 
   return '<div class="skf-wrap" style="--skf-a:'+tema.a+';--skf-b:'+tema.b+';--skf-c:'+tema.c+';--skf-glow:'+tema.glow+'">'
     + '<div class="skf-hero">'
-    +   '<span class="skf-eyebrow">'+_skorIconSVG(12,'#f8d66d')+' Skor Kepercayaanmu</span>'
+    +   '<span class="skf-eyebrow">'+_skorIconSVG(12)+' Skor Kepercayaanmu</span>'
     +   '<div class="skf-track" onscroll="_skorOnScroll(this)">'
     +     slides.map(function(sl){ return '<div class="skf-slide">'+sl.h+'</div>'; }).join('')
     +   '</div>'
     +   '<div class="skf-nav"><div class="skf-dots">'+dots+'</div>'
     +     '<span class="skf-hint"><span class="skf-hintt">Geser untuk rincian</span>'
-    +     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="#f8d66d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+    +     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
     +   '</div>'
     +   '<img alt="" width="1" height="1" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" src="'+fitPx+'" onload="_skorFit(this.closest(\'.skf-wrap\'))">'
     + '</div>'
@@ -79903,12 +79902,24 @@ function _goFlash(el){
   } catch(e){}
 }
 function _isAdm(){ return typeof isAdmin === 'function' && isAdmin(); }
+/* Buka fitur Keuangan (Simpanan, Catat Uang, Pembayaran/Cicilan, dst.) langsung di panelnya, sama seperti mengetuk kartunya */
+function _keuBuka(tab){
+  try {
+    var G = (typeof _keuanganGridItems !== 'undefined') ? _keuanganGridItems : null, ada = false;
+    if (G && typeof keuPanelOpen === 'function') {
+      var arr = _isAdm() ? G.admin : G.nasabah;
+      ada = ((arr || []).concat(G.extra || [])).some(function(i){ return i.tab === tab && !i.directNav; });
+    }
+    if (ada) keuPanelOpen(tab, null);
+    else if (typeof keuanganTab === 'function') keuanganTab(tab, null);
+  } catch(e){}
+}
 function go(code){
   try {
     var p = String(code).split(':');
     toggle(false);
     if (p[0] === 'nav' && typeof navTo === 'function') navTo(p[1]);
-    else if (p[0] === 'keu' && typeof navTo === 'function') { navTo('keuangan'); setTimeout(function(){ try { if (typeof keuanganTab === 'function') keuanganTab(p[1]); } catch(e){} }, 150); }
+    else if (p[0] === 'keu' && typeof navTo === 'function') { navTo('keuangan'); setTimeout(function(){ _keuBuka(p[1]); }, 150); }
     else if (p[0] === 'forum' && typeof navTo === 'function') { navTo('forum'); setTimeout(function(){ try { if (typeof forumTab === 'function') forumTab(p[1]); } catch(e){} }, 150); }
     else if (p[0] === 'lap' && typeof navTo === 'function') { navTo('laporan'); setTimeout(function(){ try { if (typeof laporanTab === 'function') laporanTab(p[1], _goBtn('laporanTab', p[1], '#page-laporan')); } catch(e){} }, 150); }
     else if (p[0] === 'pb' && typeof navTo === 'function') { navTo('pembiayaan'); setTimeout(function(){ try { if (typeof pembiayaanTab === 'function') pembiayaanTab(p[1], _goBtn('pembiayaanTab', p[1], '#page-pembiayaan')); } catch(e){} }, 150); }
@@ -79939,7 +79950,7 @@ function go(code){
     }
     else if (p[0] === 'cu' && typeof navTo === 'function') {
       navTo('keuangan');
-      setTimeout(function(){ try { if (typeof keuanganTab === 'function') keuanganTab('catatuang', null); if (typeof window.cuTab === 'function') window.cuTab(p[1]); } catch(e){} }, 200);
+      setTimeout(function(){ _keuBuka('catatuang'); setTimeout(function(){ try { if (typeof window.cuTab === 'function') window.cuTab(p[1]); } catch(e){} }, 120); }, 200);
     }
     else if (p[0] === 'modal' && typeof openModal === 'function') openModal(p[1]);
     else if (p[0] === 'fn' && typeof window[p[1]] === 'function') window[p[1]]();
