@@ -1515,6 +1515,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // data tagihan yang salah/basi sampai admin manual "Hapus Semua" + "Generate".
     try { if (window.TagihanApp && typeof window.TagihanApp.reloadFromDB === 'function') window.TagihanApp.reloadFromDB(); } catch(e) {}
     try { _baseSet(_cloudIdsAtApply); } catch(_eb2) {}
+    try { if (typeof window._rencoReapplyNavAccess === 'function') setTimeout(window._rencoReapplyNavAccess, 0); } catch(_ra) {}
     _cloudLoaded = true; // ✅ Tandai cloud sudah berhasil dimuat
     try { window.dispatchEvent(new CustomEvent('renco:cloud-loaded')); } catch(e) {}
     _lastCloudSavedAt = cloudData._savedAt || null; // track untuk polling dedup
@@ -8077,8 +8078,56 @@ function _aksesMenuEfektif() {
       if (live && Array.isArray(live.aksesMenu)) a = live.aksesMenu;
     }
   } catch(e) {}
-  return a ? a.slice() : ['home'];
+  var res = a ? a.slice() : ['home'];
+  /* Saklar global (cloud): menu yang disembunyikan admin untuk SEMUA nasabah, apa pun isi daftar akses per-user */
+  try {
+    var hm = window.DB && DB.appSettings && DB.appSettings.hiddenMenus;
+    if (Array.isArray(hm) && hm.length) res = res.filter(function(x){ return hm.indexOf(x) === -1; });
+  } catch(e) {}
+  return res;
 }
+function _rencoMenuHidden(id) {
+  try { var hm = window.DB && DB.appSettings && DB.appSettings.hiddenMenus; return Array.isArray(hm) && hm.indexOf(id) !== -1; } catch(e) { return false; }
+}
+/* Terapkan ulang visibilitas menu untuk sesi nasabah yang SEDANG aktif — dipanggil setelah data cloud
+   masuk (realtime/polling), saat aplikasi kembali dibuka, dan setelah saklar diubah. Tanpa ini tombol
+   menu hanya dievaluasi sekali saat login sehingga perubahan akses baru terlihat setelah login ulang. */
+function _rencoReapplyNavAccess() {
+  try {
+    if (!window.AUTH || !AUTH.loggedIn || typeof isNasabah !== 'function' || !isNasabah()) return;
+    var allowed = _aksesMenuEfektif();
+    if (allowed.indexOf('pembiayaan-keuangan') !== -1 && allowed.indexOf('pembiayaan') === -1) allowed = allowed.concat(['pembiayaan']);
+    document.querySelectorAll('.nav-item[data-nav]').forEach(function(n){
+      n.style.display = allowed.indexOf(n.getAttribute('data-nav')) !== -1 ? '' : 'none';
+    });
+    /* pintasan di dalam halaman yang mengarah ke Semeton ikut disembunyikan */
+    var semOk = allowed.indexOf('forum') !== -1;
+    document.querySelectorAll('[onclick*="navTo(\'forum\')"]:not(.nav-item), [onclick*="navTo(&quot;forum&quot;)"]:not(.nav-item)').forEach(function(el){
+      el.style.display = semOk ? '' : 'none';
+    });
+    var ap = document.querySelector('.page.active');
+    if (ap) {
+      var pid = ap.id.replace('page-', '');
+      if (pid !== 'home' && allowed.indexOf(pid) === -1 && typeof navTo === 'function') navTo('home');
+    }
+  } catch(e) {}
+}
+window._rencoReapplyNavAccess = _rencoReapplyNavAccess;
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) setTimeout(_rencoReapplyNavAccess, 300); });
+/* Saklar admin: sembunyikan/tampilkan Semeton® untuk semua nasabah */
+function rencoToggleHideSemeton(btn) {
+  if (typeof isAdmin !== 'function' || !isAdmin()) return;
+  if (!DB.appSettings || typeof DB.appSettings !== 'object') DB.appSettings = {};
+  var hm = Array.isArray(DB.appSettings.hiddenMenus) ? DB.appSettings.hiddenMenus.slice() : [];
+  var i = hm.indexOf('forum');
+  if (i === -1) hm.push('forum'); else hm.splice(i, 1);
+  DB.appSettings.hiddenMenus = hm;
+  if (typeof saveDB === 'function') saveDB();
+  var hidden = hm.indexOf('forum') !== -1;
+  try { var lb = btn && btn.querySelector('.adminp-label'); if (lb) lb.textContent = hidden ? 'Semeton: Disembunyikan' : 'Semeton: Ditampilkan'; } catch(e) {}
+  if (typeof showToast === 'function') showToast(hidden ? '🙈 Semeton® disembunyikan untuk semua nasabah' : '👁 Semeton® ditampilkan kembali untuk nasabah yang berhak');
+}
+window.rencoToggleHideSemeton = rencoToggleHideSemeton;
 function applyNasabahMode() {
   var allowed = _aksesMenuEfektif();
   // 'pembiayaan' adalah alias dari 'pembiayaan-keuangan' — tambahkan jika belum ada
@@ -8447,7 +8496,7 @@ function _hideAdminButtonsForNasabah() {
   var laporanTabs = document.querySelectorAll('#page-laporan .tab-pill');
   laporanTabs.forEach(function(t, i) {
     var td = t.getAttribute('data-tab')||'';
-    t.style.display = (td==='nasabah-pribadi') ? '' : 'none';
+    t.style.display = (td==='nasabah-pribadi' || td==='kinerja') ? '' : 'none';
   });
   // Ubah label tab pertama menjadi "Laporan Saya"
   if (laporanTabs[0]) laporanTabs[0].textContent = '📋 Laporan Saya';
@@ -9628,6 +9677,7 @@ function renderUserProfile() {
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){openModal(' + q + 'modalUserMgmt' + q + ')},200)" style="--apc:#2d6a4f;--apc-bg:rgba(45,106,79,0.14)"><div class="adminp-icon">' + _pfIc('users') + '</div><span class="adminp-label">Kelola User Nasabah</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){openModal(' + q + 'modalAdminMgmt' + q + ')},200)" style="--apc:#b07a00;--apc-bg:rgba(244,169,34,0.18)"><div class="adminp-icon">' + _pfIc('crown') + '</div><span class="adminp-label">Kelola Admin</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){rencoBackupOpen()},250)" style="--apc:#0a6c3b;--apc-bg:rgba(10,108,59,0.14)"><div class="adminp-icon">' + _pfIc('shield') + '</div><span class="adminp-label">Cadangan Cloud</span></button>' +
+        '<button class="adminp-card" onclick="rencoToggleHideSemeton(this)" style="--apc:#7a5c00;--apc-bg:rgba(244,169,34,0.16)"><div class="adminp-icon">' + _pfIc('users') + '</div><span class="adminp-label">' + (_rencoMenuHidden('forum') ? 'Semeton: Disembunyikan' : 'Semeton: Ditampilkan') + '</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){uaOpen()},200)" style="--apc:#0a6c3b;--apc-bg:rgba(10,108,59,0.14)"><div class="adminp-icon">' + _pfIc('invite') + '</div><span class="adminp-label">Undangan Akun</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){openModal(' + q + 'modalPengurusMgmt' + q + ')},200)" style="--apc:#2d6a4f;--apc-bg:rgba(45,106,79,0.14)"><div class="adminp-icon">' + _pfIc('clipboard') + '</div><span class="adminp-label">Struktur Pengurus</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){openModal(' + q + 'modalAuditLog' + q + ')},200)" style="--apc:#dc2626;--apc-bg:rgba(220,38,38,0.12)"><div class="adminp-icon">' + _pfIc('shield') + '</div><span class="adminp-label">Audit Log</span></button>' +
@@ -15516,6 +15566,7 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
         <button class="tab-pill" data-tab="tunggakan" onclick="laporanTab('tunggakan',this)" style="white-space:nowrap" id="tabTunggakan"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.3 3.9L2.6 18a1.5 1.5 0 0 0 1.3 2.2h16.2a1.5 1.5 0 0 0 1.3-2.2L13.7 3.9a1.5 1.5 0 0 0-2.6 0z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Tunggakan</button>
         <button class="tab-pill" data-tab="history" onclick="laporanTab('history',this)" style="white-space:nowrap;display:none" id="tabHistory"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="display:inline-block;vertical-align:-0.15em;margin-right:3px"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>History</button>
         <button class="tab-pill" data-tab="kerja" onclick="laporanTab('kerja',this)" style="white-space:nowrap;display:none" id="tabKerja">Laporan Kerja</button>
+        <button class="tab-pill" data-tab="kinerja" onclick="laporanTab('kinerja',this)" style="white-space:nowrap;display:none" id="tabKinerja">Kinerja Pengurus</button>
       </div>
       <div id="laporanContent"></div>
     </div>
@@ -23457,7 +23508,7 @@ function renderPage(p) {
     if (!_lprAdm) {
       lprTabs.forEach(function(t) {
         var td = t.getAttribute('data-tab')||'';
-        t.style.display = (td==='nasabah-pribadi') ? '' : 'none';
+        t.style.display = (td==='nasabah-pribadi' || td==='kinerja') ? '' : 'none';
       });
       if (lprTabs[0]) lprTabs[0].textContent = '📋 Laporan Saya';
     } else {
@@ -42068,6 +42119,10 @@ function laporanTab(tab, el) {
 
   // ── Nasabah: tab Laporan Saya = laporan pribadi, tab Koperasi = ringkasan koperasi (publik)
   if (typeof isNasabah === 'function' && isNasabah()) {
+    if (tab === 'kinerja') {
+      c.innerHTML = (typeof renderLaporanKerjaAnggotaHTML === 'function') ? renderLaporanKerjaAnggotaHTML() : '';
+      return;
+    }
     if (tab === 'koperasi') {
       var _kpView = typeof _renderLaporanKoperasiNasabahView === 'function' ? _renderLaporanKoperasiNasabahView() : '';
       c.innerHTML = _kpView || '<div style="padding:40px 20px;text-align:center;color:#9ca3af"><div style="font-size:36px;margin-bottom:12px">🏛️</div><div style="font-size:14px;font-weight:700;color:#374151">Ringkasan Koperasi</div><div style="font-size:12px;margin-top:6px">Laporan koperasi belum tersedia</div></div>';
@@ -42093,6 +42148,7 @@ function laporanTab(tab, el) {
   else if (tab==='tunggakan')       c.innerHTML = renderLaporanTunggakanHTML();
   else if (tab==='history')         c.innerHTML = (typeof isAdmin==='function' && isAdmin()) ? renderHistoryHTML() : '<div style="padding:40px;text-align:center;color:#999">Akses ditolak</div>';
   else if (tab==='kerja')           c.innerHTML = (typeof renderLaporanKerjaHTML==='function') ? renderLaporanKerjaHTML() : '';
+  else if (tab==='kinerja')         c.innerHTML = (typeof renderLaporanKerjaAnggotaHTML==='function') ? renderLaporanKerjaAnggotaHTML() : '';
   else if (tab==='bulanan')         c.innerHTML = renderLaporanBulananHTML();
   else if (tab==='kartu')           c.innerHTML = renderKartuHTML();
   else if (tab==='nasabah')         c.innerHTML = typeof renderLaporanNasabahHTML==='function' ? renderLaporanNasabahHTML() : '';
@@ -69774,6 +69830,7 @@ html.renco-dark .ar-mode{ background:rgba(255,255,255,.08); } html.renco-dark .a
         '<div class="lk-lbl">CAPAIAN UTAMA / EVALUASI</div><textarea class="lk-in" onchange="lkSimpanMeta(\'capaian\',this.value)" placeholder="Hal yang berhasil dicapai pada periode ini">' + esc(m.capaian) + '</textarea>' +
         '<div class="lk-lbl">KENDALA</div><textarea class="lk-in" onchange="lkSimpanMeta(\'kendala\',this.value)" placeholder="Hambatan yang dihadapi">' + esc(m.kendala) + '</textarea>' +
       '</div>' +
+      '<div class="lk-card"><div class="lk-h">Publikasi ke Anggota</div><div style="font-size:11.5px;color:#5b6b60;line-height:1.5;margin-bottom:8px">' + (isPub(p.key) ? 'Periode ini <b>sudah tampil</b> di Laporan &rsaquo; Kinerja Pengurus milik anggota (hanya baca).' : 'Periode ini <b>belum</b> terlihat anggota. Hanya periode yang Anda publikasikan yang tampil.') + '</div><button class="lk-btn ' + (isPub(p.key) ? '' : 'lk-pri') + '" style="width:100%;' + (isPub(p.key) ? 'background:#eef3ef;color:#5b6b60' : '') + '" onclick="lkTogglePublik()">' + (isPub(p.key) ? 'Tarik dari anggota' : 'Publikasikan ke anggota') + '</button></div>' +
       '<div class="lk-card"><div class="lk-h">Rencana Kerja</div>' + realHTML +
         '<div class="lk-sub">RENCANA BULAN DEPAN &middot; ' + esc(labelBulan(p.nextYm)).toUpperCase() + '</div>' + (rb.length ? rb.map(function(r){ return rItem(r, false, true); }).join('') : kosong('Belum ada rencana.')) +
         '<div class="lk-sub">RENCANA TAHUN DEPAN &middot; ' + esc(p.nextYear) + '</div>' + (rt.length ? rt.map(function(r){ return rItem(r, false, true); }).join('') : kosong('Belum ada rencana.')) +
@@ -69788,6 +69845,76 @@ html.renco-dark .ar-mode{ background:rgba(255,255,255,.08); } html.renco-dark .a
         '<button class="lk-btn lk-pri" onclick="lkPDF()">Unduh PDF</button>' +
         '<button class="lk-btn lk-sec" onclick="lkBagikan()">Kirim WhatsApp</button>' +
       '</div></div>';
+  };
+
+
+  /* ── Publikasi ke anggota (hanya baca) ── */
+  function isPub(key){ var m = DB.laporanKerjaMeta && DB.laporanKerjaMeta[key]; return !!(m && m.publik === true); }
+  function keyInfo(key){
+    var k = String(key), mo = [], label, y, m, i;
+    if (/^\d{4}-\d{2}$/.test(k)) { mo = [k]; label = labelBulan(k); y = +k.slice(0,4); }
+    else if ((m = k.match(/^(\d{4})-Q([1-4])$/))) { y = +m[1]; var q = +m[2]; for (i = 0; i < 3; i++) mo.push(y + '-' + pad((q-1)*3 + 1 + i)); label = 'Triwulan ' + ROM[q-1] + ' ' + y; }
+    else if ((m = k.match(/^(\d{4})-S([12])$/))) { y = +m[1]; var sm = +m[2]; for (i = 0; i < 6; i++) mo.push(y + '-' + pad((sm-1)*6 + 1 + i)); label = 'Semester ' + ROM[sm-1] + ' ' + y; }
+    else if (/^\d{4}$/.test(k)) { y = +k; for (i = 1; i <= 12; i++) mo.push(y + '-' + pad(i)); label = 'Tahun ' + y; }
+    else return null;
+    var last = mo[mo.length-1], ly = +last.slice(0,4), lm = +last.slice(5,7);
+    return { key:k, mo:mo, label:label, tahun:/^\d{4}$/.test(k), nextYm: lm === 12 ? (ly+1) + '-01' : ly + '-' + pad(lm+1), nextYear: String(y+1), sort:last };
+  }
+  window.renderLaporanKerjaAnggotaHTML = function(){
+    init(); injectCss();
+    if (!document.getElementById('lkCss2')) {
+      var cs = document.createElement('style'); cs.id = 'lkCss2';
+      cs.textContent = 'details.lk-card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px}details.lk-card>summary::-webkit-details-marker{display:none}details.lk-card[open]>summary{margin-bottom:6px}.lk-chev{margin-left:auto;transition:transform .2s;color:#2d6a4f}details.lk-card[open] .lk-chev{transform:rotate(180deg)}';
+      document.head.appendChild(cs);
+    }
+    var infos = Object.keys(DB.laporanKerjaMeta).filter(isPub).map(keyInfo).filter(Boolean)
+      .sort(function(a,b){ return b.sort.localeCompare(a.sort) || b.mo.length - a.mo.length; });
+    var head = '<div style="padding:4px 14px 10px"><div style="font-size:15px;font-weight:800;color:#1a472a">Kinerja Pengurus</div><div style="font-size:11.5px;color:#5b6b60;line-height:1.5;margin-top:2px">Laporan kerja pengurus Koperasi Renco yang dipublikasikan untuk anggota.</div></div>';
+    if (!infos.length) return head + '<div class="lk-card" style="text-align:center;padding:28px 16px"><div style="font-size:34px;margin-bottom:8px">&#x1F5C2;&#xFE0F;</div><div style="font-size:13.5px;font-weight:800;color:#374151">Belum ada laporan dipublikasikan</div><div style="font-size:12px;color:#9ca3af;margin-top:4px;line-height:1.5">Laporan kerja pengurus akan tampil di sini setelah dipublikasikan.</div></div>';
+    function blok(judul, isi){ return '<div class="lk-sub">' + esc(judul) + '</div>' + isi; }
+    function roR(r, tanda){
+      return '<div class="lk-item"><div style="flex:none;width:20px;font-size:13px;color:' + (r.selesai ? '#2d6a4f' : '#9aa8a0') + '">' + (tanda ? (r.selesai ? '&#10003;' : '&#9675;') : '&bull;') + '</div>' +
+        '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#102818">' + esc(r.program) + '</div>' +
+        ((r.sasaran || r.pj) ? '<div style="font-size:11.5px;color:#4b5b50;margin-top:2px;line-height:1.4">' + (r.sasaran ? 'Sasaran: ' + esc(r.sasaran) : '') + (r.sasaran && r.pj ? ' &middot; ' : '') + (r.pj ? 'PJ: ' + esc(r.pj) : '') + '</div>' : '') + '</div></div>';
+    }
+    return head + infos.map(function(info, i){
+      var list = kegiatan(info.mo), mm = DB.laporanKerjaMeta[info.key] || {};
+      var rb = rencana('bulan', info.nextYm), rt = info.tahun ? rencana('tahun', info.nextYear) : [];
+      var real = (DB.laporanKerjaRencana || []).filter(function(r){
+        return (r.horizon === 'bulan' && info.mo.indexOf(r.target) > -1) || (r.horizon === 'tahun' && info.tahun && r.target === info.key);
+      });
+      var done = real.filter(function(r){ return r.selesai; }).length;
+      var keg = list.length ? list.map(function(e){
+        return '<div class="lk-item"><div style="flex:1;min-width:0"><div style="font-size:10.5px;color:#7a877e;font-weight:600">' + esc(tglPendek(e.tanggal)) + ' &middot; ' + esc(e.kategori || 'Lainnya') + '</div>' +
+          '<div style="font-size:13px;font-weight:700;color:#102818;margin-top:1px">' + esc(e.kegiatan) + '</div>' +
+          (e.keterangan ? '<div style="font-size:12px;color:#4b5b50;margin-top:2px;line-height:1.45;white-space:pre-wrap">' + esc(e.keterangan) + '</div>' : '') + '</div></div>';
+      }).join('') : kosong('Tidak ada kegiatan tercatat pada periode ini.');
+      var h = '<details class="lk-card"' + (i === 0 ? ' open' : '') + '><summary><div class="lk-h" style="margin:0">' + esc(info.label) + '</div>' +
+        '<span style="font-size:11px;color:#7a877e;white-space:nowrap">' + list.length + ' kegiatan</span>' +
+        '<svg class="lk-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>';
+      h += blok('KEGIATAN PENGURUS', keg);
+      if (mm.capaian) h += blok('CAPAIAN UTAMA', '<div style="font-size:12.5px;color:#243a2c;line-height:1.55;white-space:pre-wrap">' + esc(mm.capaian) + '</div>');
+      if (real.length) h += blok('REALISASI RENCANA (' + done + '/' + real.length + ' SELESAI)', real.map(function(r){ return roR(r, true); }).join(''));
+      if (mm.kendala) h += blok('KENDALA', '<div style="font-size:12.5px;color:#243a2c;line-height:1.55;white-space:pre-wrap">' + esc(mm.kendala) + '</div>');
+      if (rb.length) h += blok('RENCANA BULAN DEPAN \u00b7 ' + labelBulan(info.nextYm).toUpperCase(), rb.map(function(r){ return roR(r, false); }).join(''));
+      if (rt.length) h += blok('RENCANA TAHUN DEPAN \u00b7 ' + info.nextYear, rt.map(function(r){ return roR(r, false); }).join(''));
+      return h + '</details>';
+    }).join('') + '<div style="height:18px"></div>';
+  };
+  window.lkTogglePublik = function(){
+    if (typeof isAdmin === 'function' && !isAdmin()) return;
+    init();
+    var p = periode(), k = p.key, now = isPub(k);
+    if (!now) {
+      var mt = meta(k);
+      if (!kegiatan(p.mo).length && !mt.capaian && !mt.kendala) { toast('Isi kegiatan atau capaian dulu sebelum dipublikasikan'); return; }
+      if (!confirm('Publikasikan laporan kerja ' + p.label + ' ke seluruh anggota?\n\nAnggota hanya bisa membaca: kegiatan, capaian, kendala, dan rencana.')) return;
+    } else if (!confirm('Tarik laporan ' + p.label + ' dari tampilan anggota?')) return;
+    if (!DB.laporanKerjaMeta[k]) DB.laporanKerjaMeta[k] = {};
+    DB.laporanKerjaMeta[k].publik = !now;
+    DB.laporanKerjaMeta[k].publikAt = new Date().toISOString();
+    save(); refresh();
+    toast(!now ? 'Laporan dipublikasikan ke anggota' : 'Laporan ditarik dari anggota');
   };
 
   function refresh(){ var c = document.getElementById('laporanContent'); if (c) c.innerHTML = window.renderLaporanKerjaHTML(); }
