@@ -692,6 +692,13 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('[RENCO☁] Upload ditolak — belum ada sesi login aktif di device ini');
       return;
     }
+    // ── GUARD VERSI: aplikasi lama dilarang menyimpan ke cloud ──
+    if (window._rencoAppOutdated) {
+      if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+      console.warn('[RENCO☁] Upload ditolak — versi aplikasi di perangkat ini sudah lama');
+      try { if (typeof _rencoShowOutdatedWall === 'function') _rencoShowOutdatedWall(); } catch(e) {}
+      return;
+    }
     // ── GUARD LOGIN NASABAH: JANGAN push data lokal ke cloud ──────────────
     // Ditandai oleh _catatLoginLog() tepat saat sesi Nasabah baru login.
     // Data lokal di titik ini bisa saja masih cache lama (dari device yang
@@ -735,6 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   async function _doSync() {
+    if (window._rencoAppOutdated) return;   // guard versi (jalur flush/retry)
     if (!_isOnline || !_initialized || _isSyncing) {
       // FIX (data baru hilang setelah tarik-sukarela): sebelumnya _syncPending
       // hanya ditandai true kalau OFFLINE. Kalau device ONLINE tapi ada sinkron
@@ -751,6 +759,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     _isSyncing = true;
     _showSync('syncing');
+    var _remoteIdsPre = null;
     try {
       // ── CEK & GABUNGKAN DATA CLOUD TERBARU SEBELUM UPLOAD ──────────────────
       // FIX: Sebelumnya _doSync langsung push snapshot lokal tanpa cek apakah
@@ -778,6 +787,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // begitu _hasUnsyncedLocalEdit kembali false.
       try {
         var _preCheck = await _supa.from(TBL).select('payload,saved_at').eq('id','main').single();
+        try { if (_preCheck && _preCheck.data && _preCheck.data.payload) _remoteIdsPre = _collectIds(_preCheck.data.payload); } catch(_ep) {}
         if (_preCheck && _preCheck.data && _preCheck.data.payload) {
           var _remoteTs = _preCheck.data.saved_at || _preCheck.data.payload._savedAt;
           if (_remoteTs && _remoteTs !== _lastCloudSavedAt) {
@@ -833,6 +843,12 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       payload._savedAt  = new Date().toISOString();
       payload._clientId = _getClientId();
+      try {
+        payload._appBuild = window.RENCO_BUILD || 0;
+        payload.appSettings = (payload.appSettings && typeof payload.appSettings === 'object') ? payload.appSettings : {};
+        payload.appSettings.minBuild = Math.max(Number(payload.appSettings.minBuild) || 0, window.RENCO_MIN_REQUIRED || 0);
+        if (window.DB) { if (!window.DB.appSettings || typeof window.DB.appSettings !== 'object') window.DB.appSettings = {}; window.DB.appSettings.minBuild = payload.appSettings.minBuild; }
+      } catch(_st) {}
       // ── GUARD MODE LOKAL: jangan pernah push ke cloud dari file lokal ──
       var error = null;
       if (_RENCO_IS_LOCAL) {
@@ -845,7 +861,11 @@ document.addEventListener('DOMContentLoaded', function() {
                   { onConflict: 'id' });
         error = _res.error;
       }
-      if (error) {
+      if (error && /APP_OUTDATED/.test(error.message || '')) {
+        window._rencoAppOutdated = true; window._rencoOutdatedBuild = true;
+        try { _rencoShowOutdatedWall(); } catch(e) {}
+        _syncPending = false;
+      } else if (error) {
         console.error('[RENCO☁] Save error:', error.message);
         _showSync('error', error.message.slice(0,40));
         _syncPending = true;
@@ -859,6 +879,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // dilakukan hilang/tertimpa sebelum sempat ter-upload. Ini yang membuat
         // "perubahan/pengkinian data susah sekali" tersimpan.
         _lastCloudSavedAt = payload._savedAt;
+        try { _bkEvaluate(payload, _remoteIdsPre, _syncBase); } catch(_bk1) {}
+        try { _baseSet(_collectIds(payload)); } catch(_eb3) {}
         _syncPending = false;
         _hasUnsyncedLocalEdit = false; // edit lokal sudah dikonfirmasi ter-upload — aman terima snapshot cloud lagi
         _showSync('success');
@@ -926,8 +948,239 @@ document.addEventListener('DOMContentLoaded', function() {
   // Tidak ada merge. Jika cloud ada data → pakai cloud sepenuhnya.
   // Jika cloud kosong → app tampil kosong, TIDAK upload lokal ke cloud.
   // Jika offline → pakai lokal sebagai fallback baca-saja.
+  // ══ BASELINE ID CLOUD — bedakan "item baru yang belum sempat sync" dari
+  // "salinan basi dari item yang sudah dihapus di cloud" ══════════════════
+  // AKAR MASALAH (data lama menimpa data baru): jaring pengaman di
+  // _applyCloudData() menganggap SETIAP item lokal yang id-nya tidak ada di
+  // cloud sebagai "belum sync" lalu memasukkannya lagi. Padahal bisa jadi item
+  // itu sudah dihapus di cloud (foto banner, transaksi dari fitur yang sudah
+  // dibuang). Pada perangkat yang lama tidak dibuka (cache lama) atau app yang
+  // dibiarkan terbuka, item basi itu hidup lagi lalu ikut ter-upload.
+  // PERBAIKAN: simpan daftar id yang TERAKHIR diketahui ada di cloud (juga di
+  // localStorage). Item lokal yang id-nya ada di daftar itu tapi kini hilang
+  // dari cloud = sudah dihapus → TIDAK dipertahankan. Hanya item yang tidak
+  // pernah ada di cloud (benar-benar dibuat lokal) yang dipertahankan.
+  var _BASE_KEY = 'renco_sync_baseline_v1';
+  var _syncBase = null, _baseTimer = null;
+  try {
+    var _rawB = localStorage.getItem(_BASE_KEY);
+    if (_rawB) {
+      var _ob = JSON.parse(_rawB); _syncBase = {}; window._rencoLastSyncTs = Number(_ob.ts) || 0;
+      Object.keys(_ob.ids || {}).forEach(function(k){ _syncBase[k] = new Set(_ob.ids[k]); });
+    }
+  } catch(_eb) { _syncBase = null; }
+  function _collectIds(db) {
+    var out = {};
+    if (!db || typeof db !== 'object') return out;
+    function ids(a){ return a.map(function(x){ return x && x.id; }).filter(Boolean); }
+    Object.keys(db).forEach(function(k){
+      if (k.charAt(0) === '_') return;
+      var v = db[k];
+      if (Array.isArray(v) && v.length && v[0] && typeof v[0] === 'object' && v[0].id) out[k] = ids(v);
+    });
+    ['dompetNasabah','saldoOfflineLog'].forEach(function(fk){
+      var o = db[fk];
+      if (o && typeof o === 'object') Object.keys(o).forEach(function(sk){ if (Array.isArray(o[sk])) out[fk+'.'+sk] = ids(o[sk]); });
+    });
+    var rp = db.rencoPay;
+    if (rp && typeof rp === 'object') {
+      ['dompet','tagihan'].forEach(function(rk){ if (Array.isArray(rp[rk])) out['rencoPay.'+rk] = ids(rp[rk]); });
+      if (rp.settings && typeof rp.settings === 'object') ['transferBanks','ewallet'].forEach(function(sk){ if (Array.isArray(rp.settings[sk])) out['rencoPay.settings.'+sk] = ids(rp.settings[sk]); });
+    }
+    return out;
+  }
+  function _baseSet(idsObj) {
+    _syncBase = {};
+    window._rencoLastSyncTs = Date.now();
+    Object.keys(idsObj).forEach(function(k){ _syncBase[k] = new Set(idsObj[k]); });
+    if (_baseTimer) clearTimeout(_baseTimer);
+    _baseTimer = setTimeout(function(){
+      try { localStorage.setItem(_BASE_KEY, JSON.stringify({ ts: Date.now(), ids: idsObj })); } catch(_e) {}
+    }, 800);
+  }
+  function _wasSynced(path, id) { return !!(_syncBase && _syncBase[path] && _syncBase[path].has(id)); }
+
+  // ══ CADANGAN OTOMATIS SNAPSHOT CLOUD ═══════════════════════════════════
+  // Aturan: cadangan HANYA dibuat bila ada item benar-benar BARU (transaksi,
+  // pengajuan, nasabah, dsb.). Isi cadangan selalu diambil dari CLOUD (bukan
+  // dari memori perangkat), disimpan sebagai baris 'bk_<waktu>' di tabel yang
+  // sama (tidak mengganggu baris 'main' & realtime yang memfilter id=main).
+  // Pengaman agar data lama/usang TIDAK dianggap baru:
+  //  1) item harus belum ada di cloud sebelum upload ini;
+  //  2) tidak ada di tombstone penghapusan;
+  //  3) tidak pernah tercatat di baseline perangkat (pernah sync lalu hilang = dihapus);
+  //  4) umur item (dari timestamp di id / createdAt) maksimal 3 hari;
+  //  5) perangkat harus punya baseline (tanpa baseline tidak memicu apa pun);
+  //  6) koleksi bising (log/audit/notifikasi/sesi) diabaikan.
+  var _BK_MIN_GAP = 10*60*1000, _BK_DELAY = 60*1000, _BK_KEEP = 20, _BK_FRESH = 3*24*3600*1000, _BK_MAXBYTES = 12*1024*1024;
+  var _bkTimer = null, _bkRunning = false;
+  function _eachColl(db, cb) {
+    if (!db || typeof db !== 'object') return;
+    Object.keys(db).forEach(function(k){
+      if (k.charAt(0) === '_') return;
+      var v = db[k];
+      if (Array.isArray(v) && v.length && v[0] && typeof v[0] === 'object' && v[0].id) cb(k, v);
+    });
+    ['dompetNasabah','saldoOfflineLog'].forEach(function(fk){
+      var o = db[fk];
+      if (o && typeof o === 'object') Object.keys(o).forEach(function(sk){ if (Array.isArray(o[sk])) cb(fk+'.'+sk, o[sk]); });
+    });
+    var rp = db.rencoPay;
+    if (rp && typeof rp === 'object') {
+      ['dompet','tagihan'].forEach(function(rk){ if (Array.isArray(rp[rk])) cb('rencoPay.'+rk, rp[rk]); });
+      if (rp.settings && typeof rp.settings === 'object') ['transferBanks','ewallet'].forEach(function(sk){ if (Array.isArray(rp.settings[sk])) cb('rencoPay.settings.'+sk, rp.settings[sk]); });
+    }
+  }
+  function _bkItemTime(x) {
+    var now = Date.now(), m = String(x.id).match(/(1[5-9]\d{11})/);   // epoch ms 13 digit di dalam id
+    if (m) { var t0 = +m[1]; if (t0 > 1577836800000 && t0 < now + 86400000) return t0; }
+    var F = ['createdAt','dibuatPada','dibuat','waktu','timestamp','ts','tanggalBuat','tanggalPengajuan','tglPengajuan','tanggal','tgl','date'];
+    for (var i = 0; i < F.length; i++) {
+      var v = x[F[i]]; if (v == null || v === '') continue;
+      var t = (typeof v === 'number') ? (v > 1e12 ? v : v > 1e9 ? v*1000 : NaN) : Date.parse(v);
+      if (!isNaN(t) && t > 1577836800000) return t;
+    }
+    return null;
+  }
+  function _bkHasNew(payload, remoteIds, prevBase) {
+    if (!prevBase) return 0;                       // aturan 5
+    var tomb = new Set([].concat(payload.deletedTransaksiIds||[], payload.deletedPendingIds||[], payload.deletedUserIds||[], payload.deletedRelasiIds||[]));
+    var NOISY = /log|audit|notif|session|sesi|cache|presence|heartbeat|riwayatlogin/i, now = Date.now(), n = 0;
+    _eachColl(payload, function(path, arr){
+      if (NOISY.test(path)) return;                // aturan 6
+      var remote = remoteIds && remoteIds[path] ? new Set(remoteIds[path]) : null;
+      var base = prevBase[path];
+      arr.forEach(function(x){
+        if (!x || !x.id) return;
+        if (remote && remote.has(x.id)) return;    // aturan 1 (sudah ada di cloud)
+        if (tomb.has(x.id)) return;                // aturan 2
+        if (base && base.has(x.id)) return;        // aturan 3
+        var t = _bkItemTime(x);
+        if (t !== null && (now - t > _BK_FRESH || t > now + 86400000)) return;   // aturan 4
+        n++;
+      });
+    });
+    return n;
+  }
+  function _bkEvaluate(payload, remoteIds, prevBase) {
+    try {
+      if (_RENCO_IS_LOCAL || !payload) return;
+      var n = _bkHasNew(payload, remoteIds, prevBase);
+      if (n > 0) { console.log('[RENCO☁] Cadangan dijadwalkan — ' + n + ' item baru terdeteksi'); _bkSchedule(_BK_DELAY); }
+    } catch(e) { console.warn('[RENCO☁] Evaluasi cadangan gagal:', e.message); }
+  }
+  function _bkSchedule(ms) {
+    if (_bkTimer) return;                          // satu jadwal saja; gelombang transaksi digabung
+    _bkTimer = setTimeout(function(){ _bkTimer = null; _bkRun(); }, ms);
+  }
+  async function _bkList(limit) {
+    var r = await _supa.from(TBL).select('id,saved_at').like('id','bk_%').order('id',{ascending:false}).limit(limit || 30);
+    return (r && r.data) || [];
+  }
+  async function _bkRun(tag) {
+    if (_bkRunning || !_isOnline) return;
+    _bkRunning = true;
+    try {
+      var list = await _bkList(30), last = list[0];
+      if (last && !tag) {
+        var lastT = Date.parse(String(last.id).slice(3, 27));
+        var wait = _BK_MIN_GAP - (Date.now() - lastT);
+        if (!isNaN(lastT) && wait > 0) { _bkRunning = false; _bkSchedule(wait + 2000); return; }   // tunda, jangan hilang
+      }
+      // Sumber cadangan = kondisi CLOUD saat ini
+      var r = await _supa.from(TBL).select('payload,saved_at').eq('id','main').single();
+      if (!r || !r.data || !r.data.payload) return;
+      var pl = r.data.payload;
+      if (!Array.isArray(pl.nasabah) || pl.nasabah.length === 0) { console.warn('[RENCO☁] Cadangan dilewati — snapshot cloud tampak kosong'); return; }
+      if (!tag && last && last.saved_at && r.data.saved_at && last.saved_at === r.data.saved_at) return;   // sama persis dgn cadangan terakhir
+      var size = JSON.stringify(pl).length;
+      if (size > _BK_MAXBYTES) { console.warn('[RENCO☁] Cadangan dilewati — ukuran data ' + Math.round(size/1048576) + ' MB melebihi batas'); return; }
+      var id = 'bk_' + new Date().toISOString() + (tag ? '_' + tag : '');
+      var ins = await _supa.from(TBL).insert({ id: id, payload: pl, saved_at: r.data.saved_at });
+      if (ins && ins.error) { console.warn('[RENCO☁] Cadangan gagal:', ins.error.message); return; }
+      console.log('[RENCO☁] Cadangan cloud tersimpan:', id);
+      var all = await _bkList(200);
+      var old = all.slice(_BK_KEEP).map(function(x){ return x.id; });
+      if (old.length) await _supa.from(TBL).delete().in('id', old);
+    } catch(e) { console.warn('[RENCO☁] Cadangan error:', e && e.message); }
+    finally { _bkRunning = false; }
+  }
+  function _bkFmt(id) {
+    var iso = String(id).slice(3, 27), d = new Date(iso);
+    var t = isNaN(d) ? iso : d.toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return t + (String(id).indexOf('_pra') > 0 ? ' · sebelum pemulihan' : '');
+  }
+  window.rencoBackupOpen = async function() {
+    if (typeof isAdmin === 'function' && !isAdmin()) return;
+    var ov = document.getElementById('bkOv'); if (ov) ov.remove();
+    ov = document.createElement('div'); ov.id = 'bkOv';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(6,20,12,.6);display:flex;align-items:flex-end;justify-content:center';
+    ov.innerHTML = '<div style="width:100%;max-width:480px;max-height:88vh;overflow:auto;background:#f6faf7;color:#14281c;border-radius:24px 24px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom,0px));border-top:2px solid #2d8a5e;box-sizing:border-box;font-family:inherit">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="font-size:16px;font-weight:800;flex:1">Cadangan Cloud</div><button id="bkX" style="border:none;background:rgba(20,40,28,.08);width:32px;height:32px;border-radius:50%;font-size:15px;cursor:pointer">✕</button></div>'
+      + '<div style="font-size:11.5px;color:#5f7568;line-height:1.5;margin-bottom:12px">Cadangan dibuat otomatis hanya saat ada transaksi atau data baru (maks. 1 per 10 menit, disimpan ' + _BK_KEEP + ' terakhir).</div>'
+      + '<button id="bkNow" style="width:100%;padding:11px;border:none;border-radius:12px;background:linear-gradient(135deg,#1f6b45,#2d8a5e);color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:12px">Buat cadangan sekarang</button>'
+      + '<div id="bkList" style="display:flex;flex-direction:column;gap:8px"><div style="font-size:12px;color:#5f7568">Memuat…</div></div></div>';
+    document.body.appendChild(ov);
+    function close(){ ov.remove(); }
+    ov.addEventListener('click', function(e){ if (e.target === ov || e.target.id === 'bkX') close(); });
+    async function render() {
+      var box = document.getElementById('bkList'); if (!box) return;
+      var items = []; try { items = await _bkList(30); } catch(e) {}
+      if (!items.length) { box.innerHTML = '<div style="font-size:12px;color:#5f7568">Belum ada cadangan.</div>'; return; }
+      box.innerHTML = items.map(function(x){
+        return '<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d9e1dc;border-radius:14px;padding:10px 12px">'
+          + '<div style="flex:1;min-width:0;font-size:12.5px;font-weight:700">' + _bkFmt(x.id) + '</div>'
+          + '<button data-a="dl" data-id="' + x.id + '" style="border:1px solid #2d8a5e;background:#eaf4ee;color:#1f6b45;border-radius:10px;padding:6px 10px;font:inherit;font-size:11.5px;font-weight:800;cursor:pointer">Unduh</button>'
+          + '<button data-a="rs" data-id="' + x.id + '" style="border:none;background:#b02a37;color:#fff;border-radius:10px;padding:6px 10px;font:inherit;font-size:11.5px;font-weight:800;cursor:pointer">Pulihkan</button></div>';
+      }).join('');
+    }
+    document.getElementById('bkNow').onclick = async function(){
+      this.disabled = true; this.textContent = 'Membuat cadangan…';
+      await _bkRun('manual'); this.disabled = false; this.textContent = 'Buat cadangan sekarang';
+      if (typeof showToast === 'function') showToast('✅ Cadangan dibuat'); render();
+    };
+    ov.addEventListener('click', async function(e){
+      var b = e.target.closest('button[data-a]'); if (!b) return;
+      var id = b.getAttribute('data-id'), a = b.getAttribute('data-a');
+      try {
+        var r = await _supa.from(TBL).select('payload,saved_at').eq('id', id).single();
+        if (!r || !r.data) { alert('Cadangan tidak ditemukan.'); return; }
+        if (a === 'dl') {
+          var blob = new Blob([JSON.stringify(r.data.payload)], { type: 'application/json' });
+          var u = URL.createObjectURL(blob), l = document.createElement('a');
+          l.href = u; l.download = 'renco-' + id.replace(/[:.]/g, '-') + '.json'; document.body.appendChild(l); l.click(); l.remove();
+          setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+        } else {
+          if (!confirm('PULIHKAN data cloud ke cadangan ' + _bkFmt(id) + '?\n\nSemua perubahan dan transaksi setelah waktu itu akan HILANG dari cloud. Kondisi saat ini dicadangkan lebih dulu.')) return;
+          if (!confirm('Yakin? Semua perangkat akan memakai data cadangan ini.')) return;
+          b.disabled = true; b.textContent = 'Memulihkan…';
+          await _bkRun('pra'); 
+          var pl = r.data.payload; pl._savedAt = new Date().toISOString(); pl._clientId = _getClientId(); pl._appBuild = window.RENCO_BUILD || 0;
+          var _cur = await _supa.from(TBL).select('mb:payload->appSettings->>minBuild').eq('id','main').single();
+          if (!pl.appSettings || typeof pl.appSettings !== 'object') pl.appSettings = {};
+          pl.appSettings.minBuild = Math.max(Number(pl.appSettings.minBuild) || 0, Number(_cur && _cur.data && _cur.data.mb) || 0, window.RENCO_MIN_REQUIRED || 0);
+          var up = await _supa.from(TBL).upsert({ id:'main', payload: pl, saved_at: new Date().toISOString() }, { onConflict:'id' });
+          if (up && up.error) { alert('Gagal memulihkan: ' + up.error.message); return; }
+          if (typeof showToast === 'function') showToast('✅ Data dipulihkan — memuat ulang…');
+          setTimeout(function(){ location.reload(); }, 1200);
+        }
+      } catch(err) { alert('Gagal: ' + (err && err.message)); }
+    });
+    render();
+  };
+
   function _applyCloudData(cloudData) {
     if (!cloudData || typeof cloudData !== 'object') return false;
+    var _cloudIdsAtApply = _collectIds(cloudData);
+    // Belum ada baseline (perangkat baru/pertama kali setelah pembaruan) DAN salinan lokal
+    // jauh lebih tua dari cloud (>30 menit) → anggap salinan lokal sebagai cache basi.
+    var _skipPreserve = false;
+    try {
+      if (!_syncBase && window.DB && window.DB._savedAt && cloudData._savedAt) {
+        _skipPreserve = (new Date(cloudData._savedAt).getTime() - new Date(window.DB._savedAt).getTime()) > 30*60*1000;
+      }
+    } catch(_es) {}
+    function _synced(path, id) { return _skipPreserve || _wasSynced(path, id); }
 
     // ── MERGE pendingTransaksi: jangan pernah downgrade status ──────────────
     // Bug scenario: admin approve item X di device A → cloud punya status='disetujui'
@@ -980,7 +1233,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Transaksi lokal yang TIDAK ada di cloud = belum sync, harus dipertahankan
       // KECUALI transaksi ini ada di tombstone (memang sengaja dihapus admin)
       (window.DB.transaksi||[]).forEach(function(t) {
-        if (t.id && !cloudTxnIds.has(t.id) && !deletedTxnSet.has(t.id)) localTxnNew.push(t);
+        if (t.id && !cloudTxnIds.has(t.id) && !deletedTxnSet.has(t.id) && !_synced('transaksi', t.id)) localTxnNew.push(t);
       });
       // Pending lokal yang TIDAK ada di cloud = belum sync, harus dipertahankan
       // KECUALI: pending yang sudah di-approve/tolak admin (ada di transaksi cloud = sudah dieksekusi)
@@ -990,6 +1243,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (deletedPendSet.has(p.id)) return;
         // Jika sudah ada di cloud pendingTransaksi → tidak perlu merge (cloud yang terbaru)
         if (cloudPendIds.has(p.id)) return;
+        // Pernah ada di cloud tapi sekarang hilang = sudah dihapus/dieksekusi → jangan dihidupkan lagi
+        if (_synced('pendingTransaksi', p.id)) return;
         // Jika status lokal sudah disetujui/ditolak → tidak perlu merge (sudah selesai)
         if (p.status === 'disetujui' || p.status === 'ditolak') return;
         // Jika pending ini sudah dieksekusi (ada transaksinya di cloud) → jangan push ulang
@@ -1022,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!Array.isArray(window.DB.users)) window.DB.users = [];
       localUsers.forEach(function(lu) {
         var sudahAda = window.DB.users.some(function(cu){ return cu.id === lu.id || cu.username === lu.username; });
-        if (!sudahAda) {
+        if (!sudahAda && !_synced('users', lu.id)) {
           window.DB.users.push(lu);
           console.log('[RENCO☁] User lokal dipertahankan saat merge:', lu.username);
         }
@@ -1064,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!sample || typeof sample !== 'object' || !sample.id) return;
           var cloudArr = Array.isArray(window.DB[key]) ? window.DB[key] : [];
           var cloudIds = new Set(cloudArr.map(function(x){ return x && x.id; }));
-          var newItems = localArr.filter(function(x){ return x && x.id && !cloudIds.has(x.id); });
+          var newItems = localArr.filter(function(x){ return x && x.id && !cloudIds.has(x.id) && !_synced(key, x.id); });
           if (newItems.length > 0) {
             if (!Array.isArray(window.DB[key])) window.DB[key] = [];
             newItems.forEach(function(x){ window.DB[key].push(x); });
@@ -1097,7 +1352,7 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!Array.isArray(localArr) || localArr.length === 0) return;
           var cloudArr = Array.isArray(window.DB[fkey][subKey]) ? window.DB[fkey][subKey] : [];
           var cloudIds = new Set(cloudArr.map(function(x){ return x && x.id; }));
-          var newItems = localArr.filter(function(x){ return x && x.id && !cloudIds.has(x.id); });
+          var newItems = localArr.filter(function(x){ return x && x.id && !cloudIds.has(x.id) && !_synced(fkey + '.' + subKey, x.id); });
           if (newItems.length > 0) {
             if (!Array.isArray(window.DB[fkey][subKey])) window.DB[fkey][subKey] = [];
             newItems.forEach(function(x){ window.DB[fkey][subKey].push(x); });
@@ -1131,7 +1386,7 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!Array.isArray(localArr) || localArr.length === 0) return;
           var cloudArr = Array.isArray(_rpCloud[rk]) ? _rpCloud[rk] : [];
           var cloudIds = new Set(cloudArr.map(function(x){ return x && x.id; }));
-          var newItems = localArr.filter(function(x){ return x && x.id && !cloudIds.has(x.id); });
+          var newItems = localArr.filter(function(x){ return x && x.id && !cloudIds.has(x.id) && !_synced('rencoPay.' + rk, x.id); });
           if (newItems.length > 0) {
             if (!Array.isArray(_rpCloud[rk])) _rpCloud[rk] = [];
             newItems.forEach(function(x){ _rpCloud[rk].push(x); });
@@ -1148,7 +1403,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!Array.isArray(localArr) || localArr.length === 0) return;
             var cloudArr = Array.isArray(_rpCloud.settings[sk]) ? _rpCloud.settings[sk] : [];
             var cloudIds = new Set(cloudArr.map(function(x){ return x && x.id; }));
-            var newItems = localArr.filter(function(x){ return x && x.id && !cloudIds.has(x.id); });
+            var newItems = localArr.filter(function(x){ return x && x.id && !cloudIds.has(x.id) && !_synced('rencoPay.settings.' + sk, x.id); });
             if (newItems.length > 0) {
               if (!Array.isArray(_rpCloud.settings[sk])) _rpCloud.settings[sk] = [];
               newItems.forEach(function(x){ _rpCloud.settings[sk].push(x); });
@@ -1259,6 +1514,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // (sebelum data cloud ini tiba), sehingga render pertama bisa menampilkan
     // data tagihan yang salah/basi sampai admin manual "Hapus Semua" + "Generate".
     try { if (window.TagihanApp && typeof window.TagihanApp.reloadFromDB === 'function') window.TagihanApp.reloadFromDB(); } catch(e) {}
+    try { _baseSet(_cloudIdsAtApply); } catch(_eb2) {}
     _cloudLoaded = true; // ✅ Tandai cloud sudah berhasil dimuat
     try { window.dispatchEvent(new CustomEvent('renco:cloud-loaded')); } catch(e) {}
     _lastCloudSavedAt = cloudData._savedAt || null; // track untuk polling dedup
@@ -2083,6 +2339,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // dan tandai payload sebagai "master override"
   var _origDoSync = _doSync;
   async function _doSyncMaster() {
+    if (window._rencoAppOutdated) return;   // guard versi
     if (!_isMasterDevice()) { return _origDoSync(); }
     if (!_isOnline || _isSyncing) {
       // FIX (sama seperti _doSync): tandai tertunda juga saat masih sibuk, bukan
@@ -2146,6 +2403,12 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       payload._savedAt   = new Date().toISOString();
       payload._clientId  = _getClientId();
+      try {
+        payload._appBuild = window.RENCO_BUILD || 0;
+        payload.appSettings = (payload.appSettings && typeof payload.appSettings === 'object') ? payload.appSettings : {};
+        payload.appSettings.minBuild = Math.max(Number(payload.appSettings.minBuild) || 0, window.RENCO_MIN_REQUIRED || 0);
+        if (window.DB) { if (!window.DB.appSettings || typeof window.DB.appSettings !== 'object') window.DB.appSettings = {}; window.DB.appSettings.minBuild = payload.appSettings.minBuild; }
+      } catch(_st) {}
       _stampMasterClaim(payload);
 
       // ── STEP 3: Push ke cloud ──────────────────────────────────────────────
@@ -2170,6 +2433,8 @@ document.addEventListener('DOMContentLoaded', function() {
         _hasUnsyncedLocalEdit = false; // edit lokal sudah dikonfirmasi ter-upload
         _showSync('success', '👑 Master tersimpan');
         _lastCloudSavedAt = payload._savedAt;
+        try { _bkEvaluate(payload, null, _syncBase); } catch(_bk2) {}
+        try { _baseSet(_collectIds(payload)); } catch(_eb4) {}
       }
     } catch(e) {
       _showSync('error');
@@ -6685,7 +6950,13 @@ window._rencoForceUpdateApp = _rencoForceUpdateApp;
 window._rencoAppOutdated = false;
 
 /* Teks versi aplikasi — ubah di sini setiap rilis baru */
-var RENCO_VERSION_TEXT = 'Koperasi Renco V.2 Diperbarui: 03/11/2026 10.00am';
+var RENCO_VERSION_TEXT = 'Koperasi Renco V.2 Diperbarui: 07/11/2026';
+/* NOMOR BUILD (YYYYMMDDNN). RENCO_MIN_REQUIRED = build paling lama yang masih boleh login & menyimpan data.
+   Naikkan RENCO_MIN_REQUIRED HANYA pada rilis yang menyangkut sinkronisasi/keamanan data; rilis tampilan
+   cukup menaikkan RENCO_BUILD. Begitu satu perangkat ber-build baru menyimpan data, angka minimum ini
+   tertulis di cloud (appSettings.minBuild) dan perangkat ber-build lebih lama otomatis ditolak login/simpannya. */
+window.RENCO_BUILD = 2026110701;
+window.RENCO_MIN_REQUIRED = 2026110701;
 function _rencoLoginVersionText() {
   var t = '';
   try { if (window.DB && DB.appSettings && DB.appSettings.loginWatermark) t = String(DB.appSettings.loginWatermark).trim(); } catch(e) {}
@@ -6767,13 +7038,31 @@ function _rencoCheckOutdatedVersion(localSnapshot, cloudData) {
         outdated = true;
       }
     }
+    // Cek build kode: cloud mensyaratkan build minimum yang lebih tinggi dari build aplikasi ini
+    var _cmin = Number(cloudData && cloudData.appSettings && cloudData.appSettings.minBuild) || 0;
+    if (_cmin > (window.RENCO_BUILD || 0)) { outdated = true; window._rencoOutdatedBuild = true; }
     window._rencoAppOutdated = outdated;
   } catch(e) {
     window._rencoAppOutdated = false;
   }
   renderLoginWatermark();
   _rencoApplyOutdatedLoginGuard();
+  if (window._rencoAppOutdated && window.AUTH && AUTH.loggedIn) _rencoShowOutdatedWall();
 }
+/* Layar penghalang untuk sesi yang SUDAH login tetapi aplikasinya terdeteksi lama:
+   semua penyimpanan ke cloud ditolak (lihat _scheduleSync/_doSync), pengguna diminta memperbarui. */
+function _rencoShowOutdatedWall() {
+  if (document.getElementById('rencoOutdatedWall')) return;
+  var w = document.createElement('div'); w.id = 'rencoOutdatedWall';
+  w.style.cssText = 'position:fixed;inset:0;z-index:2147483200;background:rgba(6,20,12,.92);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit';
+  w.innerHTML = '<div style="max-width:340px;width:100%;background:#f6faf7;color:#14281c;border-radius:22px;padding:24px 20px;text-align:center;border-top:3px solid #2d8a5e">'
+    + '<div style="font-size:34px;margin-bottom:6px">🔄</div>'
+    + '<div style="font-size:16px;font-weight:800;margin-bottom:8px">Aplikasi perlu diperbarui</div>'
+    + '<div style="font-size:12.5px;line-height:1.6;color:#4a5f53;margin-bottom:16px">Versi di perangkat ini lebih lama dari versi terbaru. Agar data Anda tidak tertimpa data lama, penyimpanan dihentikan sampai aplikasi diperbarui. Data di server aman.</div>'
+    + '<button type="button" onclick="_rencoForceUpdateApp()" style="width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#1f6b45,#2d8a5e);color:#fff;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer">Perbarui sekarang</button></div>';
+  document.body.appendChild(w);
+}
+window._rencoShowOutdatedWall = _rencoShowOutdatedWall;
 window._rencoCheckOutdatedVersion = _rencoCheckOutdatedVersion;
 
 function hideLoginScreen() {
@@ -6795,6 +7084,20 @@ function hideLoginScreen() {
 // login tidak macet kalau jaringan lambat/gagal — kalau reload belum
 // selesai dalam batas waktu, login tetap lanjut pakai data yang ada
 // (lapis 2 di _catatLoginLog()/_scheduleSync() tetap menjaga saat upload).
+/* Versi ketat: cb(true) hanya bila data cloud berhasil dimuat/terverifikasi terbaru; timeout/gagal → cb(false) */
+function _rencoStrictReload(cb) {
+  var sb = window._rencoSupabase, done = false;
+  function fin(ok) { if (done) return; done = true; cb(ok); }
+  if (!sb || typeof sb.load !== 'function') return fin(false);
+  var chk = (typeof sb.isUpToDate === 'function') ? sb.isUpToDate() : Promise.resolve(false);
+  chk.then(function(ok){ return ok ? { payload: null, upToDate: true } : sb.load(); }).then(function(r){
+    if (r && r.payload) {
+      if (typeof window._applyCloudDataPublic === 'function') window._applyCloudDataPublic(r.payload); else window.DB = r.payload;
+      fin(true);
+    } else { fin(!!(r && r.upToDate)); }
+  }).catch(function(){ fin(false); });
+  setTimeout(function(){ fin(false); }, 9000);
+}
 function _rencoFreshReloadBeforeLogin(cb) {
   if (window._rencoSupabase && typeof window._rencoSupabase.load === 'function') {
     var _done = false;
@@ -7056,6 +7359,35 @@ function handleLogin(targetPage) {
         // snapshot cloud yang BELUM memuat akun baru tsb, sehingga login
         // gagal padahal akunnya sudah benar dibuat. Coba lokal dulu — kalau
         // berhasil, tidak perlu menunggu jaringan sama sekali.
+        // ── LOGIN KETAT: cache perangkat sudah lama (>6 jam sejak terakhir sinkron, atau belum
+        // pernah tercatat) → WAJIB segarkan dari cloud dulu. Tidak boleh login memakai data lama,
+        // dan bila cloud tidak terjangkau login ditolak (data lama bisa menimpa data baru).
+        var _age = Date.now() - (Number(window._rencoLastSyncTs) || 0);
+        {
+          if (_age > 6*3600*1000 && navigator.onLine !== false) {
+            btn.textContent = 'Menyegarkan data…';
+            _rencoStrictReload(function(ok) {
+              if (window._rencoAppOutdated) {
+                err.textContent = '&#x26A0;&#xFE0F; Aplikasi belum versi terbaru. Ketuk tombol Update di bawah terlebih dahulu.';
+                err.style.display = 'block'; btn.disabled = true; btn.textContent = 'Masuk';
+                return;
+              }
+              if (!ok) {
+                err.textContent = '&#x26A0;&#xFE0F; Data di perangkat ini sudah lama dan belum bisa disegarkan dari server. Periksa koneksi lalu coba lagi.';
+                err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Masuk';
+                return;
+              }
+              if (authLogin(u, p)) { _handleLoginSuccess(); }
+              else {
+                err.textContent = '&#x274C; Username/No. HP/Email atau password salah';
+                err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Masuk';
+                document.getElementById('loginPassword').value = '';
+                _loginShakeField('pass');
+              }
+            });
+            return;
+          }
+        }
         if (authLogin(u, p)) {
           _handleLoginSuccess();
           return;
@@ -9295,6 +9627,7 @@ function renderUserProfile() {
         '<button class="adminp-card pf-dark" onclick="toggleDarkMode()" style="--apc:#1c3025;--apc-bg:rgba(45,106,79,0.14)"><div class="adminp-icon">' + _pfIc('moon') + '</div><span class="adminp-label">Mode Malam</span><div class="dmt-switch' + (isDarkModeOn() ? ' on' : '') + '" id="darkModeSwitch"><div class="dmt-knob"></div></div></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){openModal(' + q + 'modalUserMgmt' + q + ')},200)" style="--apc:#2d6a4f;--apc-bg:rgba(45,106,79,0.14)"><div class="adminp-icon">' + _pfIc('users') + '</div><span class="adminp-label">Kelola User Nasabah</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){openModal(' + q + 'modalAdminMgmt' + q + ')},200)" style="--apc:#b07a00;--apc-bg:rgba(244,169,34,0.18)"><div class="adminp-icon">' + _pfIc('crown') + '</div><span class="adminp-label">Kelola Admin</span></button>' +
+        '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){rencoBackupOpen()},250)" style="--apc:#0a6c3b;--apc-bg:rgba(10,108,59,0.14)"><div class="adminp-icon">' + _pfIc('shield') + '</div><span class="adminp-label">Cadangan Cloud</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){uaOpen()},200)" style="--apc:#0a6c3b;--apc-bg:rgba(10,108,59,0.14)"><div class="adminp-icon">' + _pfIc('invite') + '</div><span class="adminp-label">Undangan Akun</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){openModal(' + q + 'modalPengurusMgmt' + q + ')},200)" style="--apc:#2d6a4f;--apc-bg:rgba(45,106,79,0.14)"><div class="adminp-icon">' + _pfIc('clipboard') + '</div><span class="adminp-label">Struktur Pengurus</span></button>' +
         '<button class="adminp-card" onclick="closeModal(' + q + 'modalUserProfile' + q + ');setTimeout(function(){openModal(' + q + 'modalAuditLog' + q + ')},200)" style="--apc:#dc2626;--apc-bg:rgba(220,38,38,0.12)"><div class="adminp-icon">' + _pfIc('shield') + '</div><span class="adminp-label">Audit Log</span></button>' +
@@ -10807,51 +11140,126 @@ html.renco-dark .bdh-seg button{background:#1a1f1c;color:#cfe3d6}
 html.renco-dark #page-keuangan .keu-grid-card .kgb-icon .kgb-new{border-color:#1a1a1a}
 </style>
 <style id="keu-rek-style">
-/* Rekening Sementara Koperasi Renco (menggantikan tombol Pedoman Muamalah) */
-.keu-rek{padding:14px 14px 12px;text-align:left}
-.keu-rek-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.keu-rek-ico{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(244,169,34,.16);font-size:17px;flex-shrink:0}
-.keu-rek-toggle{width:100%;background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;margin-bottom:0}
-.keu-rek-chev{display:flex;flex-shrink:0;color:#6b7280;transition:transform .2s ease}
-.keu-rek-toggle[aria-expanded="true"]{margin-bottom:10px}
-.keu-rek-toggle[aria-expanded="true"] .keu-rek-chev{transform:rotate(180deg)}
-#keuRekBody[hidden]{display:none}
-.keu-rek-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:8px}
-.keu-rek-grid .keu-rek-item{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:0;padding:10px}
-.keu-rek-grid .keu-rek-info span{display:block;margin-left:0}
-.keu-rek-grid .keu-rek-no{font-size:13.5px;letter-spacing:.3px;word-break:break-all}
-.keu-rek-grid .keu-rek-copy{width:100%}
-.keu-rek-title{font-size:13.5px;font-weight:800;color:#1c3025}
-.keu-rek-sub{font-size:10.5px;color:#6b7280;margin-top:1px}
-.keu-rek-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;margin-bottom:8px;border-radius:13px;background:rgba(45,106,79,.06);border:1px solid rgba(45,106,79,.14)}
-.keu-rek-info{min-width:0;font-size:12px;color:#1c3025}
-.keu-rek-info b{font-size:13px}
-.keu-rek-info span{font-size:10.5px;color:#6b7280;margin-left:4px}
-.keu-rek-no{font-size:16px;font-weight:800;letter-spacing:.6px;margin-top:2px;font-variant-numeric:tabular-nums}
-.keu-rek-an{font-size:10.5px;color:#6b7280}
-.keu-rek-copy{flex-shrink:0;border:none;border-radius:9px;padding:7px 12px;font-size:11px;font-weight:700;color:#fff;background:linear-gradient(135deg,#1a472a,#2d6a4f);cursor:pointer;font-family:inherit}
-.keu-rek-warn{margin-top:4px;padding:10px 12px;border-radius:13px;background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.28);font-size:11px;line-height:1.5;color:#7a1f27}
-.keu-rek-warn-t{font-size:12px;font-weight:800;color:#c0392b;margin-bottom:3px}
-.keu-rek-links{display:flex;flex-direction:column;gap:3px;margin-top:6px}
-.keu-rek-links a{font-weight:700;color:#b02a37;text-decoration:underline;word-break:break-all}
-html.renco-dark .keu-rek-title,html.renco-dark .keu-rek-info{color:#f1ece0}
-html.renco-dark .keu-rek-item{background:rgba(255,255,255,.05);border-color:rgba(141,110,17,.25)}
-html.renco-dark .keu-rek-warn{background:rgba(230,57,70,.12);color:#f3c9cd}
-html.renco-dark .keu-rek-warn-t,html.renco-dark .keu-rek-links a{color:#ff8f98}
+/* Rekening Sementara Koperasi Renco — ikon mengambang di banner + panel premium */
+.keu-rek-fab{position:absolute;right:11px;bottom:11px;z-index:3;width:42px;height:42px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:#f4d67a;padding:0;
+  background:radial-gradient(120% 120% at 30% 20%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(145deg,rgba(13,32,22,.88),rgba(31,90,62,.82));
+  border:1.5px solid rgba(244,214,122,.75);
+  -webkit-backdrop-filter:blur(8px) saturate(1.3);backdrop-filter:blur(8px) saturate(1.3);
+  box-shadow:0 6px 16px rgba(6,20,12,.45),0 0 0 4px rgba(244,214,122,.14),inset 0 1px 0 rgba(255,255,255,.22);
+  transition:transform .18s ease,box-shadow .18s ease;-webkit-tap-highlight-color:transparent}
+.keu-rek-fab:active{transform:scale(.92)}
+.keu-rek-fab:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.keu-rek-fab svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+.keu-rek-fab::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:1.5px solid rgba(244,214,122,.55);opacity:0;pointer-events:none;animation:rkPing 2.6s ease-out 1.2s 2}
+@keyframes rkPing{0%{transform:scale(.85);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+
+.rk-ov{position:fixed;inset:0;z-index:100000;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(6,20,12,.58);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);
+  opacity:0;pointer-events:none;transition:opacity .25s ease}
+.rk-ov.on{opacity:1;pointer-events:auto}
+.rk-sheet{width:100%;max-width:480px;box-sizing:border-box;max-height:92vh;overflow-y:auto;
+  border-radius:28px 28px 0 0;padding:10px 16px calc(20px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(180deg,#fbfaee 0%,#f1f5ee 100%);color:#1c3025;
+  border-top:1.5px solid rgba(212,160,23,.55);box-shadow:0 -16px 48px rgba(6,20,12,.4);
+  transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.rk-ov.on .rk-sheet{transform:none}
+.rk-grab{width:38px;height:4px;border-radius:4px;background:rgba(28,48,37,.2);margin:0 auto 12px}
+.rk-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.rk-seal{width:44px;height:44px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#f4d67a;
+  background:linear-gradient(145deg,#0d2016,#1f5a3e);box-shadow:0 4px 12px rgba(13,32,22,.3),inset 0 0 0 1px rgba(244,214,122,.5)}
+.rk-ht{flex:1;min-width:0}
+.rk-title{font-size:16px;font-weight:800;line-height:1.2;color:#0d2016}
+.rk-sub{font-size:11.5px;color:#5b6b61;margin-top:2px;line-height:1.4}
+.rk-x{width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(28,48,37,.08);color:#1c3025}
+.rk-x:focus-visible,.rk-copy:focus-visible{outline:2px solid #d4a017;outline-offset:2px}
+.rk-card{position:relative;overflow:hidden;border-radius:20px;padding:15px 16px 14px;margin-bottom:11px;color:#f6f1de;
+  background:radial-gradient(90% 120% at 100% 0%,rgba(244,214,122,.26) 0%,rgba(244,214,122,0) 55%),linear-gradient(140deg,#0d2016 0%,#1a4a33 100%);
+  border:1px solid rgba(244,214,122,.42);box-shadow:0 10px 24px rgba(6,20,12,.28),inset 0 1px 0 rgba(255,255,255,.1)}
+.rk-card::after{content:'';position:absolute;right:-36px;bottom:-52px;width:150px;height:150px;border-radius:50%;border:1px solid rgba(244,214,122,.18);box-shadow:0 0 0 18px rgba(244,214,122,.05);pointer-events:none}
+.rk-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.rk-bank{font-size:14px;font-weight:800;letter-spacing:.2px}
+.rk-chip{width:34px;height:25px;border-radius:6px;background:linear-gradient(135deg,#f4d67a,#c98f0c);position:relative;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.rk-chip::before,.rk-chip::after{content:'';position:absolute;background:rgba(0,0,0,.22)}
+.rk-chip::before{left:0;right:0;top:50%;height:1px}
+.rk-chip::after{top:0;bottom:0;left:38%;width:1px}
+.rk-no{font-size:22px;font-weight:700;letter-spacing:1.6px;color:#f4d67a;font-variant-numeric:tabular-nums;line-height:1.25;word-break:break-word;text-shadow:0 1px 6px rgba(0,0,0,.35)}
+.rk-bot{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:12px;position:relative;z-index:1}
+.rk-an{font-size:11px;color:rgba(246,241,222,.72);line-height:1.4}
+.rk-an b{display:block;font-size:13px;color:#fff;font-weight:700}
+.rk-copy{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;border:none;border-radius:99px;padding:9px 15px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;
+  color:#0d2016;background:linear-gradient(135deg,#f9e29a,#d4a017);box-shadow:0 4px 12px rgba(0,0,0,.3);transition:transform .15s ease,background .2s ease}
+.rk-copy:active{transform:scale(.95)}
+.rk-copy.done{background:linear-gradient(135deg,#b7f0cd,#5fcf8c)}
+.rk-warn{display:flex;gap:10px;align-items:flex-start;border-radius:16px;padding:11px 13px;margin-top:4px;
+  background:rgba(230,57,70,.07);border:1px solid rgba(230,57,70,.25);font-size:11.5px;line-height:1.55;color:#7a1f27}
+.rk-warn svg{flex-shrink:0;margin-top:1px;color:#c0392b}
+.rk-warn a{font-weight:700;color:#b02a37;text-decoration:underline}
+html.renco-dark .rk-sheet{background:linear-gradient(180deg,#1b221d 0%,#131814 100%);color:#f1ece0;border-top-color:rgba(244,214,122,.4)}
+html.renco-dark .rk-title{color:#f6f1de}
+html.renco-dark .rk-sub{color:#a9b4ab}
+html.renco-dark .rk-grab{background:rgba(255,255,255,.2)}
+html.renco-dark .rk-x{background:rgba(255,255,255,.1);color:#f1ece0}
+html.renco-dark .rk-warn{background:rgba(230,57,70,.13);color:#f3c9cd}
+html.renco-dark .rk-warn a{color:#ff8f98}
+@media (prefers-reduced-motion:reduce){.keu-rek-fab::after{animation:none}.rk-ov,.rk-sheet{transition:none}}
 </style>
 <script>
-window.keuRekToggle=function(btn){
-  var b=document.getElementById('keuRekBody'); if(!b) return;
-  var open=b.hasAttribute('hidden');
-  if(open) b.removeAttribute('hidden'); else b.setAttribute('hidden','');
-  btn.setAttribute('aria-expanded',open?'true':'false');
-};
-window.keuRekCopy=function(no,nama){
-  function ok(){ if(typeof showToast==='function') showToast('✅ No. rek '+nama+' disalin: '+no); }
-  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(no).then(ok,function(){fb();}); return; } }catch(e){}
-  fb();
-  function fb(){ try{ var t=document.createElement('textarea'); t.value=no; t.style.position='fixed'; t.style.opacity='0'; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); ok(); }catch(e){} }
-};
+(function(){
+  var REK=[
+    {bank:'BSI',no:'7297943213',an:'Syamsul Hadi'},
+    {bank:'BCA Digital',no:'005621531004',an:'Syamsul Hadi'}
+  ];
+  var ov=null, lastFocus=null;
+  function fmt(n){ return n.replace(/(.{4})/g,'$1 ').trim(); }
+  function build(){
+    ov=document.createElement('div'); ov.className='rk-ov'; ov.id='keuRekOv';
+    ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true'); ov.setAttribute('aria-labelledby','rkTitle');
+    var cards=REK.map(function(r,i){
+      return '<div class="rk-card"><div class="rk-top"><span class="rk-bank">'+r.bank+'</span><span class="rk-chip" aria-hidden="true"></span></div>'
+        +'<div class="rk-no">'+fmt(r.no)+'</div>'
+        +'<div class="rk-bot"><div class="rk-an">Atas nama<b>'+r.an+'</b></div>'
+        +'<button type="button" class="rk-copy" data-i="'+i+'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="2"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Salin</span></button></div></div>';
+    }).join('');
+    ov.innerHTML='<div class="rk-sheet"><div class="rk-grab"></div>'
+      +'<div class="rk-head"><span class="rk-seal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 9.5 12 4l8.5 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 11v6.5M9.8 11v6.5M14.2 11v6.5M18.5 11v6.5M3.5 20h17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>'
+      +'<div class="rk-ht"><div class="rk-title" id="rkTitle">Rekening Sementara Koperasi Renco</div><div class="rk-sub">Transfer hanya ke 2 rekening resmi di bawah ini.</div></div>'
+      +'<button type="button" class="rk-x" aria-label="Tutup"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>'
+      +cards
+      +'<div class="rk-warn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v5.5c0 4.6-3.2 8-8 9.5-4.8-1.5-8-4.9-8-9.5V6l8-3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8.5v4.2M12 15.6v.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+      +'<div><b>Waspada:</b> rekening selain di atas bukan milik Koperasi Renco. Hubungi admin lewat <a href="https://wa.me/6287855712922" target="_blank" rel="noopener">WhatsApp</a> atau <a href="mailto:koperasirenco@gmail.com">Email</a>.</div></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',function(e){
+      if(e.target===ov||e.target.closest('.rk-x')){ window.keuRekClose(); return; }
+      var c=e.target.closest('.rk-copy'); if(c) copy(c);
+    });
+  }
+  function copy(btn){
+    var r=REK[+btn.getAttribute('data-i')];
+    window.keuRekCopy(r.no,r.bank);
+    var sp=btn.querySelector('span'); btn.classList.add('done'); sp.textContent='Tersalin';
+    setTimeout(function(){ btn.classList.remove('done'); sp.textContent='Salin'; },1800);
+  }
+  window.keuRekOpen=function(){
+    if(!ov) build();
+    lastFocus=document.activeElement;
+    requestAnimationFrame(function(){ ov.classList.add('on'); var x=ov.querySelector('.rk-x'); if(x) x.focus({preventScroll:true}); });
+    document.addEventListener('keydown',esc);
+  };
+  window.keuRekClose=function(){
+    if(!ov) return; ov.classList.remove('on');
+    document.removeEventListener('keydown',esc);
+    if(lastFocus&&lastFocus.focus) try{ lastFocus.focus({preventScroll:true}); }catch(e){}
+  };
+  function esc(e){ if(e.key==='Escape') window.keuRekClose(); }
+  window.keuRekCopy=function(no,nama){
+    function ok(){ if(typeof showToast==='function') showToast('✅ No. rek '+nama+' disalin: '+no); }
+    try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(no).then(ok,function(){fb();}); return; } }catch(e){}
+    fb();
+    function fb(){ try{ var t=document.createElement('textarea'); t.value=no; t.style.position='fixed'; t.style.opacity='0'; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); ok(); }catch(e){} }
+  };
+})();
 </script>
 </head>
 <body>
@@ -13126,6 +13534,15 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
         html.renco-dark body #app #page-home #homeRiwayatChipBar .hrw-chip.active{color:#fff !important}
         html.renco-dark body #app #page-home #homeRiwayatMonthBar .hrw-month{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:#d6e6dc;box-shadow:none}
         html.renco-dark body #app #page-home #homeRiwayatMonthBar .hrw-month.active{background:linear-gradient(135deg,#0d5a1e,#1f7d35);border-color:rgba(240,215,140,.85);color:#fff}
+        /* Tab bulan riwayat: teks polos, tanpa latar dan tanpa garis kotak */
+        html body #app #page-home #homeRiwayatMonthBar{gap:14px;padding:2px 16px 8px}
+        html body #app #page-home #homeRiwayatMonthBar .hrw-month{height:28px;padding:0;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;box-shadow:none;color:#7a8a81;font-size:12.5px;font-weight:600}
+        html body #app #page-home #homeRiwayatMonthBar .hrw-month svg{display:none}
+        html body #app #page-home #homeRiwayatMonthBar .hrw-month:first-child{margin-left:auto}
+        html body #app #page-home #homeRiwayatMonthBar .hrw-month:last-child{margin-right:auto}
+        html body #app #page-home #homeRiwayatMonthBar .hrw-month.active{padding:0;background:none;border:0;border-bottom:2px solid #1a472a;box-shadow:none;color:#1a472a;font-weight:800}
+        html.renco-dark body #app #page-home #homeRiwayatMonthBar .hrw-month{background:none;border:0;border-bottom:2px solid transparent;color:#8fa498}
+        html.renco-dark body #app #page-home #homeRiwayatMonthBar .hrw-month.active{background:none;border:0;border-bottom:2px solid #f6e3a1;color:#f6e3a1}
         #homeTransaksiList .hrw-day{padding:10px 16px 4px;font-size:10px;font-weight:800;color:var(--text-soft);text-transform:uppercase;letter-spacing:.5px}
         #homeTransaksiList .hrw-count{padding:2px 16px 0;font-size:10.5px;font-weight:600;color:var(--text-soft)}
       </style>
@@ -13522,6 +13939,9 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
           <div class="keu-ad" id="keuAd" style="display:none;margin:12px 14px 4px">
             <div class="keu-ad-track" id="keuAdTrack"></div>
             <div class="keu-ad-dots" id="keuAdDots"></div>
+            <button type="button" class="keu-rek-fab" id="keuRekFab" aria-haspopup="dialog" aria-label="Rekening Sementara Koperasi Renco" title="Rekening Sementara Koperasi Renco" onclick="keuRekOpen()">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 9.5 12 4l8.5 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 11v6.5M9.8 11v6.5M14.2 11v6.5M18.5 11v6.5M3.5 20h17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="8.2" r="1" fill="currentColor"/></svg>
+            </button>
             <div class="keu-ad-admin" id="keuAdAdmin" style="display:none">
               <button type="button" onclick="keuAdAdd()">＋ Tambah Gambar</button>
             </div>
@@ -14162,72 +14582,6 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
             head.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleBook(); } });
           })();
           </script>
-
-          <!-- ══ Pedoman Muamalah + Dalil Ayat — SATU frame/background yang menyatu ══ -->
-          <div class="keu-pedoman-frame">
-            <div class="keu-rek" id="keuRekSementara">
-              <button type="button" class="keu-rek-head keu-rek-toggle" aria-expanded="false" aria-controls="keuRekBody" onclick="keuRekToggle(this)">
-                <span class="keu-rek-ico">&#x1F3E6;</span>
-                <div style="flex:1;min-width:0;text-align:left">
-                  <div class="keu-rek-title">Rekening Sementara Koperasi Renco</div>
-                  <div class="keu-rek-sub">Hanya dua rekening ini &mdash; tidak ada bank lain.</div>
-                </div>
-                <span class="keu-rek-chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              </button>
-              <div id="keuRekBody" hidden>
-              <div class="keu-rek-grid">
-              <div class="keu-rek-item">
-                <div class="keu-rek-info"><b>BSI</b> <span>Bank Syariah Indonesia</span>
-                  <div class="keu-rek-no">7297943213</div>
-                  <div class="keu-rek-an">a.n. Syamsul Hadi</div></div>
-                <button type="button" class="keu-rek-copy" onclick="keuRekCopy('7297943213','BSI')">Salin</button>
-              </div>
-              <div class="keu-rek-item">
-                <div class="keu-rek-info"><b>BCA Digital</b>
-                  <div class="keu-rek-no">005621531004</div>
-                  <div class="keu-rek-an">a.n. Syamsul Hadi</div></div>
-                <button type="button" class="keu-rek-copy" onclick="keuRekCopy('005621531004','BCA Digital')">Salin</button>
-              </div>
-              </div>
-              <div class="keu-rek-warn">
-                <div class="keu-rek-warn-t">&#x26A0;&#xFE0F; Berhati-hatilah dalam bertransaksi</div>
-                <div>Jika ada pihak yang mengatasnamakan Koperasi Renco dengan rekening selain di atas, segera hubungi admin:</div>
-                <div class="keu-rek-links">
-                  <a href="https://wa.me/6287855712922" target="_blank" rel="noopener">WhatsApp +62 878-5571-2922</a>
-                  <a href="mailto:koperasirenco@gmail.com">koperasirenco@gmail.com</a>
-                </div>
-              </div>
-              </div>
-            </div>
-
-            <details class="keu-ayat" aria-label="QS. Al-Baqarah ayat 275">
-              <summary class="keu-ayat-sum">
-                <span class="keu-ayat-ref">QS. Al-Baqarah: 275<span class="keu-ayat-chev" aria-hidden="true"></span></span>
-                <span class="keu-ayat-hint"><span class="hs">Ketuk untuk menampilkan ayatnya</span><span class="ho">Ketuk untuk menyembunyikan</span></span>
-              </summary>
-              <div class="keu-ayat-glass">
-                <p class="keu-ayat-ar" lang="ar" dir="rtl">الَّذِينَ يَأْكُلُونَ الرِّبَا لَا يَقُومُونَ إِلَّا كَمَا يَقُومُ الَّذِي يَتَخَبَّطُهُ الشَّيْطَانُ مِنَ <span class="nb">الْمَسِّ ۚ</span> ذَٰلِكَ بِأَنَّهُمْ قَالُوا إِنَّمَا الْبَيْعُ مِثْلُ <span class="nb">الرِّبَا ۗ</span> وَأَحَلَّ اللَّهُ الْبَيْعَ وَحَرَّمَ <span class="nb">الرِّبَا ۚ</span> فَمَنْ جَاءَهُ مَوْعِظَةٌ مِنْ رَبِّهِ فَانْتَهَىٰ فَلَهُ مَا سَلَفَ وَأَمْرُهُ إِلَى <span class="nb">اللَّهِ ۖ</span> وَمَنْ عَادَ فَأُولَٰئِكَ أَصْحَابُ <span class="nb">النَّارِ ۖ</span> هُمْ فِيهَا خَالِدُونَ</p>
-                <details class="keu-ayat-id-details">
-                  <summary class="keu-ayat-id-sum">Tampilkan Terjemahan<span class="keu-ayat-id-chev" aria-hidden="true"></span></summary>
-                  <p class="keu-ayat-id-text">Orang-orang yang memakan (mengambil) riba tidak dapat berdiri melainkan seperti berdirinya orang yang kerasukan setan karena tekanan penyakit gila. Demikian itu karena mereka menganggap jual beli sama saja dengan riba, padahal Allah telah menghalalkan jual beli dan mengharamkan riba. Siapa yang telah sampai kepadanya peringatan dari Tuhannya lalu dia berhenti, maka baginya apa yang telah lalu, dan urusannya terserah kepada Allah. Adapun siapa yang mengulangi (riba), mereka itulah penghuni neraka; mereka kekal di dalamnya.</p>
-                </details>
-              </div>
-            </details>
-
-            <details class="keu-ayat" aria-label="QS. Al-Baqarah ayat 278 sampai 279">
-              <summary class="keu-ayat-sum">
-                <span class="keu-ayat-ref">QS. Al-Baqarah: 278–279<span class="keu-ayat-chev" aria-hidden="true"></span></span>
-                <span class="keu-ayat-hint"><span class="hs">Ketuk untuk menampilkan ayatnya</span><span class="ho">Ketuk untuk menyembunyikan</span></span>
-              </summary>
-              <div class="keu-ayat-glass">
-                <p class="keu-ayat-ar" lang="ar" dir="rtl">يَا أَيُّهَا الَّذِينَ آمَنُوا اتَّقُوا اللَّهَ وَذَرُوا مَا بَقِيَ مِنَ الرِّبَا إِنْ كُنْتُمْ <span class="nb">مُؤْمِنِينَ <span class="ay-no">﴿٢٧٨﴾</span></span> فَإِنْ لَمْ تَفْعَلُوا فَأْذَنُوا بِحَرْبٍ مِنَ اللَّهِ <span class="nb">وَرَسُولِهِ ۖ</span> وَإِنْ تُبْتُمْ فَلَكُمْ رُءُوسُ <span class="nb">أَمْوَالِكُمْ ۖ</span> لَا تَظْلِمُونَ <span class="nb">وَلَا تُظْلَمُونَ <span class="ay-no">﴿٢٧٩﴾</span></span></p>
-                <details class="keu-ayat-id-details">
-                  <summary class="keu-ayat-id-sum">Tampilkan Terjemahan<span class="keu-ayat-id-chev" aria-hidden="true"></span></summary>
-                  <p class="keu-ayat-id-text">Wahai orang-orang yang beriman, bertakwalah kepada Allah dan tinggalkan sisa riba (yang belum dipungut) jika kamu orang beriman. Jika kamu tidak melaksanakannya, maka ketahuilah akan adanya perang dari Allah dan Rasul-Nya. Tetapi jika kamu bertobat, maka kamu berhak atas pokok hartamu; kamu tidak menzalimi dan tidak (pula) dizalimi.</p>
-                </details>
-              </div>
-            </details>
-          </div>
 
         </div>
 
@@ -23453,6 +23807,7 @@ function rpTab(tab, el) {
     el = document.getElementById('rptab_qris');
   }
   _rpCurrentTab = tab;
+  try{ var _pgRp=document.getElementById('page-rencoPay'); if(_pgRp) _pgRp.setAttribute('data-rptab',tab); }catch(e){}
   _rpShowTabView(tab);
   document.querySelectorAll('.rp-tab-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
@@ -23571,18 +23926,43 @@ function rpNavIconTap() {
   if (typeof currentPage !== 'undefined' && currentPage === 'rencoPay') return;
   var old = document.getElementById('_rpOpenConfirm');
   if (old) old.remove();
+  if (!document.getElementById('_rpOpenConfirmCss')) {
+    var st = document.createElement('style');
+    st.id = '_rpOpenConfirmCss';
+    st.textContent =
+      '@keyframes _rpocFade{from{opacity:0}to{opacity:1}}' +
+      '@keyframes _rpocPop{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:none}}' +
+      '#_rpOpenConfirm{position:fixed;inset:0;z-index:9600;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;background:rgba(10,24,16,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);animation:_rpocFade .18s ease-out}' +
+      '#_rpOpenConfirm ._rpoc-box{position:relative;width:100%;max-width:320px;background:#fff;border-radius:26px;padding:0 22px 20px;text-align:center;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.32),0 0 0 1px rgba(212,160,23,.18);animation:_rpocPop .26s cubic-bezier(.2,.9,.3,1.2)}' +
+      '#_rpOpenConfirm ._rpoc-top{height:74px;margin:0 -22px 0;background:linear-gradient(135deg,#143a22,#2d6a4f 60%,#3b8a65)}' +
+      '#_rpOpenConfirm ._rpoc-ico{width:64px;height:64px;margin:-34px auto 12px;border-radius:20px;background:linear-gradient(135deg,#f7d66b,#d4a017);color:#3d2d00;display:flex;align-items:center;justify-content:center;border:4px solid #fff;box-shadow:0 8px 20px rgba(212,160,23,.4)}' +
+      '#_rpOpenConfirm ._rpoc-t{font-size:17px;font-weight:800;color:#1c2b24}' +
+      '#_rpOpenConfirm ._rpoc-s{font-size:12.5px;line-height:1.5;color:#6a7a72;margin:6px 0 18px}' +
+      '#_rpOpenConfirm ._rpoc-row{display:flex;gap:10px}' +
+      '#_rpOpenConfirm ._rpoc-row button{flex:1;padding:13px 8px;border:none;border-radius:14px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;transition:transform .12s}' +
+      '#_rpOpenConfirm ._rpoc-row button:active{transform:scale(.96)}' +
+      '#_rpOpenConfirm ._rpoc-no{background:#eef2f0;color:#33423a}' +
+      '#_rpOpenConfirm ._rpoc-ok{background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#f5d77e;box-shadow:0 6px 16px rgba(26,71,42,.32)}' +
+      'html.renco-dark #_rpOpenConfirm ._rpoc-box{background:#1e2420}' +
+      'html.renco-dark #_rpOpenConfirm ._rpoc-ico{border-color:#1e2420}' +
+      'html.renco-dark #_rpOpenConfirm ._rpoc-t{color:#f1ece0}' +
+      'html.renco-dark #_rpOpenConfirm ._rpoc-s{color:#a8b5ad}' +
+      'html.renco-dark #_rpOpenConfirm ._rpoc-no{background:rgba(255,255,255,.08);color:#e6ede9}';
+    document.head.appendChild(st);
+  }
   var ov = document.createElement('div');
   ov.id = '_rpOpenConfirm';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
   ov.onclick = function(e){ if (e.target === ov) ov.remove(); };
-  ov.innerHTML = '<div style="background:#fff;border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px 20px calc(24px + env(safe-area-inset-bottom,0px));text-align:center">'
-    + '<div style="width:40px;height:4px;background:#e0e0e0;border-radius:99px;margin:0 auto 16px"></div>'
-    + '<div style="width:52px;height:52px;margin:0 auto 10px;border-radius:16px;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#f5d77e;display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M2 10h20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>'
-    + '<div style="font-size:16px;font-weight:800;color:#1c2b24">Buka RencoPay?</div>'
-    + '<div style="font-size:12.5px;color:#6a7a72;margin:6px 0 18px">Anda akan masuk ke dompet digital RencoPay.</div>'
-    + '<div style="display:flex;gap:9px">'
-    + '<button type="button" style="flex:1;padding:13px;border:none;border-radius:13px;background:#eef2f0;color:#33423a;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit" onclick="document.getElementById(\'_rpOpenConfirm\').remove()">Batal</button>'
-    + '<button type="button" style="flex:1;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,#d4a017,#f4c842);color:#3d2d00;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit" onclick="document.getElementById(\'_rpOpenConfirm\').remove();navTo(\'rencoPay\')">Buka</button>'
+  ov.innerHTML = '<div class="_rpoc-box">'
+    + '<div class="_rpoc-top"></div>'
+    + '<div class="_rpoc-ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M2 10h20" stroke="currentColor" stroke-width="1.6"/><path d="M6 15h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>'
+    + '<div class="_rpoc-t">Buka RencoPay?</div>'
+    + '<div class="_rpoc-s">Anda akan masuk ke dompet digital RencoPay.</div>'
+    + '<div class="_rpoc-row">'
+    + '<button type="button" class="_rpoc-no" onclick="document.getElementById(\'_rpOpenConfirm\').remove()">Batal</button>'
+    + '<button type="button" class="_rpoc-ok" onclick="document.getElementById(\'_rpOpenConfirm\').remove();navTo(\'rencoPay\')">Buka</button>'
     + '</div></div>';
   document.body.appendChild(ov);
 }
@@ -27831,6 +28211,7 @@ window._rpPushResetToCloud = async function(jenis) {
     payload._resetBy  = (window.AUTH && window.AUTH.user && window.AUTH.user.username) || 'admin';
     payload._resetJenis = jenis;
     payload._savedAt  = new Date().toISOString();
+    payload._appBuild = window.RENCO_BUILD || 0;
 
     // GUARD MODE LOKAL: jangan pernah push reset dari file lokal
     var error = null;
@@ -27932,6 +28313,7 @@ window._rpResetCloud_Semua = async function() {
     payload._resetAt    = new Date().toISOString();
     payload._resetBy    = (window.AUTH && window.AUTH.user && window.AUTH.user.username) || 'admin';
     payload._savedAt    = new Date().toISOString();
+    payload._appBuild   = window.RENCO_BUILD || 0;
 
     // GUARD MODE LOKAL: jangan pernah push reset dari file lokal
     var error = null;
@@ -30640,7 +31022,7 @@ function renderKeuanganGrid(activeTab) {
     return '<button class="keu-grid-card keu-glass" id="keu-card-'+item.tab+'"'
       +' style="--kgc-grad:'+item.grad+'"'
       +' onclick="'+clickFn+'">'
-      +'<div class="kgb-icon">'+(item.emoji||item.svg||'')+(item.isNew?'<i class="kgb-new">NEW</i>':'')+'</div>'
+      +'<div class="kgb-icon">'+(item.emoji||item.svg||'')+(item.isNew&&!(item.tab==='catatuang'&&typeof window.catatUangHasRecord==='function'&&window.catatUangHasRecord())?'<i class="kgb-new">NEW</i>':'')+'</div>'
       +'<span class="kgb-label">'+item.label+'</span>'
       +'<span class="kgb-desc">'+item.desc+'</span>'
       +'<div class="kgb-arrow">'+arrowSvg+'</div>'
@@ -73636,7 +74018,64 @@ window.rpxPrint=function(k){
   var rows=e.list.map(function(n){
     return '<tr><td>'+esc(n.key)+(n.jam?'<br>'+n.jam:'')+'</td><td>'+esc(n.ket)+'<br><small>'+esc(n.kategori)+' · '+esc(n.id)+'</small></td><td class="r">'+(n.kredit?rp(n.jumlah):'')+'</td><td class="r">'+(n.kredit?'':rp(n.jumlah))+'</td><td class="r">'+(n.saldo==null?'':rp(n.saldo))+'</td></tr>';
   }).join('');
-  var html='<!doctype html><html><head><meta charset="utf-8"><title>Arsip RencoPay '+esc(judul)+'</title><style>body{font:12px system-ui,sans-serif;color:#111;padding:18px}h1{font-size:16px;margin:0}p{margin:3px 0 12px;color:#555}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:6px 5px;text-align:left;vertical-align:top}th{background:#f3f4f6;font-size:11px}.r{text-align:right;white-space:nowrap}small{color:#777}tfoot td{font-weight:800;border-top:2px solid #333}</style></head><body><h1>Arsip Transaksi RencoPay — '+esc(judul)+'</h1><p>'+esc(who(B))+' · dicetak '+new Date().toLocaleString('id-ID')+'</p><table><thead><tr><th>Tanggal</th><th>Keterangan</th><th class="r">Masuk</th><th class="r">Keluar</th><th class="r">Saldo</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td colspan="2">Total ('+t.n+' transaksi)</td><td class="r">'+rp(t.masuk)+'</td><td class="r">'+rp(t.keluar)+'</td><td></td></tr></tfoot></table></body></html>';
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>Arsip RencoPay '+esc(judul)+'</title><style>body{font:12px system-ui,sans-serif;color:#111;padding:18px}h1{font-size:16px;margin:0}p{margin:3px 0 12px;color:#555}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:6px 5px;text-align:left;vertical-align:top}th{background:#f3f4f6;font-size:11px}.r{text-align:right;white-space:nowrap}small{color:#777}tfoot td{font-weight:800;border-top:2px solid #333}</style><style id="rp-green-pay">
+/* RencoPay: halaman Bayar & Transfer — hijau dominan (emas hanya aksen kecil) */
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] #rpContent{background:linear-gradient(180deg,#d7efe2 0%,#eaf6ef 34%,#f8fcfa 100%) !important;min-height:100%}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-saldo{background:radial-gradient(90% 140% at 100% 0%,rgba(143,227,180,.28),rgba(143,227,180,0) 60%),linear-gradient(135deg,#0f3d2a 0%,#1f6b45 62%,#2d8a5e 100%) !important;border:1px solid rgba(143,227,180,.55) !important;box-shadow:0 10px 24px rgba(15,61,42,.3) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-saldo-lbl{color:#bff0d3 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-saldo-amt{color:#ffffff !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-saldo-sub{color:rgba(216,245,227,.82) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] [style*="#7a5c00,#7a5c00"]:not(button){background:radial-gradient(90% 140% at 100% 0%,rgba(143,227,180,.28),rgba(143,227,180,0) 60%),linear-gradient(135deg,#0f3d2a 0%,#1f6b45 62%,#2d8a5e 100%) !important;box-shadow:0 10px 24px rgba(15,61,42,.3) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] [style*="color:#e8c97e"]{color:#d8f5e3 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] [style*="rgba(232,201,126,0.7)"]{color:rgba(191,240,211,.9) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-chip,.tf-icobtn,.tf-linkbtn{background:#e3f3ea !important;border-color:rgba(31,107,69,.5) !important;color:#1f6b45 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-chip:active{background:#1f6b45 !important;color:#fff !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-panel{background:#f1f9f4 !important;border:1px solid rgba(31,107,69,.32) !important;color:#14281c !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-panel strong{color:#1f6b45 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-note{background:#e6f4ec !important;color:#3d5a48 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .tf-prev-row{color:#3d5a48 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .field label{color:#1f6b45 !important;font-weight:700}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .field input:focus,.field select:focus,.field textarea:focus{border-color:#2d8a5e !important;box-shadow:0 0 0 3px rgba(45,138,94,.2) !important;outline:none}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .btn-primary,button[style*="#7a5c00,#7a5c00"],button[style*="linear-gradient(135deg,#7a5c00"]{background:linear-gradient(135deg,#1f6b45 0%,#2d8a5e 100%) !important;color:#ffffff !important;border:none !important;box-shadow:0 8px 18px rgba(31,107,69,.32) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] .btn-primary:disabled{box-shadow:none !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="pembayaran"] [style*="rgba(212,170,40"]{border-color:rgba(31,107,69,.34) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] #rpContent{background:linear-gradient(180deg,#d7efe2 0%,#eaf6ef 34%,#f8fcfa 100%) !important;min-height:100%}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-saldo{background:radial-gradient(90% 140% at 100% 0%,rgba(143,227,180,.28),rgba(143,227,180,0) 60%),linear-gradient(135deg,#0f3d2a 0%,#1f6b45 62%,#2d8a5e 100%) !important;border:1px solid rgba(143,227,180,.55) !important;box-shadow:0 10px 24px rgba(15,61,42,.3) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-saldo-lbl{color:#bff0d3 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-saldo-amt{color:#ffffff !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-saldo-sub{color:rgba(216,245,227,.82) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] [style*="#7a5c00,#7a5c00"]:not(button){background:radial-gradient(90% 140% at 100% 0%,rgba(143,227,180,.28),rgba(143,227,180,0) 60%),linear-gradient(135deg,#0f3d2a 0%,#1f6b45 62%,#2d8a5e 100%) !important;box-shadow:0 10px 24px rgba(15,61,42,.3) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] [style*="color:#e8c97e"]{color:#d8f5e3 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] [style*="rgba(232,201,126,0.7)"]{color:rgba(191,240,211,.9) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-chip,.tf-icobtn,.tf-linkbtn{background:#e3f3ea !important;border-color:rgba(31,107,69,.5) !important;color:#1f6b45 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-chip:active{background:#1f6b45 !important;color:#fff !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-panel{background:#f1f9f4 !important;border:1px solid rgba(31,107,69,.32) !important;color:#14281c !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-panel strong{color:#1f6b45 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-note{background:#e6f4ec !important;color:#3d5a48 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .tf-prev-row{color:#3d5a48 !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .field label{color:#1f6b45 !important;font-weight:700}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .field input:focus,.field select:focus,.field textarea:focus{border-color:#2d8a5e !important;box-shadow:0 0 0 3px rgba(45,138,94,.2) !important;outline:none}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .btn-primary,button[style*="#7a5c00,#7a5c00"],button[style*="linear-gradient(135deg,#7a5c00"]{background:linear-gradient(135deg,#1f6b45 0%,#2d8a5e 100%) !important;color:#ffffff !important;border:none !important;box-shadow:0 8px 18px rgba(31,107,69,.32) !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] .btn-primary:disabled{box-shadow:none !important}
+html:not(.renco-dark) body #app #page-rencoPay[data-rptab="transfer"] [style*="rgba(212,170,40"]{border-color:rgba(31,107,69,.34) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="pembayaran"] #rpContent{background:linear-gradient(180deg,#0f3d2a 0%,#0d2016 55%,#0a1a10 100%) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="pembayaran"] .tf-saldo,[style*="#7a5c00,#7a5c00"]:not(button){background:radial-gradient(90% 140% at 100% 0%,rgba(143,227,180,.24),rgba(143,227,180,0) 60%),linear-gradient(135deg,#1a5a3c 0%,#2d8a5e 100%) !important;border:1px solid rgba(143,227,180,.5) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="pembayaran"] .tf-saldo-lbl,.tf-saldo-amt,[style*="color:#e8c97e"]{color:#d8f5e3 !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="pembayaran"] .tf-chip,.tf-icobtn,.tf-linkbtn,.tf-panel strong{color:#9ae6bb !important;border-color:rgba(110,200,150,.5) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="pembayaran"] .tf-chip,.tf-icobtn,.tf-linkbtn{background:rgba(64,145,108,.2) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="pembayaran"] .tf-panel{border-color:rgba(110,200,150,.38) !important;background:rgba(64,145,108,.1) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="pembayaran"] .btn-primary,button[style*="#7a5c00,#7a5c00"],button[style*="linear-gradient(135deg,#7a5c00"]{background:linear-gradient(135deg,#2d8a5e 0%,#40b57e 100%) !important;color:#ffffff !important;border:none !important;box-shadow:0 8px 18px rgba(0,0,0,.35) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="pembayaran"] .field label{color:#9ae6bb !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="transfer"] #rpContent{background:linear-gradient(180deg,#0f3d2a 0%,#0d2016 55%,#0a1a10 100%) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="transfer"] .tf-saldo,[style*="#7a5c00,#7a5c00"]:not(button){background:radial-gradient(90% 140% at 100% 0%,rgba(143,227,180,.24),rgba(143,227,180,0) 60%),linear-gradient(135deg,#1a5a3c 0%,#2d8a5e 100%) !important;border:1px solid rgba(143,227,180,.5) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="transfer"] .tf-saldo-lbl,.tf-saldo-amt,[style*="color:#e8c97e"]{color:#d8f5e3 !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="transfer"] .tf-chip,.tf-icobtn,.tf-linkbtn,.tf-panel strong{color:#9ae6bb !important;border-color:rgba(110,200,150,.5) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="transfer"] .tf-chip,.tf-icobtn,.tf-linkbtn{background:rgba(64,145,108,.2) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="transfer"] .tf-panel{border-color:rgba(110,200,150,.38) !important;background:rgba(64,145,108,.1) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="transfer"] .btn-primary,button[style*="#7a5c00,#7a5c00"],button[style*="linear-gradient(135deg,#7a5c00"]{background:linear-gradient(135deg,#2d8a5e 0%,#40b57e 100%) !important;color:#ffffff !important;border:none !important;box-shadow:0 8px 18px rgba(0,0,0,.35) !important}
+html.renco-dark body #app #page-rencoPay[data-rptab="transfer"] .field label{color:#9ae6bb !important}
+</style>
+</head><body><h1>Arsip Transaksi RencoPay — '+esc(judul)+'</h1><p>'+esc(who(B))+' · dicetak '+new Date().toLocaleString('id-ID')+'</p><table><thead><tr><th>Tanggal</th><th>Keterangan</th><th class="r">Masuk</th><th class="r">Keluar</th><th class="r">Saldo</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td colspan="2">Total ('+t.n+' transaksi)</td><td class="r">'+rp(t.masuk)+'</td><td class="r">'+rp(t.keluar)+'</td><td></td></tr></tfoot></table></body></html>';
   var fr=document.createElement('iframe'); fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(fr);
   var d=fr.contentWindow.document; d.open(); d.write(html); d.close();
   setTimeout(function(){ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(err){ toast('Cetak tidak didukung di perangkat ini'); } setTimeout(function(){ fr.remove(); },4000); },350);
@@ -76593,7 +77032,8 @@ function body(){
   var inner=cu.tab==='riwayat'?riwayatHTML(all):cu.tab==='target'?targetHTML(all):cu.tab==='kekayaan'?kekayaanHTML(all):ringkasanHTML(all);
   return heroHTML(all)+'<div class="cu-tabs">'+tabs+'</div>'+inner+footHTML();
 }
-function paint(){ var w=$('cuWrap'); if(w) w.innerHTML=body(); }
+function paint(){ var w=$('cuWrap'); if(w) w.innerHTML=body(); try{ if(window.catatUangHasRecord()){ var nb=document.querySelectorAll('#keu-card-catatuang .kgb-new'); for(var i=0;i<nb.length;i++) nb[i].remove(); } }catch(e){} }
+window.catatUangHasRecord=function(){ try{ return !!ownerId() && mine().length>0; }catch(e){ return false; } };
 
 window.catatUangIcon=function(c){ return (typeof _kgIcon==='function')?_kgIcon('catatuang',c||'#2d6a4f'):''; };
 window.renderCatatUangHTML=function(){
@@ -77866,11 +78306,8 @@ F('aset', 'Aset', '🏷️', false, /\b(menu|tab|halaman|kartu|fitur) (aset|liab
   ['• Mengelola **aset** (dan **liabilitas/kewajiban**) beserta aksinya.', '• Di akun nasabah: aset milikmu sendiri. Di akun admin: **aset milik koperasi**.', '• Total aset/liabilitas membantu menghitung **posisi bersih**.'],
   [{ t: 'Buka Aset', go: 'keu:aset' }], ['Posisi bersih', 'Peta aplikasi']);
 F('kalkulator', 'Kalkulator', '🧮', false, /\b(menu|tab|halaman|fitur)? ?kalkulator\b|4 ?% rule|four percent rule|angka kebebasan|fi number|hitung (pph|hpp)|\bpph\b|\bhpp\b|proyeksi tabungan/, '**Keuangan → Kalkulator**.',
-  ['• **4% Rule**: hitung target dana kebebasan finansial (kira-kira **pengeluaran tahunan × 25**) dan lama waktu mencapainya.', '• **Kalkulator Tabungan Koperasi**: proyeksi saldo simpananmu di masa depan.', '• Ada juga kalkulator **PPh** dan **HPP**.', '• Di halaman Keuangan juga ada **Pedoman Muamalah** (bebas riba, gharar, maysir) lengkap dengan ayat rujukan.'],
+  ['• **4% Rule**: hitung target dana kebebasan finansial (kira-kira **pengeluaran tahunan × 25**) dan lama waktu mencapainya.', '• **Kalkulator Tabungan Koperasi**: proyeksi saldo simpananmu di masa depan.', '• Ada juga kalkulator **PPh** dan **HPP**.'],
   [{ t: 'Buka Kalkulator', go: 'keu:kalkulator' }], ['Saran menabung', 'Menu Keuangan']);
-F('muamalah', 'Pedoman Muamalah', '📖', false, /\bpedoman muamalah\b|prinsip muamalah|ayat riba|al baqarah 275/, 'Di halaman **Keuangan** (bagian kalkulator/pedoman).',
-  ['• Prinsip syariah yang dipakai: **bebas riba, bebas gharar, bebas maysir**, akad jelas di awal, saling ridha, dan bagi hasil yang adil.', '• Disertai rujukan **QS. Al-Baqarah: 275** dan **278–279** dengan terjemahan.'],
-  [{ t: 'Buka Keuangan', go: 'nav:keuangan' }], ['Apa itu akad syariah?']);
 F('capital', 'Renco Capital (Pembiayaan)', '🏛️', false, /\b(renco capital|menu pembiayaan|halaman pembiayaan|pembiayaan syariah|pembiayaan|mudharabah|modal usaha)\b/, '**Keuangan → Renco Capital** (atau tombol Pembiayaan di Beranda/Nasabah).',
   ['• Jasa layanan pembiayaan **syariah**: **Qardh**, **Mudharabah**, dan **Modal Usaha**, ada juga status **Lunas**.', '• Menampilkan **total pembiayaan aktif** dan jumlah pembiayaan berjalan.', '• Isi menu: **Daftar**, **Ajukan**, **Pembayaran**, **Hasil Usaha**, **Lap.Keu**, **Nasabah**, **Program**, dan **Simulasi**.'],
   [{ t: 'Daftar Pembiayaan', go: 'pb:daftar' }, { t: 'Ajukan Pembiayaan', go: 'pb:ajukan' }, { t: 'Simulasi', go: 'pb:simulasi' }, { t: 'Program', go: 'pb:program' }], ['Apa itu Renco Capital?', 'Peta aplikasi']);
@@ -78150,9 +78587,10 @@ KB.push(
 var KBORDER = ['k:berkah', 'k:kontak', 'k:legalitas', 'k:produk', 'k:nilai', 'k:akadlain', 'k:syariah', 'k:istilah', 'k:shu', 'k:rencopay', 'k:capital', 'k:nonaktif', 'k:blacklist', 'k:arisan', 'k:kartu', 'k:forum', 'k:kalkulator', 'k:zakat', 'k:inflasi', 'k:daruratedu', 'k:utang', 'k:investasi', 'k:penipuan', 'k:gabung', 'k:prinsip', 'k:koperasi'];
 KB.sort(function(x, y){ return KBORDER.indexOf(x.id) - KBORDER.indexOf(y.id); });
 var WAWASAN = [
+  'Di menu **Keuangan**, **Pedoman Muamalah** dan ayat rujukannya sudah dihapus. Kartu **Rekening Sementara** kini lebih ringkas dan posisinya **tepat di bawah banner Keuangan**. Tag **NEW** pada **Catat Uang** hilang setelah kamu membuat pencatatan pertama. 🏦',
   'Di menu **Keuangan**, kartu **Rekening Sementara Koperasi Renco** kini **tersembunyi secara default** dan menampilkan dua rekening (BSI dan BCA Digital) dalam **2 kolom**. Ketuk judul kartunya untuk membuka atau menutup, lalu tekan **Salin** untuk menyalin nomor rekening. 🏦',
   'Di detail nasabah, **Informasi Bank** kini **tersembunyi secara default** dan tampil dalam **2 kolom**. Ketuk judul **Informasi Bank** (ada ikon panahnya) untuk membuka atau menutup daftar rekening. 🏦',
-  'Grafik **Pertumbuhan Tabungan** kini ada di menu **Keuangan**, tepat di bawah grid menu dan di atas Pedoman Muamalah. Sentuh dan geser untuk melihat saldo tiap bulan. 📈',
+  'Grafik **Pertumbuhan Tabungan** kini ada di menu **Keuangan**, tepat di bawah grid menu. Sentuh dan geser untuk melihat saldo tiap bulan. 📈',
   'Di **chat admin**, balasan dari admin kini **tampil otomatis** selama halamannya terbuka. Tidak perlu lagi menekan tombol Balasan admin. 💬',
   'Tagline **Renco Vision 2045**: **"Dari Kita untuk Generasi"**. Ini adalah **Gerakan Pemuda Aren Community** yang mengajak warga membangun aset dan program untuk generasi mendatang. 🌱',
   'Cara berkontribusi ke **Vision 2045**: buka menu **Vision 2045**, pilih program, isi jumlah (minimal Rp 1.000), cek konfirmasi, lalu masukkan **PIN RencoPay**. Dananya diambil dari saldo RencoPay, jadi Top Up dulu kalau kurang. 🤝',
@@ -80240,7 +80678,7 @@ html body #bottomNavRencoPay .nav-item.active .nav-label{font-size:12.5px !impor
 html body #bottomNavRencoPay .nav-item-kembali.active .nav-label{font-size:11.5px !important}
 /* Beranda: Aksi Cepat naik sedikit */
 html body #app #page-home .quick-actions{margin-top:-8px !important}
-/* Grafik Pertumbuhan Tabungan kini di menu Keuangan (di atas Pedoman Muamalah) */
+/* Grafik Pertumbuhan Tabungan kini di menu Keuangan (di bawah grid menu) */
 #page-keuangan #nsMemberStats{padding:0 !important;width:100%;box-sizing:border-box}
 #page-keuangan #nsMemberStats .nms-card{margin-bottom:0}
 </style>
@@ -88019,6 +88457,29 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
   }
   function init(){ setup(); setInterval(setup, 1500); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+<style id="rp-menu-select">
+/* Menu Beranda RencoPay: ketukan ditandai dulu, baru halaman terbuka */
+#page-rencoPay #rpMenuGrid button{transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s ease}
+#page-rencoPay #rpMenuGrid button.rp-sel{transform:scale(.93) !important;box-shadow:0 0 0 3px rgba(45,138,94,.55),0 8px 20px rgba(31,107,69,.28) !important}
+#page-rencoPay #rpMenuGrid button.rp-sel svg{transform:scale(1.12)}
+@media (prefers-reduced-motion:reduce){#page-rencoPay #rpMenuGrid button{transition:none}}
+</style>
+<script id="rp-menu-select-js">
+(function(){
+  var DELAY=320, busy=false;
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('#rpMenuGrid button'); if(!b) return;
+    if(b._rpGo){ b._rpGo=false; return; }          /* klik lanjutan hasil tunda: biarkan jalan */
+    e.stopImmediatePropagation(); e.preventDefault();
+    if(busy) return; busy=true;
+    b.classList.add('rp-sel');
+    setTimeout(function(){
+      b.classList.remove('rp-sel'); busy=false;
+      b._rpGo=true; b.click();
+    },DELAY);
+  },true);
 })();
 </script>
 </body></html>
