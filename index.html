@@ -12524,6 +12524,8 @@ window.deletePengurus = function(id) {
   background:none; color:#f4c842; -webkit-text-fill-color:#f4c842; filter:none; text-shadow:none; animation:none;
   pointer-events:none; user-select:none; }
 .sp-curve{ position:absolute; left:5%; top:27%; width:90.9%; z-index:2; }
+/* Garis lurus (sumbu) di bawah kurva loading dihapus */
+.sc-axis{ display:none !important; }
 .sp-curve svg{ display:block; width:100%; height:auto; overflow:visible; filter:none; }
 @keyframes spFloat{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-6px); } }
 @keyframes spGlow{ 0%,100%{ opacity:.65; transform:translate(-50%,-50%) scale(.94); } 50%{ opacity:1; transform:translate(-50%,-50%) scale(1.06); } }
@@ -25790,101 +25792,134 @@ function rpPembayaranMemberHTML() {
            (p.type === 'cicilan' || p.type === 'angsuran-rc');
   }).length;
 
-  return '<div style="padding:20px 14px">'
+  /* ── Tampilan Bayar: tema hijau-emas RencoPay (kelas rpb-*, mendukung mode malam) ── */
+  var pendingIds = {};
+  (db.pendingTransaksi||[]).filter(function(x){ return x.kkId===kkId && x.status==='pending'; })
+    .forEach(function(x){ if(x.data && x.data.pinId) pendingIds['pin_'+x.data.pinId]=true;
+                           if(x.data && x.data.pmbId) pendingIds['pmb_'+x.data.pmbId]=true; });
+  var pemListFull = [].concat(db.pembiayaan||[], db.pembiayaanSyariah||[])
+    .filter(function(p){ return p.kkId===kkId && (p.status==='aktif'||p.status==='menunggak'); });
 
-    /* Info ringkasan */
-    + '<div style="background:linear-gradient(135deg,#7a5c00,#7a5c00);border-radius:16px;padding:16px;color:white;margin-bottom:16px;position:relative;overflow:hidden">'
-      + '<div style="position:absolute;right:-10px;top:-10px;font-size:64px;opacity:0.07">💳</div>'
-      + '<div style="font-size:9px;font-weight:800;color:rgba(232,201,126,0.7);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📋 Tagihan Aktif Anda</div>'
-      + '<div style="font-size:26px;font-weight:900;color:#e8c97e;margin-bottom:4px">' + fmtRp(totalTagihan) + '</div>'
-      + '<div style="font-size:10px;color:rgba(255,255,255,0.5)">per bulan'
-        + (_iw.belum.length ? ' · ' + _iw.belum.length + ' iuran wajib' : '')
-        + (pinList.length ? ' · ' + pinList.length + ' pinjaman' : '')
-        + (pemList.length ? ' · ' + pemList.length + ' pembiayaan' : '')
+  var CHECK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function esc(t){ return String(t==null?'':t).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function tagCard(o){
+    var click = o.onclick ? ' onclick="'+o.onclick+'" role="button" tabindex="0"' : '';
+    return '<div class="rpb-card rpb-'+o.tone+(o.onclick?' rpb-tap':'')+'"'+click+'>'
+      + '<div class="rpb-card-head">'
+        + '<div class="rpb-ico">'+o.icon+'</div>'
+        + '<div class="rpb-ttl"><div class="rpb-name">'+esc(o.name)+'</div><div class="rpb-sub">'+esc(o.sub)+'</div></div>'
+        + '<div class="rpb-amt"><b>'+o.amount+'</b><small>'+esc(o.amountLbl)+'</small></div>'
       + '</div>'
-      + (pendingCount > 0
-        ? '<div style="margin-top:10px;background:rgba(244,169,34,0.18);border:1px solid rgba(244,169,34,0.4);border-radius:9px;padding:7px 11px;font-size:11px;font-weight:700;color:#ffe082;display:flex;align-items:center;gap:6px"><span style="animation:pendingPulse 2s ease infinite">⏳</span> ' + pendingCount + ' pembayaran menunggu konfirmasi admin</div>'
-        : '')
+      + '<div class="rpb-card-body">'
+        + '<div class="rpb-prog"><div class="rpb-prog-lbl"><span>Progres pelunasan</span><span>'+o.pct+'%</span></div>'
+        + '<div class="rpb-bar"><i style="width:'+o.pct+'%"></i></div></div>'
+        + o.action
+      + '</div>'
+    + '</div>';
+  }
+  var PENDING = '<div class="rpb-pending"><span style="animation:pendingPulse 2s ease infinite">⏳</span> Menunggu konfirmasi admin</div>';
+
+  var cards = (typeof window._rpIuranWajibCardsHTML === 'function') ? window._rpIuranWajibCardsHTML(kkId) : '';
+
+  pinList.forEach(function(pin){
+    var sisa  = pin.sisaPokok || 0;
+    var cicil = _hitungTagihanCicilanKoperasi(pin).tagihan;
+    var pct   = pin.jumlah ? Math.max(0,Math.min(100,Math.round(((pin.jumlah-sisa)/pin.jumlah)*100))) : 0;
+    var hasPending = pendingIds['pin_'+pin.id];
+    cards += tagCard({
+      tone:'kop', icon:'🏦', name:'Koperasi Renco', sub:(pin.tujuan||'Pinjaman'),
+      amount:fmtRp(cicil), amountLbl:'Tagihan bulan ini', pct:pct,
+      onclick: hasPending ? '' : "rpBayarCicilan('"+pin.id+"')",
+      action: hasPending ? PENDING : '<div class="rpb-cta">'+CHECK+'<span>Bayar Cicilan</span>'+ARROW+'</div>'
+    });
+  });
+
+  pemListFull.forEach(function(pmb){
+    var isSyariah = pmb._isSyariah || pmb.jenis === 'syariah';
+    var angList  = pmb.angsuranList || pmb.cicilan || [];
+    var nextAng  = angList.find(function(a){ return !a.lunas && !a.paid; });
+    var paidCount= angList.filter(function(a){ return a.lunas||a.paid; }).length;
+    var pct      = angList.length ? Math.round((paidCount/angList.length)*100) : 0;
+    var angAmt   = nextAng ? (nextAng.jumlah||nextAng.cicilan||0) : (pmb.angsuranBulanan||0);
+    var noAng    = nextAng ? (nextAng.no||nextAng.ke||(paidCount+1)) : (paidCount+1);
+    var hasPending = pendingIds['pmb_'+pmb.id];
+    var canBayar = nextAng && !hasPending;
+    cards += tagCard({
+      tone:'cap', icon:(isSyariah?'🕌':'🏛️'), name:'Renco Capital'+(isSyariah?' Syariah':''), sub:(pmb.tujuan||pmb.label||'Pembiayaan'),
+      amount:fmtRp(angAmt), amountLbl:'Angsuran ke-'+noAng, pct:pct,
+      onclick: canBayar ? "rpBayarAngsuranRC('"+pmb.id+"',"+noAng+")" : '',
+      action: !nextAng ? '<div class="rpb-lunas">'+CHECK+' Semua angsuran lunas</div>'
+            : hasPending ? PENDING
+            : '<div class="rpb-cta">'+CHECK+'<span>Bayar Angsuran</span>'+ARROW+'</div>'
+    });
+  });
+
+  var chips = '';
+  if (_iw.belum.length) chips += '<span class="rpb-chip">'+_iw.belum.length+' iuran wajib</span>';
+  if (pinList.length)   chips += '<span class="rpb-chip">'+pinList.length+' pinjaman</span>';
+  if (pemList.length)   chips += '<span class="rpb-chip">'+pemList.length+' pembiayaan</span>';
+
+  var css = '<style>'
+    + '.rpb-wrap{padding:16px 14px 24px;--rpb-card:#ffffff;--rpb-line:rgba(31,107,69,.16);--rpb-tx:#14281c;--rpb-soft:#5f7568;--rpb-acc:#1f6b45;--rpb-track:#e3efe8;--rpb-tint:#f1f9f4;--rpb-shadow:0 6px 18px rgba(15,61,42,.08)}'
+    + 'html.renco-dark .rpb-wrap{--rpb-card:#10261a;--rpb-line:rgba(110,200,150,.22);--rpb-tx:#eef7f0;--rpb-soft:#a9c9b4;--rpb-acc:#86e3ab;--rpb-track:rgba(255,255,255,.1);--rpb-tint:rgba(64,145,108,.12);--rpb-shadow:0 8px 22px rgba(0,0,0,.35)}'
+    + '.rpb-hero{position:relative;overflow:hidden;border-radius:18px;padding:18px 18px 16px;margin-bottom:18px;color:#fff;background:radial-gradient(90% 140% at 100% 0%,rgba(143,227,180,.26),rgba(143,227,180,0) 60%),linear-gradient(135deg,#0f3d2a 0%,#1f6b45 62%,#2d8a5e 100%);border:1px solid rgba(143,227,180,.4);box-shadow:0 12px 26px rgba(15,61,42,.28)}'
+    + '.rpb-hero::after{content:"";position:absolute;right:-26px;bottom:-34px;width:120px;height:120px;border-radius:50%;border:18px solid rgba(244,200,66,.12);pointer-events:none}'
+    + '.rpb-hero-lbl{font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:#bff0d3}'
+    + '.rpb-hero-amt{font-size:28px;font-weight:900;color:#f5d77e;margin:6px 0 2px;letter-spacing:.2px;line-height:1.15}'
+    + '.rpb-hero-per{font-size:11px;color:rgba(216,245,227,.85)}'
+    + '.rpb-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}'
+    + '.rpb-chip{font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#e6f7ec}'
+    + '.rpb-hero .rpb-pending{margin-top:12px;background:rgba(244,200,66,.16);border-color:rgba(244,200,66,.5);color:#ffe9a6}'
+    + '.rpb-sec{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}'
+    + '.rpb-sec b{font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--rpb-acc)}'
+    + '.rpb-sec span{font-size:11px;font-weight:700;color:var(--rpb-soft)}'
+    + '.rpb-card{background:var(--rpb-card);border:1px solid var(--rpb-line);border-radius:16px;margin-bottom:12px;overflow:hidden;box-shadow:var(--rpb-shadow);position:relative;transition:transform .12s ease,box-shadow .12s ease}'
+    + '.rpb-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--rpb-ac,#1f6b45)}'
+    + '.rpb-kop{--rpb-ac:#1f6b45}.rpb-cap{--rpb-ac:#0f766e}.rpb-iur{--rpb-ac:#d4a017}'
+    + '.rpb-tap{cursor:pointer;-webkit-tap-highlight-color:transparent}.rpb-tap:active{transform:scale(.985)}'
+    + '.rpb-card-head{display:flex;align-items:center;gap:12px;padding:14px 14px 12px 18px}'
+    + '.rpb-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;background:var(--rpb-tint);border:1px solid var(--rpb-line)}'
+    + '.rpb-ttl{flex:1;min-width:0}.rpb-name{font-size:13.5px;font-weight:800;color:var(--rpb-tx)}'
+    + '.rpb-sub{font-size:11px;color:var(--rpb-soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    + '.rpb-amt{text-align:right;flex-shrink:0}.rpb-amt b{display:block;font-size:15.5px;font-weight:900;color:var(--rpb-acc)}'
+    + '.rpb-amt small{display:block;font-size:9.5px;color:var(--rpb-soft);margin-top:2px}'
+    + '.rpb-card-body{padding:0 14px 14px 18px}'
+    + '.rpb-prog-lbl{display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:var(--rpb-soft);margin-bottom:5px}'
+    + '.rpb-bar{height:6px;border-radius:99px;background:var(--rpb-track);overflow:hidden;margin-bottom:12px}'
+    + '.rpb-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#1f6b45,#40b57e)}'
+    + '.rpb-cta{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:12px;font-size:13px;font-weight:800;color:#fff;background:linear-gradient(135deg,#1f6b45 0%,#2d8a5e 100%);box-shadow:0 6px 14px rgba(31,107,69,.28)}'
+    + '.rpb-cta span{flex:0 1 auto}'
+    + '.rpb-pending{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:11px;font-size:11.5px;font-weight:700;background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.4);color:#8a6508}'
+    + 'html.renco-dark .rpb-card .rpb-pending{color:#f5d77e}'
+    + '.rpb-lunas{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:11px;font-size:12px;font-weight:800;background:var(--rpb-tint);color:var(--rpb-acc)}'
+    + '.rpb-row{display:flex;align-items:center;gap:10px;padding:12px 14px 12px 18px;border-top:1px solid var(--rpb-line)}'
+    + '.rpb-row-main{flex:1;min-width:0}.rpb-row-t{font-size:12.5px;font-weight:800;color:var(--rpb-tx)}'
+    + '.rpb-row-m{margin-top:4px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}'
+    + '.rpb-badge{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:99px}'
+    + '.rpb-jt{font-size:10px;color:var(--rpb-soft)}'
+    + '.rpb-row-a{font-size:13px;font-weight:900;color:var(--rpb-tx);flex-shrink:0}'
+    + '.rpb-btn{flex-shrink:0;padding:8px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#1f6b45,#2d8a5e);color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 4px 10px rgba(31,107,69,.25)}'
+    + '.rpb-btn:active{transform:scale(.96)}'
+    + '.rpb-btn-all{display:block;width:calc(100% - 32px);margin:2px 16px 14px;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#d4a017,#f4c842);color:#3a2a00;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;box-shadow:0 5px 14px rgba(212,160,23,.32)}'
+    + '.rpb-empty{text-align:center;padding:14px;font-size:12px;font-weight:700;color:var(--rpb-acc)}'
+    + '.rpb-note{padding:14px;font-size:11.5px;color:var(--rpb-soft);text-align:center}'
+    + '.rpb-none{background:var(--rpb-card);border:1px solid var(--rpb-line);border-radius:16px;padding:28px 14px;text-align:center;color:var(--rpb-tx);box-shadow:var(--rpb-shadow)}'
+    + '.rpb-none .e{font-size:34px}.rpb-none .t{font-size:14px;font-weight:800;margin-top:6px}.rpb-none .s{font-size:11.5px;color:var(--rpb-soft);margin-top:4px;line-height:1.5}'
+    + '</style>';
+
+  return css + '<div class="rpb-wrap">'
+    + '<div class="rpb-hero">'
+      + '<div class="rpb-hero-lbl">Tagihan Aktif Anda</div>'
+      + '<div class="rpb-hero-amt">' + fmtRp(totalTagihan) + '</div>'
+      + '<div class="rpb-hero-per">per bulan</div>'
+      + (chips ? '<div class="rpb-chips">'+chips+'</div>' : '')
+      + (pendingCount > 0 ? '<div class="rpb-pending"><span style="animation:pendingPulse 2s ease infinite">⏳</span> ' + pendingCount + ' pembayaran menunggu konfirmasi admin</div>' : '')
     + '</div>'
-
-    /* Kartu redirect + tombol "Buka Menu Pembayaran" dihapus (tidak ditampilkan lagi utk nasabah) */
-
-    /* Daftar Tagihan / Cicilan — banner interaktif (rincian transaksi dihapus) */
-    + (function(){
-        var pendingIds = {};
-        (db.pendingTransaksi||[]).filter(function(x){ return x.kkId===kkId && x.status==='pending'; })
-          .forEach(function(x){ if(x.data && x.data.pinId) pendingIds['pin_'+x.data.pinId]=true;
-                                 if(x.data && x.data.pmbId) pendingIds['pmb_'+x.data.pmbId]=true; });
-
-        var pemListFull = [].concat(db.pembiayaan||[], db.pembiayaanSyariah||[])
-          .filter(function(p){ return p.kkId===kkId && (p.status==='aktif'||p.status==='menunggak'); });
-
-        var cards = (typeof window._rpIuranWajibCardsHTML === 'function') ? window._rpIuranWajibCardsHTML(kkId) : '';
-
-        pinList.forEach(function(pin){
-          var sisa  = pin.sisaPokok || 0;
-          var cicil = _hitungTagihanCicilanKoperasi(pin).tagihan;
-          var pct   = pin.jumlah ? Math.round(((pin.jumlah-sisa)/pin.jumlah)*100) : 0;
-          var hasPending = pendingIds['pin_'+pin.id];
-          cards += '<div class="rp-tagihan-card" onclick="' + (hasPending?'':'rpBayarCicilan(\''+pin.id+'\')') + '" style="background:white;border-radius:16px;margin-bottom:12px;box-shadow:0 2px 14px rgba(122,92,0,0.1);overflow:hidden;border:1.5px solid rgba(166,124,0,0.2);cursor:' + (hasPending?'default':'pointer') + ';transition:transform .12s ease" '
-            + (hasPending?'':'ontouchstart="this.style.transform=\'scale(0.98)\'" ontouchend="this.style.transform=\'scale(1)\'"') + '>'
-            + '<div style="background:linear-gradient(135deg,rgba(122,92,0,0.07),rgba(166,124,0,0.04));padding:12px 14px 10px;border-bottom:1px solid rgba(0,0,0,0.05);display:flex;align-items:center;gap:10px">'
-              + '<div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#7a5c00,#7a5c00);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏦</div>'
-              + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#1c3025">Koperasi Renco</div><div style="font-size:10px;color:#6b7280;margin-top:1px">'+(pin.tujuan||'Pinjaman')+'</div></div>'
-              + '<div style="text-align:right;flex-shrink:0"><div style="font-size:15px;font-weight:900;color:#7a5c00">'+fmtRp(cicil)+'</div><div style="font-size:9px;color:#6b7280;margin-top:1px">Tagihan Bulan Ini</div></div>'
-            + '</div>'
-            + '<div style="padding:10px 14px">'
-              + '<div style="height:5px;background:#f0f0f0;border-radius:99px;overflow:hidden;margin-bottom:10px"><div style="width:'+pct+'%;height:100%;border-radius:99px;background:linear-gradient(90deg,#7a5c00,#f2c14e)"></div></div>'
-              + (hasPending
-                ? '<div style="display:flex;align-items:center;gap:6px;background:rgba(244,169,34,0.1);border:1.5px solid rgba(244,169,34,0.35);border-radius:10px;padding:9px 12px;font-size:11px;font-weight:700;color:#7a5c00"><span style="animation:pendingPulse 2s ease infinite">⏳</span> Menunggu konfirmasi admin</div>'
-                : '<div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border-radius:12px;background:linear-gradient(135deg,#7a5c00,#7a5c00);color:#e8c97e;font-size:13px;font-weight:800;box-shadow:0 3px 12px rgba(122,92,0,0.25)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Bayar Cicilan · '+pct+'% Terbayar</div>')
-            + '</div>'
-          + '</div>';
-        });
-
-        pemListFull.forEach(function(pmb){
-          var isSyariah = pmb._isSyariah || pmb.jenis === 'syariah';
-          var accent   = isSyariah ? '#6b21a8' : '#7b2d8b';
-          var gradTo   = isSyariah ? '#6b21a8' : '#7b2d8b';
-          var angList  = pmb.angsuranList || pmb.cicilan || [];
-          var nextAng  = angList.find(function(a){ return !a.lunas && !a.paid; });
-          var paidCount= angList.filter(function(a){ return a.lunas||a.paid; }).length;
-          var pct      = angList.length ? Math.round((paidCount/angList.length)*100) : 0;
-          var angAmt   = nextAng ? (nextAng.jumlah||nextAng.cicilan||0) : (pmb.angsuranBulanan||0);
-          var noAng    = nextAng ? (nextAng.no||nextAng.ke||(paidCount+1)) : (paidCount+1);
-          var hasPending = pendingIds['pmb_'+pmb.id];
-          var canBayar = nextAng && !hasPending;
-          cards += '<div class="rp-tagihan-card" onclick="' + (canBayar?'rpBayarAngsuranRC(\''+pmb.id+'\','+noAng+')':'') + '" style="background:white;border-radius:16px;margin-bottom:12px;box-shadow:0 2px 14px rgba(123,45,139,0.12);overflow:hidden;border:1.5px solid rgba(123,45,139,0.2);cursor:' + (canBayar?'pointer':'default') + ';transition:transform .12s ease" '
-            + (canBayar?'ontouchstart="this.style.transform=\'scale(0.98)\'" ontouchend="this.style.transform=\'scale(1)\'"':'') + '>'
-            + '<div style="background:linear-gradient(135deg,#3d1155,'+gradTo+');padding:12px 14px 11px;display:flex;align-items:center;gap:10px">'
-              + '<div style="width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">'+(isSyariah?'🕌':'🏛️')+'</div>'
-              + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:white">Renco Capital'+(isSyariah?' Syariah':'')+'</div><div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:1px">'+(pmb.tujuan||pmb.label||'Pembiayaan')+'</div></div>'
-              + '<div style="text-align:right;flex-shrink:0"><div style="font-size:15px;font-weight:900;color:#ffd166">'+fmtRp(angAmt)+'</div><div style="font-size:9px;color:rgba(255,255,255,0.4);margin-top:1px">Angsuran '+noAng+'</div></div>'
-            + '</div>'
-            + '<div style="padding:10px 14px">'
-              + '<div style="height:5px;background:#f0f0f0;border-radius:99px;overflow:hidden;margin-bottom:10px"><div style="width:'+pct+'%;height:100%;border-radius:99px;background:linear-gradient(90deg,'+accent+','+gradTo+')"></div></div>'
-              + (!nextAng
-                ? '<div style="text-align:center;padding:8px;font-size:12px;font-weight:700;color:#7a5c00">✅ Semua angsuran lunas</div>'
-                : hasPending
-                  ? '<div style="display:flex;align-items:center;gap:6px;background:rgba(244,169,34,0.1);border:1.5px solid rgba(244,169,34,0.35);border-radius:10px;padding:9px 12px;font-size:11px;font-weight:700;color:#7a5c00"><span style="animation:pendingPulse 2s ease infinite">⏳</span> Menunggu konfirmasi admin</div>'
-                  : '<div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border-radius:12px;background:linear-gradient(135deg,#3d1155,'+gradTo+');color:white;font-size:13px;font-weight:800;box-shadow:0 3px 12px rgba(123,45,139,0.25)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Bayar Angsuran · '+pct+'% Terbayar</div>')
-            + '</div>'
-          + '</div>';
-        });
-
-        var html = '<div style="margin-top:4px">'
-          + '<div style="font-size:12px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:10px">📋 Daftar Tagihan &amp; Cicilan</div>';
-
-        if (!cards) {
-          html += '<div class="rp-card" style="border-radius:16px;overflow:hidden"><div class="rp-empty" style="padding:28px 14px"><div class="rp-empty-icon">🎉</div><div class="rp-empty-title">Tidak Ada Tagihan Aktif</div><div class="rp-empty-sub">Anda tidak memiliki cicilan atau angsuran yang perlu dibayar.</div></div></div>';
-        } else {
-          html += cards;
-        }
-
-        html += '</div>';
-        return html;
-      })()
-
+    + '<div class="rpb-sec"><b>Daftar Tagihan &amp; Cicilan</b></div>'
+    + (cards ? cards
+      : '<div class="rpb-none"><div class="e">🎉</div><div class="t">Tidak Ada Tagihan Aktif</div><div class="s">Anda tidak memiliki cicilan atau angsuran yang perlu dibayar.</div></div>')
   + '</div>';
 }
 
@@ -74072,37 +74107,37 @@ var BADGE={
 };
 window._rpIuranWajibCardsHTML=function(kkId){
   var I=window._rpIuranWajibInfo(kkId); if(!I.items.length && !I.nonAktif) return '';
-  var head='<div style="background:linear-gradient(135deg,#7a5c00,#a67c00);padding:12px 14px;display:flex;align-items:center;gap:10px">'
-    +'<div style="width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📋</div>'
-    +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#fff">Simpanan Wajib (Iuran Bulanan)</div><div style="font-size:10px;color:rgba(255,255,255,.65);margin-top:1px">'+rp(I.jumlah)+' / bulan · dibayar via RencoPay atau tunai</div></div>'
-    +(I.totalBelum?'<div style="text-align:right;flex-shrink:0"><div style="font-size:15px;font-weight:900;color:#ffd166">'+rp(I.totalBelum)+'</div><div style="font-size:9px;color:rgba(255,255,255,.55)">'+I.belum.length+' bulan</div></div>':'')
+  var head='<div class="rpb-card-head">'
+    +'<div class="rpb-ico">📋</div>'
+    +'<div class="rpb-ttl"><div class="rpb-name">Simpanan Wajib (Iuran Bulanan)</div><div class="rpb-sub">'+rp(I.jumlah)+' / bulan · via RencoPay atau tunai</div></div>'
+    +(I.totalBelum?'<div class="rpb-amt"><b>'+rp(I.totalBelum)+'</b><small>'+I.belum.length+' bulan belum dibayar</small></div>':'')
     +'</div>';
   var body='';
   if(I.nonAktif){
-    body='<div style="padding:14px;font-size:11.5px;color:#6b7280;text-align:center">Status anggota <b>Tidak Aktif</b> — tidak ada kewajiban simpanan wajib baru.</div>';
+    body='<div class="rpb-note">Status anggota <b>Tidak Aktif</b> — tidak ada kewajiban simpanan wajib baru.</div>';
   }else{
     // tampilkan: yang belum dibayar + menunggu approval; bila semuanya lunas, tampilkan bulan berjalan
     var tampil=I.items.filter(function(i){ return i.status!=='lunas'&&i.status!=='nonaktif'; });
     if(!tampil.length){
       var last=I.items[I.items.length-1];
-      body='<div style="text-align:center;padding:14px;font-size:12px;font-weight:700;color:#0f7a4c">✅ Iuran Wajib'+(last?' '+last.label:'')+' sudah lunas</div>';
+      body='<div class="rpb-row"><div class="rpb-empty" style="flex:1">✅ Iuran Wajib'+(last?' '+last.label:'')+' sudah lunas</div></div>';
     }else{
       body=tampil.map(function(i,ix){
         var b=BADGE[i.status], bay=(i.status==='bulanini'||i.status==='jatuh'||i.status==='tunggak');
-        return '<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;'+(ix?'border-top:1px solid rgba(0,0,0,.06)':'')+'">'
-          +'<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:800;color:#1c3025">'+i.label+'</div>'
-          +'<div style="margin-top:3px"><span style="font-size:9.5px;font-weight:800;color:'+b[1]+';background:'+b[2]+';padding:2px 8px;border-radius:99px">'+b[0]+'</span>'
-          +'<span style="font-size:10px;color:#6b7280;margin-left:6px">Jatuh tempo tgl '+i.jt.getDate()+'</span></div></div>'
-          +'<div style="font-size:13px;font-weight:900;color:#7a5c00;flex-shrink:0">'+rp(I.jumlah)+'</div>'
-          +(bay?'<button type="button" onclick="rpBayarIuranBulan(\''+i.key+'\',\''+i.label+'\')" style="flex-shrink:0;padding:8px 14px;border-radius:10px;border:none;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#f5d77e;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Bayar</button>':'')
+        return '<div class="rpb-row">'
+          +'<div class="rpb-row-main"><div class="rpb-row-t">'+i.label+'</div>'
+          +'<div class="rpb-row-m"><span class="rpb-badge" style="color:'+b[1]+';background:'+b[2]+'">'+b[0]+'</span>'
+          +'<span class="rpb-jt">Jatuh tempo tgl '+i.jt.getDate()+'</span></div></div>'
+          +'<div class="rpb-row-a">'+rp(I.jumlah)+'</div>'
+          +(bay?'<button type="button" class="rpb-btn" onclick="rpBayarIuranBulan(\''+i.key+'\',\''+i.label+'\')">Bayar</button>':'')
           +'</div>';
       }).join('');
       if(I.belum.length>1){
-        body+='<div style="padding:10px 14px 14px"><button type="button" onclick="rpBayarIuranSemua()" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#d4a017,#f4c842);color:#3a2a00;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;box-shadow:0 3px 12px rgba(212,160,23,.35)">Bayar Semua ('+I.belum.length+' bulan) · '+rp(I.totalBelum)+'</button></div>';
+        body+='<div style="padding-top:12px;border-top:1px solid var(--rpb-line)"><button type="button" class="rpb-btn-all" onclick="rpBayarIuranSemua()">Bayar Semua ('+I.belum.length+' bulan) · '+rp(I.totalBelum)+'</button></div>';
       }
     }
   }
-  return '<div class="rp-tagihan-card" style="background:white;border-radius:16px;margin-bottom:12px;box-shadow:0 2px 14px rgba(122,92,0,.12);overflow:hidden;border:1.5px solid rgba(166,124,0,.25)">'+head+body+'</div>';
+  return '<div class="rpb-card rpb-iur">'+head+body+'</div>';
 };
 
 /* Segarkan tab Bayar setelah pengajuan masuk (modal konfirmasi bersifat asinkron) */
@@ -76345,7 +76380,7 @@ function doLogin(username,password){
     var hidden=!ls || ls.style.display==='none';
     if(hidden){
       clearInterval(iv); try{ p.value=''; u.value=''; }catch(e){}
-      try{ if(rpgViaQuick && window.AUTH && AUTH.loggedIn && AUTH.user && String(AUTH.user.username||'').toLowerCase()===rpgViaQuick.u && AUTH.user.role==='nasabah'){ rpgUser=AUTH.user.username; rpgLast=Date.now(); } }catch(e){}
+      try{ if(rpgViaQuick && window.AUTH && AUTH.loggedIn && AUTH.user && String(AUTH.user.username||'').toLowerCase()===rpgViaQuick.u && AUTH.user.role==='nasabah'){ rpgUser=AUTH.user.username; rpgLast=Date.now(); rpgFresh=Date.now()+25000; } }catch(e){}
       rpgViaQuick=null;
       setTimeout(function(){ qlBusy(false); },250); return;
     }
@@ -76565,7 +76600,7 @@ if(typeof _rp==='function') window.renderUserProfile=function(){
    Belum aktif (PIN, dan biometrik bila perangkat mendukung) → diarahkan mengaktifkan dulu.
    Dipanggil dari navTo('rencoPay') lewat window._rpGateCheck. */
 var RPG_IDLE_MS=5*60*1000, RPG_AWAY_MS=60*1000;   // terkunci lagi: diam 5 menit / aplikasi di latar >1 menit
-var rpgUser='', rpgLast=0, rpgPending=false, rpgMsg='', rpgAwayAt=0, rpgViaQuick=null;
+var rpgUser='', rpgLast=0, rpgPending=false, rpgMsg='', rpgAwayAt=0, rpgViaQuick=null, rpgFresh=0;
 function rpgNeed(){ return !!(window.AUTH && AUTH.loggedIn && AUTH.user && AUTH.user.role==='nasabah'); }
 function rpgOk(){ return !!(rpgNeed() && rpgLast && rpgUser===AUTH.user.username && (Date.now()-rpgLast)<RPG_IDLE_MS); }
 function rpgOnRp(){ return typeof currentPage!=='undefined' && currentPage==='rencoPay'; }
@@ -76584,7 +76619,7 @@ function rpgBtn(label,fn,primary){
 }
 function rpgClose(){ var ov=$('rpGateOv'); if(ov) ov.classList.remove('show'); }
 function rpgDone(){
-  rpgUser=AUTH.user.username; rpgLast=Date.now(); rpgClose();
+  rpgUser=AUTH.user.username; rpgLast=Date.now(); rpgFresh=Date.now(); rpgClose();
   if(rpgPending){ rpgPending=false; if(typeof window.navTo==='function') window.navTo('rencoPay'); }
 }
 function rpgBack(){
@@ -76654,8 +76689,13 @@ window._rpGateCheck=function(page){
     var q=rpgViaQuick; rpgViaQuick=null;
     if(Date.now()-q.t<90000 && String(AUTH.user.username||'').toLowerCase()===q.u){ rpgUser=AUTH.user.username; rpgLast=Date.now(); return true; }
   }
-  if(rpgOk()) return true;
+  /* Setiap MASUK ke RencoPay (dari menu lain / setelah keluar) wajib verifikasi ulang PIN/biometrik.
+     Verifikasi yang baru saja berhasil (rpgDone → navTo) dipakai sekali saja. */
+  if(rpgFresh && Date.now()-rpgFresh<5000){ rpgFresh=0; return true; }
+  rpgFresh=0;
+  if(rpgOnRp() && rpgOk()) return true;   // sudah di dalam RencoPay (pindah tab internal): tidak perlu ulang
   if(rpgShown()) return false;
+  rpgLast=0;
   rpgPending=true; rpgShow(); return false;
 };
 function rpgRelock(){
@@ -76666,6 +76706,8 @@ function rpgRelock(){
   document.addEventListener(ev,function(){ if(rpgOnRp() && rpgOk()) rpgLast=Date.now(); },true);
 });
 setInterval(rpgRelock,10000);
+/* Keluar dari halaman RencoPay (pindah ke menu lain) → kunci kembali, masuk berikutnya minta PIN/biometrik lagi */
+setInterval(function(){ if(rpgLast && !rpgOnRp() && !rpgShown()) rpgLast=0; },500);
 document.addEventListener('visibilitychange',function(){
   if(document.hidden){ rpgAwayAt=Date.now(); return; }
   if(rpgAwayAt){ var away=Date.now()-rpgAwayAt; rpgAwayAt=0; if(away>RPG_AWAY_MS){ rpgLast=0; rpgRelock(); } }
@@ -89677,4 +89719,93 @@ html.perf-lite .page, html.perf-lite .modal-sheet, html.perf-lite .bottom-nav{ w
   })();
 })();
 </script>
+<style id="dark-fix-grafik">
+/* ══ Mode Malam: grafik & panel yang warnanya ditulis langsung di atribut SVG / inline style ══
+   (grafik Tren Simpanan & Pinjaman, donat Simpanan vs Pinjaman, donat Neraca Koperasi, dsb.) */
+html.renco-dark body #app svg text[fill="#1a472a"],
+html.renco-dark body #app svg text[fill="#2d6a4f"],
+html.renco-dark body #app svg text[fill="#4a7c59"],
+html.renco-dark body #app svg text[fill="#40916c"],
+html.renco-dark body #app svg text[fill="#1c3025"],
+html.renco-dark body #app svg text[fill="#1b2b21"],
+html.renco-dark body #app svg text[fill="#333"],
+html.renco-dark body #app svg text[fill="#444"],
+html.renco-dark body #app svg text[fill="#555"],
+html.renco-dark body #app svg text[fill="#666"]{ fill:#cfe8d8 !important; }
+html.renco-dark body #app svg text[fill="#aaa"],
+html.renco-dark body #app svg text[fill="#999"],
+html.renco-dark body #app svg text[fill="#888"],
+html.renco-dark body #app svg text[fill="#ccc"],
+html.renco-dark body #app svg text[fill="#5b6b61"],
+html.renco-dark body #app svg text[fill="#6b7280"]{ fill:#a9bdb0 !important; }
+html.renco-dark body #app svg text[fill="#922b21"],
+html.renco-dark body #app svg text[fill="#c0392b"]{ fill:#ff9a9a !important; }
+html.renco-dark body #app svg text[fill="#e74c3c"]{ fill:#ff8a80 !important; }
+html.renco-dark body #app #trendChartContainer text[fill="#1a472a"]{ fill:#86e3ab !important; }
+/* garis grid, sumbu & lintasan donat */
+html.renco-dark body #app svg line[stroke="#f0f0f0"],
+html.renco-dark body #app svg line[stroke="#eee"],
+html.renco-dark body #app svg line[stroke="#e5e7eb"],
+html.renco-dark body #app svg line[stroke="#dde8e0"]{ stroke:rgba(255,255,255,.16) !important; }
+html.renco-dark body #app svg circle[stroke="#eee"]{ stroke:rgba(255,255,255,.12) !important; }
+html.renco-dark body #app svg circle[fill="#eee"]{ fill:rgba(255,255,255,.12) !important; }
+/* lubang tengah donat (putih) -> warna kartu gelap */
+html.renco-dark body #app #page-keuangan svg circle[fill="white"],
+html.renco-dark body #app #page-keuangan svg circle[fill="#fff"],
+html.renco-dark body #app #page-laporan svg circle[fill="white"],
+html.renco-dark body #app #page-laporan svg circle[fill="#fff"]{ fill:var(--t-s1,#0a0a0a) !important; }
+/* batang hijau: ujung bawah diterangkan agar terlihat di latar hitam */
+html.renco-dark body #app #trendGreen stop:last-child{ stop-color:#2f9467; }
+html.renco-dark body #app #trendRed stop:last-child{ stop-color:#d9473a; }
+html.renco-dark body #app #trendChartContainer rect[fill="rgba(45,106,79,0.04)"]{ fill:rgba(255,255,255,.06) !important; }
+/* latar pastel inline pada panel Keuangan/Laporan */
+html.renco-dark body #app #page-keuangan [style*="background:#fdecea"],
+html.renco-dark body #app #page-laporan [style*="background:#fdecea"]{ background:rgba(231,76,60,.22) !important; }
+html.renco-dark body #app #page-keuangan [style*="background:#e8f5e9"],
+html.renco-dark body #app #page-keuangan [style*="background:#f0fdf4"],
+html.renco-dark body #app #page-keuangan [style*="background:#ecfdf5"],
+html.renco-dark body #app #page-laporan [style*="background:#e8f5e9"],
+html.renco-dark body #app #page-laporan [style*="background:#f0fdf4"]{ background:rgba(134,227,171,.14) !important; }
+html.renco-dark body #app #page-keuangan [style*="background:#fff8e1"],
+html.renco-dark body #app #page-keuangan [style*="background:#fffbeb"],
+html.renco-dark body #app #page-keuangan [style*="background:#fef3c7"]{ background:rgba(244,200,66,.16) !important; }
+html.renco-dark body #app #trendTooltip{ background:rgba(255,255,255,.08) !important; color:var(--t-tx,#fff) !important; }
+</style>
+<style id="dark-fix-tabungan">
+/* ══ Mode Malam: kartu Grafik Pertumbuhan Tabungan (Keuangan) — kontras diturunkan, tidak lagi putih menyilaukan ══ */
+html.renco-dark #nsMemberStats .nms-card{
+  background:linear-gradient(160deg,#0f1612 0%,#131c17 100%) !important;
+  border:1px solid rgba(212,170,40,.16) !important;
+  box-shadow:0 6px 20px rgba(0,0,0,.35) !important;
+}
+html.renco-dark #nsMemberStats{ --nms-bg:#111915; }
+html.renco-dark #nsMemberStats .nms-t,
+html.renco-dark #nsMemberStats .nms-eyebrow,
+html.renco-dark #nsMemberStats .nms-note,
+html.renco-dark #nsMemberStats .nms-empty,
+html.renco-dark #nsMemberStats .nms-mode,
+html.renco-dark #nsMemberStats .nms-stats small,
+html.renco-dark #nsMemberStats .nms-stats em{ color:#8fa598 !important; }
+html.renco-dark #nsMemberStats .nms-big,
+html.renco-dark #nsMemberStats .nms-mode b,
+html.renco-dark #nsMemberStats .nms-stats b{ color:#dbe8df !important; }
+html.renco-dark #nsMemberStats .nms-plot{ color:#8fa598; }
+html.renco-dark #nsMemberStats .nms-plot svg{ color:#8fa598 !important; }
+html.renco-dark #nsMemberStats .nms-seg,
+html.renco-dark #nsMemberStats .nms-ibtn{ background:rgba(255,255,255,.07) !important; }
+html.renco-dark #nsMemberStats .nms-seg button{ color:#9db3a5 !important; }
+html.renco-dark #nsMemberStats .nms-seg button.on,
+html.renco-dark #nsMemberStats .nms-ibtn[aria-expanded=true]{ background:#2a6b4c !important; color:#eaf5ee !important; box-shadow:none !important; }
+html.renco-dark #nsMemberStats .nms-tools{ background:rgba(255,255,255,.05) !important; }
+html.renco-dark #nsMemberStats .nms-tools button{ background:rgba(255,255,255,.06) !important; border-color:rgba(255,255,255,.12) !important; color:#a9cdb8 !important; }
+html.renco-dark #nsMemberStats .nms-tip{ background:#25332b !important; color:#e6f0ea !important; box-shadow:0 4px 14px rgba(0,0,0,.5) !important; }
+html.renco-dark #nsMemberStats .nms-stats,
+html.renco-dark #nsMemberStats .nms-stats>div{ border-color:rgba(255,255,255,.08) !important; }
+/* titik data putih → warna kartu; garis/area & batang dilembutkan */
+html.renco-dark #nsMemberStats svg circle[fill="#fff"]{ fill:#111915 !important; }
+html.renco-dark #nsMemberStats svg circle[stroke="#fff"]{ stroke:#111915 !important; }
+html.renco-dark #nsMemberStats .nms-plot svg path[stroke="url(#nmsL)"],
+html.renco-dark #nsMemberStats .nms-plot svg rect{ opacity:.82; }
+html.renco-dark #nsMemberStats .nms-plot svg path[fill="url(#nmsA)"]{ opacity:.7; }
+</style>
 </body></html>
