@@ -26686,6 +26686,21 @@ function rpPengaturanHTML() {
           💡 Gunakan <b>Export</b> secara berkala sebagai cadangan. Jika ada masalah, gunakan <b>Repair</b> dulu sebelum Import.
         </div>
 
+        <!-- Penjaga Saldo (tombol admin; tanpa SQL Editor) -->
+        <div id="sukAdmPanel" style="margin-top:16px;border-top:1px solid rgba(31,107,69,0.18);padding-top:14px">
+          <div style="font-size:10px;font-weight:700;color:#1f6b45;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🛡️ Penjaga Saldo</div>
+          <div id="sukAdmStatus" style="font-size:10.5px;color:#6b7280;margin-bottom:10px;line-height:1.5">Memuat status…</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button class="sukb" onclick="sukAdmin.setMode('log')">📝 Mode Catat<small>hanya mencatat pelanggaran</small></button>
+            <button class="sukb" onclick="sukAdmin.setMode('enforce')">🔒 Mode Tegas<small>tolak perubahan curang</small></button>
+            <button class="sukb" onclick="sukAdmin.log()">📜 Log Pelanggaran<small>30 catatan terakhir</small></button>
+            <button class="sukb" onclick="sukAdmin.scan()">🔎 Pindai Segel<small>cek &amp; segel ulang saldo</small></button>
+            <button class="sukb" onclick="sukAdmin.initCode()">🔑 Atur Kode Pertama<small>sekali saja</small></button>
+            <button class="sukb" onclick="sukAdmin.changeCode()">🔁 Ubah Kode<small>kode otorisasi admin</small></button>
+          </div>
+          <div style="margin-top:8px;font-size:9.5px;color:#6b7280;line-height:1.5">Di Mode Tegas, tombol Reset di bawah &amp; hapus/koreksi transaksi meminta Kode Otorisasi (sesi 2 menit).</div>
+        </div>
+
         <!-- Reset Selektif -->
         <div style="margin-top:16px;border-top:1px solid rgba(230,57,70,0.12);padding-top:14px">
           <div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
@@ -31380,6 +31395,8 @@ var _keuanganGridItems = {
       emoji:_kgIcon('catatuang','#15803d'), isNew:true },
     { tab:'shu',                 label:'SHU',         desc:'Lihat pembagian SHU Anda',                  grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#92400e',
       emoji:_kgIcon('shu','#d97706') },
+    { tab:'takaful',             label:'Takaful',     desc:'Pinjaman dana darurat anggota',  grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#c2570f',
+      emoji:'<span style="font-size:26px;line-height:1">🛡️</span>', isNew:true },
     { tab:'aset',                label:'Aset',        desc:'Kelola aset milik koperasi',                grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#2d6a4f',
       emoji:_kgIcon('aset','#57534e') },
     { tab:'laporan',            label:'Laporan',     desc:'Laporan keuangan, arsip & tunggakan',         grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#b07a00',
@@ -31400,6 +31417,8 @@ var _keuanganGridItems = {
       emoji:_kgIcon('catatuang','#15803d'), isNew:true },
     { tab:'shu',                 label:'SHU',         desc:'Lihat pembagian SHU Anda',                  grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#92400e',
       emoji:_kgIcon('shu','#d97706') },
+    { tab:'takaful',             label:'Takaful',     desc:'Ajukan pinjaman dana darurat',  grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#c2570f',
+      emoji:'<span style="font-size:26px;line-height:1">🛡️</span>', isNew:true },
     { tab:'aset',                label:'Aset',        desc:'Kelola aset milik Anda',                    grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#2d6a4f',
       emoji:_kgIcon('aset','#57534e') },
     { tab:'laporan',            label:'Laporan',     desc:'Laporan keuangan, arsip & tunggakan',         grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#b07a00',
@@ -31599,6 +31618,7 @@ function keuanganTab(tab, el) {
   else if (tab==='kalkulator') { c.innerHTML = renderKalkulatorHTML(); kalkInit(); }
   else if (tab==='catatuang') { c.innerHTML = renderCatatUangHTML(); }
   else if (tab==='shu') c.innerHTML = renderSHUHTML();
+  else if (tab==='takaful') c.innerHTML = renderTakafulHTML();
   else if (tab==='aset') c.innerHTML = renderAsetHTML();
   else if (tab==='asetbersama') c.innerHTML = renderAsetBersamaHTML();
   else if (tab==='renco-income') {
@@ -36055,8 +36075,7 @@ function renderSHUOverview(tahun, s, totalSHU, totalBunga, shuNasabah, shuPengur
     {label:'Dana Nasabah', val:shuNasabah, pct:s.pctNasabah, color:'#40916c', icon:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="7" r="3.5" stroke="#40916c" stroke-width="1.7"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="#40916c" stroke-width="1.7" stroke-linecap="round"/><circle cx="18" cy="8" r="2.5" stroke="#40916c" stroke-width="1.5" opacity="0.65"/><path d="M21 19c0-2.5-1.8-4.5-4-5" stroke="#40916c" stroke-width="1.5" stroke-linecap="round" opacity="0.65"/></svg>'},
     {label:'Pengurus', val:shuPengurus, pct:s.pctPengurus, color:'#4361ee', icon:'👔'},
     {label:'Cadangan', val:shuCadangan, pct:s.pctCadangan, color:'#f4a922', icon:'🏦'},
-    {label:'Dana Sosial', val:shuSosial, pct:s.pctSosial, color:'#e63946', icon:'❤️'},
-    {label:'Pendidikan', val:shuPendidikan, pct:s.pctPendidikan, color:'#7209b7', icon:'📚'},
+    {label:'Renco Takaful', val:shuSosial+shuPendidikan, pct:(s.pctSosial||0)+(s.pctPendidikan||0), color:'#e63946', icon:'🛡️'},
   ];
   const jmlDibayar = (DB.shuDistribusi||[]).filter(d=>d.tahun===tahun&&d.status==='lunas').length;
   const jmlPending = (DB.shuDistribusi||[]).filter(d=>d.tahun===tahun&&d.status==='pending').length;
@@ -36083,8 +36102,7 @@ function renderSHUOverview(tahun, s, totalSHU, totalBunga, shuNasabah, shuPengur
     <div class="shu-exec-row"><span class="shu-exec-lbl">Dana Nasabah (${s.pctNasabah}%)</span><span class="shu-exec-val">${fmt(shuNasabah)}</span></div>
     <div class="shu-exec-row"><span class="shu-exec-lbl">Pengurus (${s.pctPengurus}%)</span><span class="shu-exec-val">${fmt(shuPengurus)}</span></div>
     <div class="shu-exec-row"><span class="shu-exec-lbl">Cadangan (${s.pctCadangan}%)</span><span class="shu-exec-val">${fmt(shuCadangan)}</span></div>
-    <div class="shu-exec-row"><span class="shu-exec-lbl">Dana Sosial (${s.pctSosial}%)</span><span class="shu-exec-val">${fmt(shuSosial)}</span></div>
-    <div class="shu-exec-row"><span class="shu-exec-lbl">Pendidikan (${s.pctPendidikan}%)</span><span class="shu-exec-val">${fmt(shuPendidikan)}</span></div>
+    <div class="shu-exec-row"><span class="shu-exec-lbl">Renco Takaful (${(s.pctSosial||0)+(s.pctPendidikan||0)}%)</span><span class="shu-exec-val">${fmt(shuSosial+shuPendidikan)}</span></div>
   </div>
 
   <!-- Status Distribusi -->
@@ -36372,7 +36390,7 @@ function renderSHUDanaLembagaTab(tahun, shuCadangan, shuSosial, shuPendidikan, s
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div style="width:9px;height:9px;border-radius:50%;background:#e05c1a;flex-shrink:0"></div>
-          <div style="font-size:11px;color:var(--text-soft)">Sosial & Pendidikan</div>
+          <div style="font-size:11px;color:var(--text-soft)">Renco Takaful</div>
           <div style="margin-left:auto;font-size:11px;font-weight:800;color:#e05c1a">${fmt(totalSosialPend)}</div>
         </div>
       </div>
@@ -36384,23 +36402,23 @@ function renderSHUDanaLembagaTab(tahun, shuCadangan, shuSosial, shuPendidikan, s
 
   ${ledgerRow('<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="7" r="3.5" stroke="#40916c" stroke-width="1.7"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="#40916c" stroke-width="1.7" stroke-linecap="round"/><circle cx="18" cy="8" r="2.5" stroke="#40916c" stroke-width="1.5" opacity="0.65"/><path d="M21 19c0-2.5-1.8-4.5-4-5" stroke="#40916c" stroke-width="1.5" stroke-linecap="round" opacity="0.65"/></svg>','ANG','SHU Nasabah',          shuNasabahRef,   s.pctNasabah||40,  nasabahRec,  'nasabah-ref',    'nasabah')}
   ${ledgerRow('🏦','CAD','Dana Cadangan Koperasi',totalCadangan,   s.pctCadangan||20, cadanganRec, 'cadangan',       'cadangan')}
-  ${ledgerRow('🤝','SOS','Dana Sosial & Pendidikan',totalSosialPend,(s.pctSosial||10)+(s.pctPendidikan||10),
+  ${ledgerRow('🛡️','TKF','Renco Takaful · Dana Darurat Anggota',totalSosialPend,(s.pctSosial||0)+(s.pctPendidikan||0),
     sosialRec||pendidikanRec ? {
       status:(sosialRec?.status==='lunas'&&pendidikanRec?.status==='lunas')?'lunas':'pending',
       tanggalBayar:sosialRec?.tanggalBayar||'',
-      catatan:'Sosial '+fmt(shuSosial)+' · Pendidikan '+fmt(shuPendidikan)
+      catatan:'Dana darurat anggota '+fmt(shuSosial+shuPendidikan)
     } : null,
     'sosial-pendidikan', 'sosial')}
 
   <!-- Catatan kaki -->
   <div style="margin:4px 16px 24px;padding:10px 14px;border-left:3px solid var(--gold);background:rgba(244,169,34,0.06);border-radius:0 10px 10px 0;font-size:11px;color:var(--text-soft);line-height:1.7">
-    Konfirmasi menandai dana telah dialokasikan ke pos pembukuan yang sesuai.
+    Konfirmasi menandai dana telah dialokasikan ke pos pembukuan yang sesuai.<br>🛡️ <b>Renco Takaful</b> adalah program pinjaman dana darurat koperasi untuk anggota; dananya bersumber dari alokasi SHU ini.
   </div>`;
 }
 
 function shuDanaLembagaKonfirmasi(jenis, tahun, jumlah) {
   if (!DB.shuDanaLembaga) DB.shuDanaLembaga = [];
-  const catatan = prompt(`Catatan untuk ${jenis==='cadangan'?'Dana Cadangan Koperasi':jenis==='sosial-pendidikan'?'Dana Sosial & Pendidikan':'Dana'} (boleh kosong):`) ?? '';
+  const catatan = prompt(`Catatan untuk ${jenis==='cadangan'?'Dana Cadangan Koperasi':jenis==='sosial-pendidikan'?'Renco Takaful':'Dana'} (boleh kosong):`) ?? '';
   const tglBayar = nowISO();
   // Hapus yang lama
   if (jenis === 'sosial-pendidikan') {
@@ -36412,7 +36430,7 @@ function shuDanaLembagaKonfirmasi(jenis, tahun, jumlah) {
     DB.saldoDanaLembaga = DB.saldoDanaLembaga.filter(d => !(d.tahun===tahun && d.jenis==='sosial-pendidikan'));
     DB.saldoDanaLembaga.push({
       id: 'sdl'+uid(), jenis:'sosial-pendidikan', tahun, jumlah,
-      keterangan: catatan || `SHU ${tahun} – Dana Sosial & Pendidikan`,
+      keterangan: catatan || `SHU ${tahun} – Renco Takaful`,
       tanggal: tglBayar, createdAt: tglBayar
     });
     // ── Auto: tambah ke PHU Pendapatan sebagai kredit saldo PHU ──
@@ -36420,7 +36438,7 @@ function shuDanaLembagaKonfirmasi(jenis, tahun, jumlah) {
     DB.phuPendapatan = DB.phuPendapatan.filter(x => !(x._shuRef===tahun+'_sosial-pendidikan'));
     DB.phuPendapatan.push({
       id: uid(), jumlah, kategori:'lain-lain',
-      keterangan: `[SHU ${tahun}] Dana Sosial & Pendidikan`,
+      keterangan: `[SHU ${tahun}] Renco Takaful`,
       tanggal: tglBayar.slice(0,10), createdAt: tglBayar,
       _shuRef: tahun+'_sosial-pendidikan'
     });
@@ -36447,7 +36465,7 @@ function shuDanaLembagaKonfirmasi(jenis, tahun, jumlah) {
   }
   saveDB();
   shuTab('dana-lembaga', null);
-  showToast('✅ Dana '+(jenis==='cadangan'?'Cadangan':'Sosial & Pendidikan')+' terkonfirmasi & Saldo PHU diperbarui');
+  showToast('✅ Dana '+(jenis==='cadangan'?'Cadangan':'Renco Takaful')+' terkonfirmasi & Saldo PHU diperbarui');
 }
 
 function shuDanaLembagaBatal(jenis, tahun) {
@@ -36574,7 +36592,7 @@ function renderSHURiwayat() {
   });
 
   const cardSosial = atmCard({
-    icon:'🤝', label:'Dana Sosial & Pendidikan', kode:'SOS',
+    icon:'🛡️', label:'Renco Takaful · Dana Darurat', kode:'TKF',
     gradient:'linear-gradient(160deg,#2b0e00 0%,#5c2000 55%,#a03800 100%)',
     accentColor:'#ffb07a',
     chipColor:'linear-gradient(135deg,#e05c1a,#ffb07a)',
@@ -36640,8 +36658,7 @@ function renderSHUSettingTab(s) {
         <div class="field"><label>% Cadangan</label><input type="number" id="shuPctCadangan" value="${s.pctCadangan||20}" min="0" max="100" oninput="updateSHUPreview()"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>% Dana Sosial</label><input type="number" id="shuPctSosial" value="${s.pctSosial||10}" min="0" max="100" oninput="updateSHUPreview()"></div>
-        <div class="field"><label>% Pendidikan</label><input type="number" id="shuPctPendidikan" value="${s.pctPendidikan||10}" min="0" max="100" oninput="updateSHUPreview()"></div>
+        <div class="field"><label>% Renco Takaful (Pinjaman Dana Darurat Anggota)</label><input type="number" id="shuPctTakaful" value="${(s.pctSosial||0)+(s.pctPendidikan||0)}" min="0" max="100" oninput="updateSHUPreview()"></div>
       </div>
       <div id="shuPctWarning" style="font-size:12px;color:var(--danger);margin-bottom:8px;display:none">⚠️ Total distribusi intern harus = 100%</div>
       <div id="shuPctOk" style="font-size:12px;color:var(--forest-light);margin-bottom:8px;display:none">✅ Total = 100%, siap disimpan</div>
@@ -36927,7 +36944,7 @@ function shuCetakRekap(tahun) {
           <div class="ring-box"><div class="ring-lbl">Dana Nasabah (${s.pctNasabah}%)</div><div class="ring-val">${fmt(shuNasabah)}</div></div>
           <div class="ring-box"><div class="ring-lbl">Pengurus (${s.pctPengurus}%)</div><div class="ring-val">${fmt(shuPengurus)}</div></div>
           <div class="ring-box"><div class="ring-lbl">Cadangan (${s.pctCadangan}%)</div><div class="ring-val">${fmt(shuCadangan)}</div></div>
-          <div class="ring-box"><div class="ring-lbl">Sosial + Pendidikan</div><div class="ring-val">${fmt(shuSosial+shuPendidikan)}</div></div>
+          <div class="ring-box"><div class="ring-lbl">Renco Takaful</div><div class="ring-val">${fmt(shuSosial+shuPendidikan)}</div></div>
         </div>
       </div>
       ${dist.length ? `
@@ -36961,7 +36978,7 @@ function shuCetakRekap(tahun) {
 // renderSHUHTML is defined above (full system)
 
 function updateSHUPreview() {
-  const total = ['shuPctNasabah','shuPctPengurus','shuPctCadangan','shuPctSosial','shuPctPendidikan']
+  const total = ['shuPctNasabah','shuPctPengurus','shuPctCadangan','shuPctTakaful']
     .reduce((s,id)=>{ const el=document.getElementById(id); return s+(el?parseFloat(el.value)||0:0); }, 0);
   const warn = document.getElementById('shuPctWarning');
   const ok = document.getElementById('shuPctOk');
@@ -36974,8 +36991,8 @@ function saveSHUSetting() {
   const pctNasabah = get('shuPctNasabah');
   const pctPengurus = get('shuPctPengurus');
   const pctCadangan = get('shuPctCadangan');
-  const pctSosial = get('shuPctSosial');
-  const pctPendidikan = get('shuPctPendidikan');
+  const pctSosial = get('shuPctTakaful');  /* Renco Takaful = gabungan Sosial + Pendidikan */
+  const pctPendidikan = 0;
   const total = pctNasabah+pctPengurus+pctCadangan+pctSosial+pctPendidikan;
   if (total !== 100) { showToast('⚠️ Total distribusi harus 100%. Sekarang: '+total+'%'); return; }
   DB.shuSetting = {
@@ -89808,4 +89825,426 @@ html.renco-dark #nsMemberStats .nms-plot svg path[stroke="url(#nmsL)"],
 html.renco-dark #nsMemberStats .nms-plot svg rect{ opacity:.82; }
 html.renco-dark #nsMemberStats .nms-plot svg path[fill="url(#nmsA)"]{ opacity:.7; }
 </style>
+<script id="suk-guard">
+/* ══ PENJAGA SALDO — Simpanan Sukarela & Dompet RencoPay (sisi aplikasi) ══
+   Lapisan 1 (di sini)  : hitung saldo hanya dari catatan valid, SEGEL tiap catatan (SHA-256),
+                          deteksi catatan yang diubah lewat konsol/penyimpanan, blokir transaksi keluar
+                          anggota yang catatannya tidak cocok segel, dan beri admin peringatan + tombol resolusi.
+   Lapisan 2 (server)   : sql/01_suk_guard.sql — trigger Supabase yang menolak ubah/hapus riwayat.
+   Catatan: kode di peramban bisa dimodifikasi penyerang yang canggih; pencegahan sebenarnya ada di server. */
+(function(){
+  'use strict';
+  /* SHA-256 sinkron (kompak) */
+  var K=[],H0=[];(function(){var p=2,n=0;function pr(x){for(var i=2;i*i<=x;i++)if(x%i===0)return false;return true;}
+    while(n<64){ if(pr(p)){ if(n<8) H0[n]=(Math.pow(p,.5)%1*4294967296)|0; K[n]=(Math.pow(p,1/3)%1*4294967296)|0; n++; } p++; } })();
+  function sha256(s){
+    var m=unescape(encodeURIComponent(String(s))),l=m.length,w=new Int32Array((((l+8)>>6)+1)*16),i,j;
+    for(i=0;i<l;i++) w[i>>2]|=m.charCodeAt(i)<<(24-(i&3)*8);
+    w[l>>2]|=0x80<<(24-(l&3)*8); w[w.length-1]=l*8;
+    var h=new Int32Array(H0),x=new Int32Array(64);
+    function R(v,n){return (v>>>n)|(v<<(32-n));}
+    for(j=0;j<w.length;j+=16){
+      var a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],k=h[7];
+      for(i=0;i<64;i++){
+        if(i<16) x[i]=w[j+i]; else x[i]=(R(x[i-2],17)^R(x[i-2],19)^(x[i-2]>>>10))+x[i-7]+(R(x[i-15],7)^R(x[i-15],18)^(x[i-15]>>>3))+x[i-16]|0;
+        var t1=k+(R(e,6)^R(e,11)^R(e,25))+((e&f)^(~e&g))+K[i]+x[i]|0, t2=(R(a,2)^R(a,13)^R(a,22))+((a&b)^(a&c)^(b&c))|0;
+        k=g;g=f;f=e;e=d+t1|0;d=c;c=b;b=a;a=t1+t2|0;
+      }
+      h[0]=h[0]+a|0;h[1]=h[1]+b|0;h[2]=h[2]+c|0;h[3]=h[3]+d|0;h[4]=h[4]+e|0;h[5]=h[5]+f|0;h[6]=h[6]+g|0;h[7]=h[7]+k|0;
+    }
+    var o='';for(i=0;i<8;i++) o+=('00000000'+(h[i]>>>0).toString(16)).slice(-8);
+    return o;
+  }
+  window._sukSha256=sha256;
+
+  var SUK_T={'simpanan':1,'tarik-sukarela':1,'transfer-sukarela-keluar':1,'transfer-sukarela-masuk':1};
+  function ok(n){ n=Number(n); return isFinite(n)&&n>0; }
+  function DBx(){ return window.DB||(typeof DB!=='undefined'?DB:null); }
+  function isAdm(){ try{ return typeof isAdmin==='function'&&isAdmin(); }catch(e){ return false; } }
+
+  /* 1) Saldo hanya dari catatan valid: jumlah > 0 & berhingga, id transaksi tidak dihitung dua kali */
+  window.saldoSukarelaNasabah=function(kkId){
+    var D=DBx(), seen={}, s=0, tx=(D&&D.transaksi)||[];
+    for(var i=0;i<tx.length;i++){
+      var t=tx[i]; if(!t||t.kkId!==kkId||!ok(t.jumlah)) continue;
+      if(t.id!=null){ if(seen[t.id]) continue; seen[t.id]=1; }
+      var j=+t.jumlah;
+      if(t.type==='simpanan'&&t.jenis==='sukarela') s+=j;
+      else if(t.type==='tarik-sukarela'||t.type==='transfer-sukarela-keluar') s-=j;
+      else if(t.type==='transfer-sukarela-masuk') s+=j;
+    }
+    return s;  // saldo BOLEH minus (biaya admin) — perilaku asli dipertahankan
+  };
+  window.getSaldoWallet=function(txns){
+    var s=0; (txns||[]).forEach(function(t){
+      if(!t||!ok(t.jumlah)) return;
+      s+=(t.tipe==='kredit'||t.tipe==='masuk'||t.tipe==='topup')?+t.jumlah:-t.jumlah;
+    }); return s;
+  };
+
+  /* 2) Segel per catatan */
+  function fpT(t){ return sha256(['T',t.id,t.kkId,t.type,t.jenis||'',Number(t.jumlah),t.tanggal||''].join('|')); }
+  function fpW(kk,w){ return sha256(['W',kk,w.id,w.tipe,Number(w.jumlah),w.kategori||'',w.createdAt||w.tanggal||''].join('|')); }
+  function eachEntry(fn,onlyKk){
+    var D=DBx(); if(!D) return;
+    (D.transaksi||[]).forEach(function(t){ if(t&&(!onlyKk||t.kkId===onlyKk)) fn('T',t.kkId,t,fpT); });
+    var W=D.dompetNasabah||{};
+    Object.keys(W).forEach(function(kk){ if(onlyKk&&kk!==onlyKk) return; (W[kk]||[]).forEach(function(w){ if(w) fn('W',kk,w,function(x){return fpW(kk,x);}); }); });
+  }
+  function seal(){ var n=0; eachEntry(function(k,kk,e,fp){ if(!e._h){ e._h=fp(e); n++; } }); return n; }
+  function verify(onlyKk){
+    var bad=[], ids={};
+    eachEntry(function(k,kk,e,fp){
+      var why=null;
+      if(e._h&&e._h!==fp(e)) why='segel tidak cocok';
+      else if((k==='W'||SUK_T[e.type])&&!ok(e.jumlah)) why='jumlah tidak valid';
+      else if(k==='T'&&e.id!=null){ if(ids[e.id]) why='id ganda'; ids[e.id]=1; }
+      if(why) bad.push({ledger:k==='T'?'Sukarela':'Dompet',kkId:kk,id:e.id,jumlah:e.jumlah,why:why,ref:e,fp:fp});
+    },onlyKk);
+    return bad;
+  }
+  window.sukIntegrity={ verify:function(kk){return verify(kk).map(function(b){return {ledger:b.ledger,kkId:b.kkId,id:b.id,jumlah:b.jumlah,why:b.why};});}, seal:seal };
+
+  /* segel otomatis setiap penyimpanan */
+  /* modul lain memasang ulang saveDB setelah halaman dimuat → pastikan pembungkus segel tetap yang terluar */
+  var wraps=0;
+  function ensureSealWrap(){
+    var cur=window.saveDB;
+    if(typeof cur!=='function'||cur._sukWrapped||wraps>=8) return;
+    wraps++;
+    var w=function(){ try{ seal(); }catch(e){} return cur.apply(this,arguments); };
+    w._sukWrapped=true; window.saveDB=w;
+    try{ saveDB=w; }catch(e){}
+  }
+  ensureSealWrap();
+  var _ens=setInterval(ensureSealWrap,1500); setTimeout(function(){ clearInterval(_ens); },90000);
+
+  /* 3) Blokir transaksi keluar anggota yang catatannya tidak cocok segel */
+  function myKk(){ try{ return window.AUTH&&AUTH.user&&AUTH.user.nasabahId; }catch(e){ return null; } }
+  function guard(name){
+    var f=window[name]; if(typeof f!=='function'||f._sukG) return;
+    var g=function(){
+      try{
+        var kk=myKk();
+        if(kk&&!isAdm()){ var b=verify(kk); if(b.length){ logBad(b,'blokir:'+name);
+          if(typeof showToast==='function') showToast('🔒 Saldo Anda sedang diverifikasi pengurus. Silakan hubungi admin.');
+          return; } }
+      }catch(e){}
+      return f.apply(this,arguments);
+    };
+    g._sukG=true; window[name]=g;
+  }
+  ['_rpEksekusiTopupSukarela','tfSubmitTransfer','rpTransferKeSukarela'].forEach(guard);
+  setTimeout(function(){ ['_rpEksekusiTopupSukarela','tfSubmitTransfer','rpTransferKeSukarela'].forEach(guard); },3000);
+
+  /* 4) Peringatan & resolusi untuk admin */
+  var lastSig='';
+  function logBad(bad,src){
+    try{
+      var D=DBx(); if(!D) return;
+      var sig=bad.map(function(b){return b.ledger+b.kkId+b.id;}).join(',');
+      if(sig===lastSig) return; lastSig=sig;
+      if(!Array.isArray(D._integrityLog)) D._integrityLog=[];
+      D._integrityLog.push({at:new Date().toISOString(),src:src,by:(window.AUTH&&AUTH.user&&AUTH.user.username)||'',n:bad.length,
+        item:bad.slice(0,20).map(function(b){return {l:b.ledger,kk:b.kkId,id:b.id,j:b.jumlah,w:b.why};})});
+      if(D._integrityLog.length>100) D._integrityLog=D._integrityLog.slice(-100);
+      if(typeof window.saveDB==='function') window.saveDB();
+    }catch(e){}
+  }
+  function banner(bad){
+    var el=document.getElementById('sukIntegBanner');
+    if(!bad.length){ if(el) el.remove(); return; }
+    if(!el){ el=document.createElement('div'); el.id='sukIntegBanner';
+      el.style.cssText='position:fixed;left:10px;right:10px;top:10px;z-index:99999;background:#7f1d1d;color:#fff;border:2px solid #fca5a5;border-radius:14px;padding:12px 14px;font:600 13px/1.4 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.5)';
+      document.body.appendChild(el); }
+    el.innerHTML='⚠️ <b>Integritas saldo:</b> '+bad.length+' catatan tidak cocok segel / tidak valid. Anggota terkait tidak dapat top up/transfer sampai diselesaikan. '
+      +'<button id="sukIntD" style="margin-left:6px;padding:5px 10px;border-radius:8px;border:0;font-weight:700">Rincian</button>'
+      +'<button id="sukIntA" style="margin-left:6px;padding:5px 10px;border-radius:8px;border:0;font-weight:700;background:#fde68a">Terima &amp; segel ulang</button>';
+    document.getElementById('sukIntD').onclick=function(){
+      alert(bad.slice(0,12).map(function(b){return b.ledger+' · '+b.kkId+' · '+b.id+' · Rp'+b.jumlah+' → '+b.why;}).join('\n')+(bad.length>12?'\n… +'+(bad.length-12)+' lagi':''));
+    };
+    document.getElementById('sukIntA').onclick=function(){
+      if(!confirm('Terima '+bad.length+' catatan ini sebagai SAH dan segel ulang?\nLakukan hanya jika perubahan tersebut memang Anda lakukan/sahkan.')) return;
+      bad.forEach(function(b){ if(b.why==='segel tidak cocok'){ b.ref._h=b.fp(b.ref); } });
+      var D=DBx(); if(D){ (D._integrityLog=D._integrityLog||[]).push({at:new Date().toISOString(),src:'resolusi',by:(AUTH.user&&AUTH.user.username)||'',n:bad.length}); }
+      lastSig=''; if(typeof window.saveDB==='function') window.saveDB();
+      var rest=verify(); banner(rest);
+      if(rest.length&&typeof showToast==='function') showToast('Sisa '+rest.length+' catatan tidak valid (jumlah/id) — perlu dikoreksi manual.');
+    };
+  }
+  function adminScan(){ try{ if(!isAdm()||!DBx()) return; var b=verify(); if(b.length) logBad(b,'pindai'); banner(b); }catch(e){} }
+  window.sukIntegrity.scan=function(){ var b=verify(); banner(b); return b.length; };
+  setTimeout(adminScan,5000); setInterval(adminScan,60000);
+})();
+</script>
+
+<style id="suk-admin-css">
+.sukb{padding:11px 8px;border-radius:11px;border:1.5px solid rgba(31,107,69,.3);background:rgba(31,107,69,.07);color:#1f6b45;font:700 11px/1.3 inherit;font-family:inherit;cursor:pointer}
+.sukb small{display:block;font-weight:600;color:#6b7280;margin-top:2px;font-size:9.5px}
+.sukb:active{transform:scale(.97)}
+html.renco-dark .sukb{color:#86e3ab;background:rgba(134,227,171,.1);border-color:rgba(134,227,171,.3)}
+html.renco-dark .sukb small{color:#9db3a5}
+</style>
+<script id="suk-admin">
+/* ══ Tombol Admin: Penjaga Saldo — semua tanpa SQL Editor ══
+   Reset/koreksi/hapus transaksi meminta KODE OTORISASI ADMIN bila penjaga server berada di Mode Tegas.
+   Sesi otorisasi berlaku 2 menit (beberapa aksi berturut-turut tidak minta kode lagi). */
+(function(){
+  'use strict';
+  var st=null, stAt=0, grantUntil=0;
+  function sb(){ return window.supabaseClient; }
+  function isAdm(){ try{ return typeof isAdmin==='function'&&isAdmin(); }catch(e){ return false; } }
+  function toast(m){ if(typeof showToast==='function') showToast(m); else alert(m); }
+  async function rpc(fn,args){
+    try{ if(!sb()) return {ok:false,msg:'Server (Supabase) tidak tersedia.'};
+      var r=await sb().rpc(fn,args||{});
+      if(r.error) return {ok:false,msg:'Server: '+(r.error.message||'galat')+' — pastikan sql/01_suk_guard.sql sudah dijalankan.'};
+      return r.data; }catch(e){ return {ok:false,msg:'Tidak terhubung ke server.'}; }
+  }
+  async function status(force){
+    if(!sb()) return st;
+    if(!force&&st&&Date.now()-stAt<45000) return st;
+    try{ var r=await sb().rpc('suk_admin_status'); if(!r.error&&r.data){ st=r.data; stAt=Date.now(); } }catch(e){}
+    return st;
+  }
+  function needAuth(){ return !!(st&&st.mode==='enforce'&&Date.now()>=grantUntil); }
+  function kode(msg){ var k=prompt(msg); return k?k.trim():''; }
+
+  async function authorize(op,label){
+    if(Date.now()<grantUntil) return true;
+    var s=await status(true); if(!s||s.mode!=='enforce') return true;
+    if(!s.has_code){ toast('⚠️ Kode otorisasi admin belum diatur. Buka Penjaga Saldo → Atur Kode.'); return false; }
+    var k=kode('🔐 Kode Otorisasi Admin diperlukan untuk:\n'+label+'\n\nMasukkan kode:'); if(!k) return false;
+    var r=await rpc('suk_admin_authorize',{p_code:k,p_op:op});
+    if(r&&r.ok){ grantUntil=Date.now()+110000; toast('✅ Diizinkan 2 menit'); return true; }
+    toast('⛔ '+((r&&r.msg)||'Otorisasi gagal')); return false;
+  }
+
+  /* bungkus aksi berbahaya */
+  function wrap(name,op,label){
+    var f=window[name]; if(typeof f!=='function'||f._sukA) return;
+    var g=function(){
+      var self=this,a=arguments;
+      if(!isAdm()) return f.apply(self,a);
+      if(st&&Date.now()-stAt<60000&&!needAuth()) return f.apply(self,a);   // jalur cepat (sinkron)
+      var opx=typeof op==='function'?op(a):op;
+      (async function(){
+        await status(true);                                              // status belum ada / kedaluwarsa → ambil dulu
+        if(!needAuth()) return f.apply(self,a);
+        if(await authorize(opx,label)) f.apply(self,a);
+      })();
+    };
+    g._sukA=true; window[name]=g;
+  }
+  function wrapAll(){
+    wrap('rpResetData',function(a){return 'reset_'+(a[0]||'?');},'Reset data');
+    wrap('_rpResetCloud_Semua','reset_semua','Reset SEMUA data + push cloud');
+    wrap('rpResetSemua_CloudSync','reset_semua','Reset SEMUA data');
+    wrap('doResetAllData','reset_semua','Reset SEMUA data');
+    wrap('hapusTxn','hapus_transaksi','Hapus transaksi');
+    wrap('hapusTxnKeuangan','hapus_transaksi','Hapus transaksi');
+    wrap('hapusTxnRiwayat','hapus_transaksi','Hapus transaksi');
+    wrap('hapusTxnTerintegrasi','hapus_transaksi','Hapus transaksi');
+    wrap('saveEditTxn','koreksi_transaksi','Koreksi transaksi');
+  }
+  wrapAll(); setTimeout(wrapAll,3000); setTimeout(wrapAll,9000);
+  setTimeout(function(){ if(isAdm()) status(true); },4000);
+  setInterval(function(){ if(isAdm()) status(); },45000);
+
+  /* aksi tombol panel */
+  var A=window.sukAdmin={
+    async refresh(){
+      var el=document.getElementById('sukAdmStatus'); if(!el) return;
+      var s=await status(true);
+      if(!s){ el.innerHTML='Status server belum tersedia (offline / SQL belum dijalankan).'; return; }
+      el.innerHTML='Mode: <b>'+(s.mode==='enforce'?'🔒 Tegas (memblokir)':'📝 Catat (belum memblokir)')+'</b> · Kode otorisasi: <b>'+(s.has_code?'sudah diatur':'belum diatur')+'</b>'+(s.locked?' · <b style="color:#dc2626">terkunci sementara</b>':'');
+    },
+    async setMode(m){
+      var s=await status(true);
+      if(s&&!s.has_code){ toast('Atur Kode Otorisasi terlebih dahulu.'); return; }
+      if(m==='enforce'&&!confirm('Aktifkan MODE TEGAS?\n\nPenyimpanan yang mengubah/menghapus riwayat atau membuat saldo minus akan DITOLAK server. Reset/koreksi memerlukan Kode Otorisasi.')) return;
+      var k=kode('Kode Otorisasi Admin:'); if(!k) return;
+      var r=await rpc('suk_admin_set_mode',{p_code:k,p_mode:m}); toast((r&&r.ok?'✅ ':'⛔ ')+((r&&r.msg)||'gagal')); A.refresh();
+    },
+    async log(){
+      var k=kode('Kode Otorisasi Admin:'); if(!k) return;
+      var r=await rpc('suk_admin_get_log',{p_code:k});
+      if(!r||!r.ok){ toast('⛔ '+((r&&r.msg)||'gagal')); return; }
+      var rows=r.rows||[]; if(!rows.length){ alert('Belum ada catatan pelanggaran. ✅'); return; }
+      alert(rows.slice(0,15).map(function(x){ return new Date(x.at).toLocaleString('id-ID')+' ['+x.mode+'] '+x.rule; }).join('\n\n'));
+    },
+    async initCode(){
+      var s=await status(true); if(s&&s.has_code){ toast('Kode sudah diatur. Gunakan Ubah Kode.'); return; }
+      var a=kode('Buat Kode Otorisasi Admin (min. 6 karakter, rahasiakan):'); if(!a) return;
+      var b=kode('Ulangi kode:'); if(a!==b){ toast('⛔ Kode tidak sama'); return; }
+      var r=await rpc('suk_admin_init',{p_new:a}); toast((r&&r.ok?'✅ ':'⛔ ')+((r&&r.msg)||'gagal')); A.refresh();
+    },
+    async changeCode(){
+      var o=kode('Kode saat ini:'); if(!o) return;
+      var n=kode('Kode baru (min. 6 karakter):'); if(!n) return;
+      var c=kode('Ulangi kode baru:'); if(n!==c){ toast('⛔ Kode baru tidak sama'); return; }
+      var r=await rpc('suk_admin_change_code',{p_old:o,p_new:n}); toast((r&&r.ok?'✅ ':'⛔ ')+((r&&r.msg)||'gagal'));
+    },
+    scan(){
+      var n=(window.sukIntegrity&&window.sukIntegrity.scan)?window.sukIntegrity.scan():0;
+      if(!n) toast('✅ Semua catatan saldo cocok dengan segel');
+    }
+  };
+  setInterval(function(){ var el=document.getElementById('sukAdmStatus'); if(el&&!el.dataset.f){ el.dataset.f='1'; A.refresh(); } },1200);
+})();
+</script>
+
+<style id="splash-logo-abu-emas">
+/* Logo R splash: abu-abu & transparan saat loading, berubah EMAS & jelas saat loading 100% (#splash.sp-done) */
+#splash .sp-logo, #splash.sp-lt-on .sp-lt-logo{
+  filter:grayscale(1) brightness(1.15) !important; opacity:.32 !important;
+  transition:opacity .9s ease, filter .9s ease !important; }
+#splash.sp-done .sp-logo, #splash.sp-lt-on.sp-done .sp-lt-logo{
+  filter:none !important; opacity:1 !important; }
+#splash .sp-glow{ opacity:.25; transition:opacity .9s ease; }
+#splash.sp-done .sp-glow{ opacity:1; }
+</style>
+<style id="takaful-css">
+.tk{padding:14px 14px 90px;color:var(--text)}
+.tk-hero{border-radius:18px;padding:18px;color:#fff;background:linear-gradient(150deg,#2b0e00 0%,#7a2c00 60%,#c2570f 100%);box-shadow:0 6px 22px rgba(0,0,0,.18)}
+.tk-hero small{opacity:.75;font-size:11px;letter-spacing:.4px;text-transform:uppercase}
+.tk-hero .big{font-size:28px;font-weight:800;margin:4px 0 2px}
+.tk-hero .sub{font-size:11.5px;opacity:.8;line-height:1.5}
+.tk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.tk-grid div{background:rgba(255,255,255,.13);border-radius:12px;padding:8px 6px;text-align:center}
+.tk-grid b{display:block;font-size:13px}.tk-grid span{font-size:10px;opacity:.8}
+.tk-card{margin-top:12px;border-radius:16px;padding:14px;background:#fff;border:1px solid rgba(26,71,42,.12);box-shadow:0 2px 10px rgba(10,31,16,.06)}
+.tk-card h4{margin:0 0 8px;font-size:14px}
+.tk-note{font-size:11.5px;color:var(--text-soft);line-height:1.6}
+.tk-row{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:5px 0}
+.tk-btn{border:0;border-radius:12px;padding:11px 14px;font-weight:700;font-size:13px;cursor:pointer;background:linear-gradient(135deg,#e05c1a,#f4a922);color:#fff}
+.tk-btn.sec{background:rgba(26,71,42,.1);color:var(--forest)}
+.tk-btn.bad{background:rgba(230,57,70,.12);color:#c1121f}
+.tk-btn.sm{padding:7px 10px;font-size:11.5px;border-radius:9px}
+.tk input,.tk textarea{width:100%;box-sizing:border-box;border:1px solid rgba(26,71,42,.25);border-radius:10px;padding:10px;font-size:14px;margin:4px 0 8px;background:#fff;color:#1c3025}
+.tk label{font-size:12px;font-weight:600}
+.tk-bar{height:8px;border-radius:6px;background:rgba(26,71,42,.12);overflow:hidden;margin:6px 0}
+.tk-bar i{display:block;height:100%;background:linear-gradient(90deg,#e05c1a,#f4a922)}
+.tk-st{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px}
+.tk-st.pengajuan{background:#fff3cd;color:#8a6100}.tk-st.disetujui{background:#dbe7ff;color:#2347c5}
+.tk-st.dicairkan{background:#ffe3d1;color:#b23c00}.tk-st.lunas{background:#d6f5e0;color:#17653a}.tk-st.ditolak{background:#fde0e3;color:#b4232f}
+html.renco-dark .tk{color:#e8f2e4}
+html.renco-dark .tk-card{background:#0d1a12;border-color:rgba(255,255,255,.09);box-shadow:none}
+html.renco-dark .tk input,html.renco-dark .tk textarea{background:#08130c;color:#e8f2e4;border-color:rgba(255,255,255,.18)}
+html.renco-dark .tk-note{color:#9dc3aa}
+html.renco-dark .tk-btn.sec{background:rgba(255,255,255,.09);color:#cfe8d8}
+html.renco-dark .tk-bar{background:rgba(255,255,255,.1)}
+</style>
+<script id="takaful-js">
+/* ══ RENCO TAKAFUL — program pinjaman dana darurat anggota (tanpa margin/bunga, qardhul hasan) ══
+   Sumber dana : alokasi SHU "Renco Takaful" yang sudah dikonfirmasi (DB.saldoDanaLembaga, jenis sosial-pendidikan)
+   Saldo       : alokasi + cicilan masuk − pencairan.   Data: DB.takaful[] , DB.takafulSetting */
+(function(){
+  var rp=function(n){ try{return fmt(n);}catch(e){return 'Rp'+(n||0);} };
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  function T(){ if(!Array.isArray(DB.takaful)) DB.takaful=[]; return DB.takaful; }
+  function CFG(){ if(!DB.takafulSetting) DB.takafulSetting={maxPinjam:2000000,maxTenor:10}; return DB.takafulSetting; }
+  function nama(id){ var n=(DB.nasabah||[]).find(function(x){return x.id===id;}); return n?(n.nama||n.name||id):id; }
+  function myId(){ return window.AUTH&&AUTH.user?AUTH.user.nasabahId:null; }
+  function isAdm(){ return typeof isAdmin==='function'&&isAdmin(); }
+  function sum(a,f){ return a.reduce(function(s,x){return s+(f(x)||0);},0); }
+  function cicilanTotal(p){ return sum(p.cicilan||[],function(c){return c.jumlah;}); }
+  function sisaPinjam(p){ return Math.max(0,(p.jumlah||0)-cicilanTotal(p)); }
+  function stat(){
+    var alok=sum((DB.saldoDanaLembaga||[]).filter(function(d){return d.jenis==='sosial-pendidikan';}),function(d){return d.jumlah;});
+    var cair=T().filter(function(p){return p.status==='dicairkan'||p.status==='lunas';});
+    var disalur=sum(cair,function(p){return p.jumlah;});
+    var kembali=sum(cair,cicilanTotal);
+    return {alok:alok,disalur:disalur,kembali:kembali,saldo:alok-disalur+kembali,
+      penerima:cair.length,aktif:cair.filter(function(p){return p.status==='dicairkan';}).length};
+  }
+  function st(s){ return '<span class="tk-st '+s+'">'+({pengajuan:'Menunggu',disetujui:'Disetujui',dicairkan:'Berjalan',lunas:'Lunas',ditolak:'Ditolak'}[s]||s)+'</span>'; }
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function save(){ try{saveDB();}catch(e){} refresh(); }
+  function refresh(){ var c=document.getElementById('keuanganContent'); if(c&&window._rencoActiveKeuanganTab==='takaful') c.innerHTML=window.renderTakafulHTML(); }
+
+  function loanCard(p,adm){
+    var cic=cicilanTotal(p), pct=p.jumlah?Math.min(100,Math.round(cic/p.jumlah*100)):0;
+    var h='<div class="tk-card"><div class="tk-row"><b>'+(adm?esc(nama(p.kkId)):'Pinjaman '+rp(p.jumlah))+'</b>'+st(p.status)+'</div>'
+      +(adm?'<div class="tk-row"><span>Jumlah</span><b>'+rp(p.jumlah)+'</b></div>':'')
+      +'<div class="tk-row"><span>Tenor</span><span>'+p.tenor+' bulan · cicilan '+rp(Math.ceil(p.jumlah/p.tenor))+'/bln</span></div>'
+      +'<div class="tk-note">Keperluan: '+esc(p.tujuan)+' · diajukan '+esc(p.tglAjuan)+'</div>';
+    if(p.status==='dicairkan'||p.status==='lunas') h+='<div class="tk-bar"><i style="width:'+pct+'%"></i></div><div class="tk-row"><span>Terbayar '+rp(cic)+'</span><span>Sisa '+rp(sisaPinjam(p))+'</span></div>';
+    if(p.catatan) h+='<div class="tk-note">Catatan pengurus: '+esc(p.catatan)+'</div>';
+    if(adm){
+      h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
+      if(p.status==='pengajuan') h+='<button class="tk-btn sm" onclick="takafulSetuju(\''+p.id+'\')">Setujui</button><button class="tk-btn bad sm" onclick="takafulTolak(\''+p.id+'\')">Tolak</button>';
+      if(p.status==='disetujui') h+='<button class="tk-btn sm" onclick="takafulCairkan(\''+p.id+'\')">Cairkan Dana</button>';
+      if(p.status==='dicairkan') h+='<button class="tk-btn sm" onclick="takafulCicilan(\''+p.id+'\')">Catat Cicilan</button>';
+      h+='</div>';
+    } else if(p.status==='pengajuan'){
+      h+='<div style="margin-top:8px"><button class="tk-btn bad sm" onclick="takafulBatal(\''+p.id+'\')">Batalkan Pengajuan</button></div>';
+    }
+    return h+'</div>';
+  }
+
+  window.renderTakafulHTML=function(){
+    var s=stat(), adm=isAdm(), me=myId(), cfg=CFG();
+    var h='<div class="tk"><div class="tk-hero"><small>🛡️ Renco Takaful · Dana Darurat Anggota</small>'
+      +'<div class="big">'+rp(Math.max(0,s.saldo))+'</div><div class="sub">Saldo tersedia untuk pinjaman darurat anggota, tanpa margin. Bersumber dari alokasi SHU dan dikembalikan melalui cicilan.</div>'
+      +'<div class="tk-grid"><div><b>'+rp(s.disalur)+'</b><span>Tersalurkan</span></div><div><b>'+s.penerima+'</b><span>Penerima</span></div><div><b>'+s.aktif+'</b><span>Berjalan</span></div></div></div>';
+    if(s.saldo<0) h+='<div class="tk-card tk-note" style="color:#c1121f">⚠️ Saldo Takaful minus. Periksa alokasi SHU yang dikonfirmasi di tab Dana Lembaga.</div>';
+    if(!adm){
+      var mine=T().filter(function(p){return p.kkId===me;}).sort(function(a,b){return b.tglAjuan<a.tglAjuan?-1:1;});
+      var aktif=mine.some(function(p){return p.status==='pengajuan'||p.status==='disetujui'||p.status==='dicairkan';});
+      h+='<div class="tk-card"><h4>Ajukan Pinjaman Darurat</h4>';
+      if(!me) h+='<div class="tk-note">Akun Anda belum terhubung ke data anggota.</div>';
+      else if(aktif) h+='<div class="tk-note">Anda masih memiliki pengajuan atau pinjaman Takaful yang berjalan. Pengajuan baru bisa dibuat setelah lunas.</div>';
+      else h+='<div class="tk-note">Maksimal '+rp(cfg.maxPinjam)+' dan tenor sampai '+cfg.maxTenor+' bulan. Untuk kebutuhan mendesak seperti sakit, musibah, atau biaya mendadak.</div>'
+        +'<label>Jumlah (Rp)</label><input id="tkJml" type="number" inputmode="numeric" min="1" placeholder="500000">'
+        +'<label>Tenor (bulan)</label><input id="tkTen" type="number" inputmode="numeric" min="1" max="'+cfg.maxTenor+'" placeholder="3">'
+        +'<label>Keperluan darurat</label><textarea id="tkTuj" rows="2" placeholder="Jelaskan kebutuhan Anda"></textarea>'
+        +'<button class="tk-btn" style="width:100%" onclick="takafulAjukan()">Kirim Pengajuan</button>';
+      h+='</div><h4 style="margin:16px 4px 0">Pinjaman Saya</h4>';
+      h+=mine.length?mine.map(function(p){return loanCard(p,false);}).join(''):'<div class="tk-card tk-note">Belum ada pengajuan.</div>';
+    } else {
+      var all=T().slice().sort(function(a,b){var o={pengajuan:0,disetujui:1,dicairkan:2,lunas:3,ditolak:4};return (o[a.status]-o[b.status])||(b.tglAjuan<a.tglAjuan?-1:1);});
+      h+='<div class="tk-card"><div class="tk-row"><h4 style="margin:0">Pengaturan</h4><button class="tk-btn sec sm" onclick="takafulSetting()">Ubah</button></div>'
+        +'<div class="tk-row"><span>Maks. per anggota</span><b>'+rp(cfg.maxPinjam)+'</b></div><div class="tk-row"><span>Maks. tenor</span><b>'+cfg.maxTenor+' bulan</b></div></div>';
+      h+='<h4 style="margin:16px 4px 0">Pengajuan &amp; Pinjaman ('+all.length+')</h4>';
+      h+=all.length?all.map(function(p){return loanCard(p,true);}).join(''):'<div class="tk-card tk-note">Belum ada pengajuan.</div>';
+    }
+    return h+'</div>';
+  };
+
+  window.takafulAjukan=function(){
+    var me=myId(), cfg=CFG(); if(!me) return;
+    var j=parseInt(document.getElementById('tkJml').value,10), t=parseInt(document.getElementById('tkTen').value,10), u=(document.getElementById('tkTuj').value||'').trim();
+    if(!(j>0)||!(t>0)||!u) return showToast('⚠️ Lengkapi jumlah, tenor, dan keperluan');
+    if(j>cfg.maxPinjam) return showToast('⚠️ Maksimal '+rp(cfg.maxPinjam));
+    if(t>cfg.maxTenor) return showToast('⚠️ Tenor maksimal '+cfg.maxTenor+' bulan');
+    if(T().some(function(p){return p.kkId===me&&['pengajuan','disetujui','dicairkan'].indexOf(p.status)>=0;})) return showToast('⚠️ Masih ada pengajuan/pinjaman berjalan');
+    T().push({id:'tkf'+uid(),kkId:me,jumlah:j,tenor:t,tujuan:u,status:'pengajuan',tglAjuan:today(),cicilan:[]});
+    save(); showToast('✅ Pengajuan terkirim, menunggu persetujuan pengurus');
+  };
+  function find(id){ return T().find(function(p){return p.id===id;}); }
+  window.takafulBatal=function(id){ var p=find(id); if(!p||p.status!=='pengajuan'||p.kkId!==myId()) return; if(!confirm('Batalkan pengajuan?')) return; DB.takaful=T().filter(function(x){return x.id!==id;}); save(); };
+  window.takafulSetuju=function(id){ if(!isAdm()) return; var p=find(id); if(!p||p.status!=='pengajuan') return;
+    if(p.jumlah>stat().saldo) return showToast('⚠️ Saldo Takaful tidak cukup ('+rp(stat().saldo)+')');
+    p.status='disetujui'; p.tglSetuju=today(); save(); showToast('✅ Pengajuan disetujui'); };
+  window.takafulTolak=function(id){ if(!isAdm()) return; var p=find(id); if(!p||p.status!=='pengajuan') return;
+    var c=prompt('Alasan penolakan (boleh kosong):'); if(c===null) return; p.status='ditolak'; p.catatan=c; save(); };
+  window.takafulCairkan=function(id){ if(!isAdm()) return; var p=find(id); if(!p||p.status!=='disetujui') return;
+    if(p.jumlah>stat().saldo) return showToast('⚠️ Saldo Takaful tidak cukup ('+rp(stat().saldo)+')');
+    if(!confirm('Cairkan '+rp(p.jumlah)+' untuk '+nama(p.kkId)+'? Serahkan dana ke anggota lalu konfirmasi.')) return;
+    p.status='dicairkan'; p.tglCair=today(); save(); showToast('✅ Dana dicairkan, saldo Takaful berkurang'); };
+  window.takafulCicilan=function(id){ if(!isAdm()) return; var p=find(id); if(!p||p.status!=='dicairkan') return;
+    var def=Math.min(sisaPinjam(p),Math.ceil(p.jumlah/p.tenor));
+    var v=prompt('Jumlah cicilan diterima (Rp). Sisa '+rp(sisaPinjam(p))+':',def); if(v===null) return;
+    v=parseInt(String(v).replace(/\D/g,''),10); if(!(v>0)) return showToast('⚠️ Jumlah tidak valid');
+    if(v>sisaPinjam(p)) return showToast('⚠️ Melebihi sisa pinjaman');
+    p.cicilan.push({tgl:today(),jumlah:v}); if(sisaPinjam(p)<=0) p.status='lunas'; save(); showToast(p.status==='lunas'?'✅ Pinjaman lunas':'✅ Cicilan tercatat'); };
+  window.takafulSetting=function(){ if(!isAdm()) return; var c=CFG();
+    var m=prompt('Maksimal pinjaman per anggota (Rp):',c.maxPinjam); if(m===null) return;
+    var t=prompt('Maksimal tenor (bulan):',c.maxTenor); if(t===null) return;
+    m=parseInt(String(m).replace(/\D/g,''),10); t=parseInt(t,10);
+    if(!(m>0)||!(t>0)) return showToast('⚠️ Nilai tidak valid'); c.maxPinjam=m; c.maxTenor=t; save(); };
+  window.takafulStat=stat;
+})();
+</script>
 </body></html>
