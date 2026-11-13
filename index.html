@@ -82808,6 +82808,115 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
 .ab-cw-arc{ font-size:10.5px; font-weight:900; letter-spacing:1px; opacity:.7; margin:12px 0 6px; }
 .ab-pn[data-th="su"] .ab-pn-top{ background:linear-gradient(135deg,#0f766e 0%,#b7791f 100%); border-bottom:3px solid #fde68a; }
 .ab-pn[data-th="su"] .ab-pn-top::before{ background:linear-gradient(90deg, rgba(3,36,32,.62) 0%, rgba(3,36,32,.32) 55%, rgba(3,36,32,.04) 100%); }
+/* ── Unit Program per Pilar (admin) ── */
+.ab-ut-h{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:18px 2px 8px; font-size:10.5px; font-weight:900; letter-spacing:1.4px; }
+.ab-ut-h span{ opacity:.75; }
+.ab-ut-g{ display:grid; grid-template-columns:1fr; gap:10px; }
+.ab-ut{ position:relative; display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:14px 14px; border-radius:18px; border:1px solid rgba(244,214,122,.5); background:var(--g,linear-gradient(135deg,#0f3d33,#1f7a5c)); color:#fff; font:inherit; cursor:pointer; box-shadow:0 8px 18px rgba(6,20,12,.22); -webkit-tap-highlight-color:transparent; transition:transform .15s; }
+.ab-ut:active{ transform:scale(.98); }
+.ab-ut.off{ opacity:.55; }
+.ab-ut .ic{ flex:0 0 46px; height:46px; border-radius:15px; display:flex; align-items:center; justify-content:center; font-size:26px; background:rgba(255,255,255,.16); }
+.ab-ut .tx{ flex:1; min-width:0; }
+.ab-ut b{ display:block; font-size:13.5px; font-weight:900; line-height:1.25; }
+.ab-ut small{ display:block; font-size:10.5px; line-height:1.35; opacity:.92; margin-top:2px; }
+.ab-ut .pb{ display:block; height:6px; border-radius:9px; background:rgba(255,255,255,.25); margin-top:8px; overflow:hidden; }
+.ab-ut .pb i{ display:block; height:100%; border-radius:9px; background:#ffe08a; }
+.ab-ut .st{ position:absolute; top:8px; right:10px; font-size:9px; font-weight:800; padding:2px 8px; border-radius:99px; background:rgba(0,0,0,.3); }
+.ab-pn[data-th="un"] .ab-pn-top{ background:linear-gradient(135deg,#0f3d33,#1f7a5c); border-bottom:3px solid #fde68a; }
+.ab-pn[data-th="un"][data-cat="koperasi"] .ab-pn-top{ background:linear-gradient(135deg,#7a4a00,#d4a017); }
+.ab-pn[data-th="un"][data-cat="takaful"] .ab-pn-top{ background:linear-gradient(135deg,#8a3b12,#d9772b); }
+.ab-pn[data-th="un"][data-cat="gakure"] .ab-pn-top{ background:linear-gradient(135deg,#1c3a6b,#3b6fb5); }
+.ab-pn[data-th="un"] .ab-pn-top::before{ background:linear-gradient(90deg, rgba(6,18,10,.5) 0%, rgba(6,18,10,.22) 55%, rgba(6,18,10,.02) 100%); }
+
+/* ── Peta Masa Depan interaktif ── */
+.pt-hero{ display:flex; align-items:center; gap:14px; }
+.pt-cnt{ flex:1; min-width:0; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.pt-cnt button{ font:inherit; color:inherit; text-align:center; padding:8px 2px; border-radius:13px; border:1.5px solid rgba(128,128,128,.28); background:transparent; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .15s, background .2s; }
+.pt-cnt button:active{ transform:scale(.95); }
+.pt-cnt button.on{ border-color:#d99a0b; background:rgba(244,169,34,.16); }
+.pt-cnt b{ display:block; font-size:18px; font-weight:900; line-height:1.1; }
+.pt-cnt span{ font-size:9px; font-weight:800; opacity:.7; }
+.pt-fs{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.pt-f{ font:inherit; color:inherit; display:flex; flex-direction:column; align-items:center; gap:1px; padding:9px 2px 7px; border-radius:14px; border:1.5px solid rgba(128,128,128,.28); background:transparent; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .15s, background .2s; }
+.pt-f:active{ transform:scale(.95); }
+.pt-f.on{ border-color:#d99a0b; background:linear-gradient(180deg,rgba(244,169,34,.2),rgba(255,209,102,.08)); }
+.pt-f .e{ font-size:20px; line-height:1.1; }
+.pt-f b{ font-size:10.5px; font-weight:900; }
+.pt-f small{ font-size:8.5px; opacity:.65; font-weight:700; }
+.pt-f em{ font-style:normal; font-size:9.5px; font-weight:900; color:#15803d; }
+html.renco-dark .pt-f em{ color:#74c69d; }
+.pt-map svg{ display:block; width:100%; height:auto; overflow:visible; }
+.pt-p0{ fill:none; stroke:currentColor; stroke-opacity:.28; stroke-width:3; stroke-linecap:round; stroke-dasharray:1 7; }
+.pt-p1{ fill:none; stroke:#f4a922; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:1; stroke-dashoffset:0; animation:ptDraw 1.6s cubic-bezier(.3,.7,.2,1) both; filter:drop-shadow(0 1px 2px rgba(244,169,34,.5)); }
+.pt-tk{ stroke:currentColor; stroke-opacity:.14; stroke-dasharray:2 4; }
+.pt-ty{ fill:currentColor; opacity:.6; font-size:9px; font-weight:800; }
+.pt-lb{ fill:currentColor; font-size:10px; font-weight:900; }
+.pt-now{ fill:#2563eb; font-size:8.5px; font-weight:900; }
+.pt-n{ cursor:pointer; transition:opacity .25s; }
+.pt-n .hit{ fill:transparent; }
+.pt-n .halo{ fill:#f4a922; opacity:0; transform-box:fill-box; transform-origin:center; }
+.pt-n .dot{ stroke:#fff; stroke-width:2.2; transition:r .2s; filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.pt-n.s-Selesai .dot{ fill:#16a34a; } .pt-n.s-Berjalan .dot{ fill:#f4a922; } .pt-n.s-Rencana .dot{ fill:#9ca3af; }
+.pt-n.s-Selesai .halo{ fill:#16a34a; } .pt-n.s-Rencana .halo{ fill:#9ca3af; }
+.pt-n .ck{ fill:#fff; font-size:9px; font-weight:900; pointer-events:none; }
+.pt-n.on .halo{ opacity:.28; }
+.pt-n.s-Berjalan .halo{ opacity:.35; animation:ptPulse 1.8s ease-out infinite; }
+.pt-n.dim{ opacity:.2; }
+.pt-lg{ display:flex; justify-content:center; gap:14px; margin-top:2px; font-size:10px; font-weight:800; opacity:.8; }
+.pt-lg i{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
+.pt-lg i.s-Selesai{ background:#16a34a; } .pt-lg i.s-Berjalan{ background:#f4a922; } .pt-lg i.s-Rencana{ background:#9ca3af; }
+.pt-det{ border-left:4px solid #9ca3af; animation:ptIn .35s cubic-bezier(.2,.8,.2,1) both; }
+.pt-det.s-Selesai{ border-left-color:#16a34a; } .pt-det.s-Berjalan{ border-left-color:#f4a922; }
+.pt-dh{ display:flex; align-items:center; gap:8px; }
+.pt-dh .ab-btn{ flex:0 0 auto; padding:7px 13px; font-size:15px; line-height:1; }
+.pt-dt{ flex:1; min-width:0; text-align:center; }
+.pt-dt small{ display:block; font-size:10px; font-weight:800; letter-spacing:.6px; opacity:.65; text-transform:uppercase; }
+.pt-dt b{ display:block; font-size:14px; font-weight:900; line-height:1.3; margin-top:2px; }
+.pt-tl{ position:relative; padding-left:20px; }
+.pt-tl::before{ content:''; position:absolute; left:6px; top:8px; bottom:8px; width:2px; border-radius:2px; background:linear-gradient(180deg,#16a34a,#f4a922 50%,rgba(128,128,128,.4)); }
+.pt-yr{ margin-bottom:10px; }
+.pt-y{ position:relative; display:flex; align-items:baseline; gap:8px; margin-bottom:6px; }
+.pt-y i{ position:absolute; left:-20px; top:3px; width:14px; height:14px; border-radius:50%; background:var(--card,#fff); border:3px solid #d99a0b; box-sizing:border-box; }
+.pt-y b{ font-size:15px; font-weight:900; }
+.pt-y span{ font-size:10px; font-weight:700; opacity:.6; }
+.pt-c{ display:block; width:100%; text-align:left; font:inherit; color:inherit; padding:10px 12px; margin-bottom:6px; border-radius:14px; border:1.5px solid rgba(128,128,128,.22); border-left-width:4px; background:rgba(128,128,128,.06); cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .15s, background .2s, border-color .2s; }
+.pt-c:active{ transform:scale(.985); }
+.pt-c.s-Selesai{ border-left-color:#16a34a; } .pt-c.s-Berjalan{ border-left-color:#f4a922; } .pt-c.s-Rencana{ border-left-color:#9ca3af; }
+.pt-c.on{ background:rgba(244,169,34,.14); border-color:#d99a0b; }
+.pt-c b{ display:block; font-size:12.5px; font-weight:800; line-height:1.3; }
+.pt-c span{ display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
+.pt-c small{ display:block; font-size:10.5px; line-height:1.4; opacity:.7; margin-top:5px; }
+@keyframes ptDraw{ from{ stroke-dashoffset:1; } to{ stroke-dashoffset:0; } }
+@keyframes ptPulse{ 0%{ transform:scale(.7); opacity:.5; } 100%{ transform:scale(1.7); opacity:0; } }
+@keyframes ptIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce){ .pt-p1,.pt-n.s-Berjalan .halo,.pt-det{ animation:none !important; } }
+
+/* ── Indeks Kesejahteraan + survei ── */
+.ik-rd{ display:block; width:100%; max-width:300px; margin:0 auto; overflow:visible; }
+.rd-g{ fill:none; stroke:currentColor; stroke-opacity:.18; stroke-width:1; }
+.rd-c{ fill:rgba(26,102,64,.3); stroke:#1a6640; stroke-width:2; stroke-linejoin:round; }
+html.renco-dark .rd-c{ fill:rgba(244,214,122,.25); stroke:#f4d67a; }
+.rd-p{ fill:none; stroke:#9ca3af; stroke-width:1.6; stroke-dasharray:4 3; }
+.ik-dim{ display:flex; align-items:center; gap:10px; margin:9px 0; }
+.ik-dim .ic{ flex:0 0 32px; height:32px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; background:rgba(128,128,128,.12); }
+.ik-dim .m{ flex:1; min-width:0; }
+.ik-dim .r{ display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:12px; }
+.ik-dim .r span{ font-weight:900; font-size:13px; }
+.ik-dim .ab-bar{ margin:4px 0 0; }
+.ik-dl{ font-size:9.5px; font-weight:800; padding:1px 6px; border-radius:99px; background:rgba(128,128,128,.16); }
+.ik-dl.up{ background:rgba(22,163,74,.16); color:#15803d; } .ik-dl.dn{ background:rgba(230,57,70,.15); color:#e63946; }
+.sv-dh{ margin:14px 0 2px; font-size:11px; font-weight:900; letter-spacing:.8px; opacity:.85; }
+.sv-q{ padding:10px 0 12px; border-bottom:1px solid rgba(128,128,128,.18); }
+.sv-q p{ margin:0 0 9px; font-size:12.5px; font-weight:700; line-height:1.5; }
+.sv-lk{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+.ab-lk{ font:inherit; font-size:14px; font-weight:900; padding:11px 0; border-radius:12px; border:1.5px solid rgba(128,128,128,.35); background:transparent; color:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .12s, background .15s; }
+.ab-lk:active{ transform:scale(.92); }
+.ab-lk.on{ background:#1a6640; color:#fff; border-color:#1a6640; }
+html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d67a; }
+.sv-prog{ position:sticky; top:-16px; z-index:3; margin:-16px -16px 6px; padding:16px 16px 8px; background:var(--card,#fff); border-bottom:1px solid rgba(128,128,128,.2); }
+.sv-lg{ font-size:9.5px; font-weight:700; opacity:.65; margin:4px 0; }
+.sv-cnt{ display:flex; align-items:center; gap:8px; font-size:11px; font-weight:900; }
+.sv-cnt .ab-bar{ flex:1; margin:0; }
 </style>
 <script id="asetBersamaJS">
 (function(){
@@ -82842,6 +82951,7 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
   function supDarurat(){ return '<button type="button" class="ab-sup-c" onclick="try{navTo(\'takaful\')}catch(e){}"><div class="ic">🆘</div><b>Takaful Darurat</b><span>Dana pinjaman tanpa bunga untuk kebutuhan mendesak anggota.</span></button>'; }
   var PIL = { jariyah:{ ic:'🌳', g:'linear-gradient(135deg,#0f3d33,#1f7a5c)', n:'Lapangan Renco · Sampah · Gumi · Dana Abadi', act:'lap' }, koperasi:{ ic:'🏛️', g:'linear-gradient(135deg,#7a4a00,#d4a017)', n:'Wirausaha Renco', act:'umkm' }, takaful:{ ic:'🤲', g:'linear-gradient(135deg,#8a3b12,#d9772b)', n:'Takaful Darurat · Takaful Peduli', act:null }, gakure:{ ic:'🎓', g:'linear-gradient(135deg,#1c3a6b,#3b6fb5)', n:'Pendidikan dan Beasiswa · Perpustakaan', act:'edu' } };
   var ST = { cat:null, edu:{ tab:'ring', q:'', st:'all', prog:'menu' }, hz:{ tab:'ring', q:'', st:'all' }, sp:{ tab:'pusat', st:'all' }, gm:{ tab:'pusat' }, lapTab:'target', bk:{ tab:'ring', q:'', sort:'new' }, um:{ tab:'ring', q:'', st:'all', bd:'' }, pos:{ lap:{fx:.94,fy:.84}, buku:{fx:.93,fy:.8}, umkm:{fx:.93,fy:.8}, edu:{fx:.93,fy:.8}, sampah:{fx:.93,fy:.8}, gumi:{fx:.93,fy:.8} }, act:'lap', tab:'target', pesertaId:null, open:false, fx:.94, fy:.84 };
+  ST.pt = { sel:'', st:'all', fase:'all', pil:'all' }; ST.ik = { tab:'ring', per:'' }; ST.un = { tab:'ring' };
   var FIELD = '<svg class="ab-field" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">'
     + '<defs><linearGradient id="abFg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#37913f"/><stop offset="1" stop-color="#256b30"/></linearGradient></defs>'
     + '<rect width="400" height="200" fill="url(#abFg)"/>'
@@ -82871,7 +82981,7 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
     if (!Array.isArray(d.buku)) d.buku = [];
     if (!Array.isArray(d.isu)) d.isu = [];
     if (!Array.isArray(d.gumiLap)) d.gumiLap = [];
-    ['danaAbadi','peta','indeks','cakrawala','danaProg'].forEach(function(k){ if (!Array.isArray(d[k])) d[k] = []; });
+    ['danaAbadi','peta','indeks','cakrawala','danaProg','unitProg','svPeriode','svTanya','svJawab'].forEach(function(k){ if (!Array.isArray(d[k])) d[k] = []; });
     if (typeof s.targetDanaAbadi !== 'number' || !(s.targetDanaAbadi >= 0)) s.targetDanaAbadi = 0;
     ['targetPohon','targetAir','targetKebun'].forEach(function(k){ if (typeof s[k] !== 'number' || !(s[k] >= 0)) s[k] = 0; });
     if (!(s.targetBuku > 0)) s.targetBuku = 1000;
@@ -83055,6 +83165,7 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
     gumi:   { ic:'🌍', t:'Gumi Renco' },
     peduli: { ic:'🤝', t:'Takaful Peduli' }
   };
+  function dpOf(k){ if (DP[k]) return DP[k]; var u = D().unitProg.filter(function(x){ return x.id === k; })[0]; return u ? { ic:u.ic || '🌱', t:u.nama } : null; }
   function dpStat(k){
     var a = 0, b = 0, pay = 0;
     D().danaProg.forEach(function(x){
@@ -83065,7 +83176,7 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
     return { masuk:a, keluar:b, saldo:a - b, pay:pay };
   }
   function dpH(k){
-    var m = DP[k], S = dpStat(k), h = '';
+    var m = dpOf(k) || { ic:'💰', t:'Program' }, S = dpStat(k), h = '';
     h += '<div class="ab-card"><h4>💰 Dana ' + m.t + (adm() ? '<button class="ab-btn" onclick="_abForm(\'danaProg\',\'' + k + '\')">＋ Catat</button>' : '') + '</h4>'
       + '<div class="ab-lbl">Saldo dana program</div><div class="ab-big" style="font-size:22px">' + rp(S.saldo) + '</div>'
       + '<div class="ab-note" style="margin-top:6px">Anggota bisa mendanai program ini dari <b>RencoPay › Vision 2045</b>. Setiap pendanaan otomatis tercatat di sini.</div></div>';
@@ -83342,9 +83453,469 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
       + '<details><summary>⚖️ Ketentuan Kepemilikan</summary><div class="in">' + (adm() ? '<button class="ab-btn" style="margin-bottom:6px" onclick="_abForm(\'ketentuan\')">✏️ Ubah</button>' : '')
       + (d.ketentuan ? '<div class="ab-note" style="white-space:pre-wrap;font-size:12px;opacity:.9">' + esc(d.ketentuan) + '</div>' : '<div class="ab-note">Ketentuan kepemilikan belum diisi pengurus.</div>') + '</div></details>';
   }
-  var VIEWS = { peduli: function(){ return dpH('peduli'); }, dana: vDana, peta: vPeta, indeks: vIndeks, gumi: vGumi, sampah: vSampah, edu: vEdu, target: vTarget, cicilan: vCicilan, progres: vProgres, buku: vBuku, umkm: vUmkm, laporan: vLaporan };
+  /* ═════════════════════════════════════════════════════════════════
+     UNIT PROGRAM BARU PER PILAR (admin) · PETA MASA DEPAN interaktif ·
+     INDEKS KESEJAHTERAAN + formulir survei
+     ═════════════════════════════════════════════════════════════════ */
+  var PILAR_NAMA = { jariyah:'Aren Jariyah', koperasi:'Koperasi Renco', takaful:'Renco Takaful', gakure:'Renco Gakure' };
+  var UNIT_ST = ['Aktif', 'Selesai', 'Nonaktif'];
+  function unitById(id){ return D().unitProg.filter(function(u){ return u.id === id; })[0] || null; }
+  function unitList(cat){ return D().unitProg.filter(function(u){ return u.cat === cat && (adm() || u.status !== 'Nonaktif'); }); }
+  function unitCount(cat){ return D().unitProg.filter(function(u){ return u.cat === cat && u.status !== 'Nonaktif'; }).length; }
+  function unitCountTxt(cat){ var n = unitCount(cat); return n ? ' · +' + n + ' unit' : ''; }
+  function unitCap(u){ return (u.kemajuan || []).reduce(function(a, x){ return a + (+x.jumlah || 0); }, 0); }
+  function barNow(p, cls){ return '<div class="ab-bar ' + (cls || '') + '"><i style="width:' + Math.max(0, Math.min(100, p)).toFixed(1) + '%"></i></div>'; }
+  function ucls(st){ return st === 'Aktif' ? 'lunas' : st === 'Selesai' ? 'sebagian' : 'belum'; }
+
+  function unitTile(u){
+    var T = +u.target || 0, cap = unitCap(u), pc = T > 0 ? Math.min(100, cap / T * 100) : null;
+    return `<button type="button" class="ab-ut${u.status === 'Nonaktif' ? ' off' : ''}" style="--g:${PIL[u.cat].g}" onclick="_abUnit('${esc(u.id)}')">
+      <span class="ic">${esc(u.ic || '🌱')}</span>
+      <span class="tx"><b>${esc(u.nama)}</b><small>${esc(u.tagline || PILAR_NAMA[u.cat])}</small>${pc !== null ? `<span class="pb"><i style="width:${pc.toFixed(1)}%"></i></span><small>${numId(cap)} / ${numId(T)}${u.satuan ? ' ' + esc(u.satuan) : ''} · ${pc.toFixed(0)}%</small>` : ''}</span>
+      ${u.status !== 'Aktif' ? `<span class="st">${esc(u.status)}</span>` : ''}</button>`;
+  }
+  function unitsH(cat){
+    var L = unitList(cat);
+    if (!L.length && !adm()) return '';
+    return `<div class="ab-ut-h"><span>UNIT PROGRAM TAMBAHAN</span>${adm() ? `<button type="button" class="ab-btn" onclick="_abUnitForm('','${cat}')">＋ Unit Program</button>` : ''}</div>`
+      + (L.length ? `<div class="ab-ut-g">${L.map(unitTile).join('')}</div>` : '<div class="ab-note" style="margin:0 2px">Belum ada unit program tambahan di pilar ini. Ketuk “＋ Unit Program” untuk menambahkan.</div>');
+  }
+  window._abUnit = function(id){ closePop(); ST.tab = id; ST.un.tab = 'ring'; ST.open = true; renderPanel(); };
+  window._abUnitForm = function(id, cat){
+    if (!adm()) return;
+    var d = D(), u = id ? unitById(id) : null;
+    sheet(u ? 'Ubah Unit Program' : 'Tambah Unit Program', [
+      { k:'cat', l:'Pilar', type:'select', v:u ? u.cat : (cat || 'jariyah'), opts:Object.keys(PILAR_NAMA).map(function(k){ return [k, PILAR_NAMA[k]]; }) },
+      { k:'nama', l:'Nama unit program', v:u ? u.nama : '', ph:'mis. Posyandu Renco' },
+      { k:'ic', l:'Ikon (satu emoji)', v:u ? u.ic : '🌱' },
+      { k:'tagline', l:'Tagline singkat (opsional)', v:u ? u.tagline : '' },
+      { k:'uraian', l:'Deskripsi program (opsional)', type:'textarea', v:u ? u.uraian : '' },
+      { k:'target', l:'Target capaian (angka, opsional)', type:'number', v:u && u.target ? u.target : '' },
+      { k:'satuan', l:'Satuan target (opsional)', v:u ? u.satuan : '', ph:'mis. keluarga, pohon, kegiatan' },
+      { k:'status', l:'Status (hanya “Aktif” yang menerima pendanaan)', type:'select', v:u ? u.status : 'Aktif', opts:UNIT_ST.map(function(x){ return [x, x]; }) }
+    ], function(o){
+      if (!need(o, ['nama'])) return false;
+      var rec = u || { id:'u_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), kemajuan:[], dibuat:today() };
+      rec.cat = PILAR_NAMA[o.cat] ? o.cat : 'jariyah'; rec.nama = o.nama.trim(); rec.ic = String(o.ic || '').trim() || '🌱';
+      rec.tagline = o.tagline.trim(); rec.uraian = o.uraian.trim(); rec.target = Math.max(0, +o.target || 0); rec.satuan = o.satuan.trim();
+      rec.status = UNIT_ST.indexOf(o.status) >= 0 ? o.status : 'Aktif';
+      if (!u) d.unitProg.push(rec);
+    });
+  };
+  window._abUnitDel = function(id){
+    if (!adm()) return;
+    var d = D(), u = unitById(id); if (!u) return;
+    if (d.danaProg.some(function(x){ return x.prog === id; })) { alert('Unit ini sudah memiliki catatan dana, jadi tidak bisa dihapus. Ubah statusnya menjadi Nonaktif agar tidak tampil dan tidak menerima pendanaan baru.'); return; }
+    if (!confirm('Hapus unit program "' + u.nama + '"?')) return;
+    d.unitProg = d.unitProg.filter(function(x){ return x.id !== id; });
+    closePanel(); save(); render();
+  };
+  window._abUnitLap = function(id){
+    if (!adm()) return;
+    var u = unitById(id); if (!u) return;
+    sheet('Catat Kemajuan — ' + u.nama, [
+      { k:'tanggal', l:'Tanggal', type:'date', v:today() },
+      { k:'jumlah', l:'Capaian baru' + (u.satuan ? ' (' + u.satuan + ')' : '') + ' — boleh 0 bila hanya laporan', type:'number', v:'' },
+      { k:'ket', l:'Kegiatan / keterangan', type:'textarea', v:'' }
+    ], function(o){
+      if (!need(o, ['ket'])) return false;
+      (u.kemajuan = u.kemajuan || []).push({ id: uidx(), tanggal: o.tanggal || today(), jumlah: Math.max(0, +o.jumlah || 0), ket: o.ket.trim(), oleh: me() });
+    });
+  };
+  window._abUnitLapDel = function(id, rid){
+    if (!adm() || !confirm('Hapus catatan kemajuan ini?')) return;
+    var u = unitById(id); if (!u) return;
+    u.kemajuan = (u.kemajuan || []).filter(function(x){ return x.id !== rid; });
+    save(); render();
+  };
+  function vUnit(u){
+    var T = +u.target || 0, cap = unitCap(u), pc = T > 0 ? Math.min(100, cap / T * 100) : 0, tab = ST.un.tab || 'ring', K = (u.kemajuan || []).slice();
+    K.sort(function(a, b){ return String(b.tanggal || '').localeCompare(String(a.tanggal || '')); });
+    var h = `<div class="ab-card" style="text-align:center"><div style="font-size:36px;line-height:1.2">${esc(u.ic || '🌱')}</div>
+      <h4 style="justify-content:center;margin-top:4px">${esc(u.nama)}</h4><div class="ab-note" style="margin-top:4px">${esc(u.tagline || '')}</div>
+      <div style="margin-top:8px"><span class="ab-chip ${ucls(u.status)}">${esc(u.status)}</span> <span class="ab-chip belum">${esc(PILAR_NAMA[u.cat])}</span></div>
+      ${adm() ? `<div style="display:flex;gap:6px;justify-content:center;margin-top:10px"><button class="ab-btn o" onclick="_abUnitForm('${esc(u.id)}')">✏️ Ubah</button><button class="ab-btn r" onclick="_abUnitDel('${esc(u.id)}')">Hapus</button></div>` : ''}</div>`;
+    h += tabsH('un', [['ring', '📊 Ringkasan'], ['lap', '📝 Kemajuan'], ['dana', '💰 Dana']], tab);
+    if (tab === 'dana') return h + dpH(u.id);
+    if (tab === 'lap') {
+      h += `<div class="ab-card"><h4>Kegiatan &amp; Kemajuan${adm() ? `<button class="ab-btn" onclick="_abUnitLap('${esc(u.id)}')">＋ Catat</button>` : ''}</h4>
+        <div class="ab-note">${K.length} catatan · total capaian ${numId(cap)}${u.satuan ? ' ' + esc(u.satuan) : ''}</div></div>`;
+      h += K.map(function(x){
+        return `<details class="ab-it"><summary><div class="t">📌 ${esc(String(x.ket).slice(0, 60))}${String(x.ket).length > 60 ? '…' : ''}</div><div class="s">${tgl(x.tanggal)}${+x.jumlah ? ' · +' + numId(x.jumlah) + (u.satuan ? ' ' + esc(u.satuan) : '') : ''}</div></summary><div class="in">
+          <dl class="ab-dl"><dt>Tanggal</dt><dd>${tgl(x.tanggal)}</dd><dt>Capaian</dt><dd>${numId(x.jumlah)}${u.satuan ? ' ' + esc(u.satuan) : ''}</dd><dt>Keterangan</dt><dd>${esc(x.ket)}</dd><dt>Dicatat oleh</dt><dd>${esc(x.oleh || '-')}</dd></dl>
+          ${adm() ? `<button class="ab-btn r" onclick="_abUnitLapDel('${esc(u.id)}','${esc(x.id)}')">Hapus</button>` : ''}</div></details>`;
+      }).join('') || '<div class="ab-note">Belum ada catatan kemajuan.</div>';
+      return h;
+    }
+    if (T > 0) {
+      h += `<div class="ab-card"><h4>🎯 Target Capaian</h4><div style="display:flex;align-items:center;gap:14px"><div class="ab-ring" data-p="${pc.toFixed(1)}"><span>${pc.toFixed(0)}%</span></div>
+        <div style="flex:1;min-width:0"><div class="ab-lbl">Tercapai</div><div class="ab-big">${numId(cap)}</div><div class="ab-note">dari target ${numId(T)}${u.satuan ? ' ' + esc(u.satuan) : ''}</div></div></div></div>`;
+    } else {
+      h += `<div class="ab-card"><h4>📈 Kemajuan</h4><div class="ab-big">${K.length}</div><div class="ab-note">catatan kegiatan. Target capaian belum diatur${adm() ? ' (ketuk “Ubah” untuk menambahkannya)' : ''}.</div></div>`;
+    }
+    if (u.uraian) h += `<div class="ab-card"><h4>Tentang Program</h4><div class="ab-note" style="font-size:12px;opacity:.9;white-space:pre-line">${esc(u.uraian)}</div></div>`;
+    h += `<div class="ab-card"><h4>🤝 Cara Mendukung</h4><div class="ab-note">${u.status === 'Aktif' ? 'Buka <b>RencoPay › Vision 2045 › ' + esc(PILAR_NAMA[u.cat]) + '</b> lalu pilih <b>' + esc(u.nama) + '</b> untuk mendanai program ini.' : 'Program ini sedang tidak menerima pendanaan baru.'}</div></div>`;
+    return h;
+  }
+
+  /* ═══ PETA MASA DEPAN — interaktif ═══ */
+  var FASE = [
+    { k:'f1', t:'Fondasi', y0:2026, y1:2030, ic:'🌱' }, { k:'f2', t:'Tumbuh', y0:2031, y1:2035, ic:'🌿' },
+    { k:'f3', t:'Mandiri', y0:2036, y1:2040, ic:'🌳' }, { k:'f4', t:'Warisan', y0:2041, y1:2045, ic:'🌅' }
+  ];
+  function faseOf(y){ y = +y || 0; for (var i = 0; i < FASE.length; i++) if (y <= FASE[i].y1) return FASE[i]; return FASE[FASE.length - 1]; }
+  function byYear(a, b){ return (+a.tahun || 0) - (+b.tahun || 0); }
+  function petaNow(){ var n = new Date(); return { y: n.getFullYear(), f: n.getFullYear() + n.getMonth() / 12 }; }
+  function petaWgt(x){ return x.status === 'Selesai' ? 1 : x.status === 'Berjalan' ? (x.progres != null && x.progres !== '' ? Math.max(0, Math.min(100, +x.progres || 0)) / 100 : .5) : 0; }
+  function pilChip(k){ return '<span class="ab-chip belum">' + esc(PILAR_NAMA[k] || 'Umum') + '</span>'; }
+  window._abPetaSt = function(id){
+    if (!adm()) return;
+    var x = D().peta.filter(function(u){ return u.id === id; })[0]; if (!x) return;
+    x.status = PETA_S[(PETA_S.indexOf(x.status) + 1) % PETA_S.length];
+    if (x.status === 'Selesai') x.progres = 100;
+    save(); render();
+  };
+  window._abPetaSel = function(id, up){
+    ST.pt.sel = id; renderPanel();
+    if (up) { var b = document.querySelector('.ab-pn-body'); if (b) { try { b.scrollTo({ top: 0, behavior: 'smooth' }); } catch(e) { b.scrollTop = 0; } } }
+  };
+  window._abPetaGo = function(cat){ closePanel(); if (PILAR_NAMA[cat]) window._abCat(cat); };
+  window._abPetaSeed = function(){
+    if (!adm() || D().peta.length) return;
+    var S = [
+      [2026, 'Peluncuran Renco Vision 2045', 'Pilar, program, dan struktur gerakan diperkenalkan kepada seluruh warga.', 'Berjalan', '', 50],
+      [2027, 'Dana Abadi Renco mulai terkumpul', 'Setoran rutin warga membentuk fondasi dana jangka panjang.', 'Rencana', 'jariyah', null],
+      [2028, 'Gerakan 1000 Buku tercapai', 'Perpustakaan Renco menjadi ruang baca bersama.', 'Rencana', 'gakure', null],
+      [2029, 'Gerakan 100 UMKM Baru tercapai', 'Wirausaha Renco tumbuh dengan modal dan pembinaan.', 'Rencana', 'koperasi', null],
+      [2030, 'Tanah Lapangan Renco terbeli', 'Aset bersama pertama sesuai target 2030.', 'Rencana', 'jariyah', null],
+      [2035, 'Satu Rumah Satu Sarjana terwujud', 'Target 100 sarjana Renco lewat beasiswa.', 'Rencana', 'gakure', null],
+      [2040, 'Dana Abadi menopang program', 'Hasil dana abadi membiayai kegiatan secara berkelanjutan.', 'Rencana', 'jariyah', null],
+      [2045, 'Renco Vision 2045: warisan untuk generasi', 'Kemandirian ekonomi, solidaritas, lingkungan, dan pendidikan yang terjaga.', 'Rencana', '', null]
+    ];
+    S.forEach(function(r){ D().peta.push({ id: uidx(), tahun: r[0], judul: r[1], uraian: r[2], status: r[3], pilar: r[4], progres: r[5] }); });
+    save(); render();
+  };
+  function petaMapH(all, F, selId){
+    var W = 340, H = 160, PX = 26, nw = petaNow();
+    var ys = all.map(function(x){ return +x.tahun || 0; });
+    var y0 = Math.min(2026, Math.min.apply(null, ys)), y1 = Math.max(2045, Math.max.apply(null, ys));
+    function tOf(y){ return (y - y0) / (y1 - y0); }
+    function px(t){ return PX + t * (W - 2 * PX); }
+    function py(t){ return 106 - 56 * t + 15 * Math.sin(t * Math.PI * 3.2); }
+    var N = 70, tN = Math.max(0, Math.min(1, tOf(nw.f))), full = '', done = '';
+    for (var i = 0; i <= N; i++) { var t = i / N; full += (i ? ' L' : 'M') + px(t).toFixed(1) + ' ' + py(t).toFixed(1); if (t <= tN) done += (done ? ' L' : 'M') + px(t).toFixed(1) + ' ' + py(t).toFixed(1); }
+    if (tN > 0) done += (done ? ' L' : 'M') + px(tN).toFixed(1) + ' ' + py(tN).toFixed(1);
+    var ticks = [y0, 2030, 2035, 2040, y1].filter(function(y, i, a){ return y >= y0 && y <= y1 && a.indexOf(y) === i; });
+    var o = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Jalur tahapan menuju 2045">';
+    ticks.forEach(function(y){ var x = px(tOf(y)); o += '<line x1="' + x.toFixed(1) + '" y1="14" x2="' + x.toFixed(1) + '" y2="142" class="pt-tk"/><text x="' + x.toFixed(1) + '" y="154" text-anchor="middle" class="pt-ty">' + y + '</text>'; });
+    o += '<path d="' + full + '" class="pt-p0"/>';
+    if (done) o += '<path d="' + done + '" pathLength="1" class="pt-p1"/>';
+    o += '<text x="' + (px(1) - 4).toFixed(1) + '" y="' + (py(1) - 14).toFixed(1) + '" text-anchor="middle" font-size="16">🏁</text>';
+    var byY = {}; all.forEach(function(x){ (byY[x.tahun] = byY[x.tahun] || []).push(x); });
+    var inF = {}; F.forEach(function(x){ inF[x.id] = 1; });
+    var selNode = '';
+    all.forEach(function(x){
+      var arr = byY[x.tahun], k = arr.indexOf(x), n = arr.length, t = Math.max(.012, Math.min(.988, tOf(+x.tahun || y0) + (k - (n - 1) / 2) * .024)), X = px(t), Y = py(t), on = x.id === selId;
+      var g = '<g class="pt-n s-' + esc(x.status) + (on ? ' on' : '') + (inF[x.id] ? '' : ' dim') + '" transform="translate(' + X.toFixed(1) + ' ' + Y.toFixed(1) + ')" onclick="_abPetaSel(\'' + esc(x.id) + '\')" role="button" aria-label="' + esc(x.tahun + ' ' + x.judul) + '"><circle class="hit" r="16"/><circle class="halo" r="12"/><circle class="dot" r="' + (on ? 9.5 : 7.5) + '"/>'
+        + (x.status === 'Selesai' ? '<text class="ck" y="3.2" text-anchor="middle">✓</text>' : '') + '<title>' + esc(x.tahun + ' · ' + x.judul) + '</title></g>';
+      if (on) { selNode = g + '<text x="' + Math.max(18, Math.min(W - 18, X)).toFixed(1) + '" y="' + (Y - 17).toFixed(1) + '" text-anchor="middle" class="pt-lb">' + esc(x.tahun) + '</text>'; } else o += g;
+    });
+    o += selNode;
+    if (tN > 0 && tN < 1) o += '<g transform="translate(' + px(tN).toFixed(1) + ' ' + py(tN).toFixed(1) + ')"><path d="M0 0 L-4 -9 L4 -9Z" fill="#2563eb"/><text y="-12" text-anchor="middle" class="pt-now">Kini</text></g>';
+    return o + '</svg>';
+  }
+  function vPeta(){
+    var m = curMenu(), all = D().peta.slice().sort(byYear), P = ST.pt, h = supHead(m), nw = petaNow();
+    if (!all.length) {
+      return h + `<div class="ab-card" style="text-align:center"><div style="font-size:40px">🧭</div><h4 style="justify-content:center">Peta belum diisi</h4>
+        <div class="ab-note">${adm() ? 'Tambahkan tahapan pertama, atau muat contoh tahapan lalu ubah sesuai rencana pengurus.' : 'Pengurus belum menambahkan tahapan menuju 2045.'}</div>
+        ${adm() ? `<div style="display:flex;gap:8px;justify-content:center;margin-top:10px"><button class="ab-btn" onclick="_abForm('peta')">＋ Tahapan</button><button class="ab-btn o" onclick="_abPetaSeed()">Isi contoh tahapan</button></div>` : ''}</div>`;
+    }
+    var cnt = { Selesai:0, Berjalan:0, Rencana:0 }; all.forEach(function(x){ cnt[x.status] = (cnt[x.status] || 0) + 1; });
+    var pc = all.reduce(function(a, x){ return a + petaWgt(x); }, 0) / all.length * 100, yl = 2045 - nw.y;
+    var sel = all.filter(function(x){ return x.id === P.sel; })[0];
+    if (!sel) { sel = all.filter(function(x){ return x.status === 'Berjalan'; })[0] || all.filter(function(x){ return x.status === 'Rencana'; })[0] || all[0]; P.sel = sel.id; }
+    var F = all.filter(function(x){ return (P.st === 'all' || x.status === P.st) && (P.fase === 'all' || faseOf(x.tahun).k === P.fase) && (P.pil === 'all' || (x.pilar || 'umum') === P.pil); });
+    /* ringkasan */
+    h += `<div class="ab-card"><div class="pt-hero"><div class="ab-ring" data-p="${pc.toFixed(1)}"><span>${pc.toFixed(0)}%</span></div>
+      <div class="pt-cnt">${['Selesai', 'Berjalan', 'Rencana'].map(function(s){ return `<button type="button" class="${P.st === s ? 'on' : ''}" onclick="_abSet('pt','st','${P.st === s ? 'all' : s}')"><b>${cnt[s]}</b><span>${s}</span></button>`; }).join('')}</div></div>
+      <div class="ab-note" style="margin-top:8px">${yl > 0 ? yl + ' tahun lagi menuju 2045' : 'Tahun 2045 telah tiba'} · ${all.length} tahapan · tahapan “Berjalan” dihitung setengah bila belum ada persentase progres. Ketuk angka untuk menyaring.</div></div>`;
+    /* fase */
+    h += `<div class="ab-card"><h4>Fase Perjalanan</h4><div class="pt-fs">${FASE.map(function(f){
+      var it = all.filter(function(x){ return faseOf(x.tahun).k === f.k; }), dn = it.filter(function(x){ return x.status === 'Selesai'; }).length;
+      return `<button type="button" class="pt-f${P.fase === f.k ? ' on' : ''}" onclick="_abSet('pt','fase','${P.fase === f.k ? 'all' : f.k}')"><span class="e">${f.ic}</span><b>${f.t}</b><small>${f.y0}–${f.y1}</small><em>${dn}/${it.length}</em></button>`;
+    }).join('')}</div></div>`;
+    /* filter pilar */
+    h += '<div class="ab-fchips">' + [['all', 'Semua pilar'], ['umum', 'Umum']].concat(Object.keys(PILAR_NAMA).map(function(k){ return [k, PILAR_NAMA[k]]; })).map(function(o){
+      return `<button type="button" class="ab-tab${P.pil === o[0] ? ' on' : ''}" onclick="_abSet('pt','pil','${o[0]}')">${o[1]}</button>`;
+    }).join('') + '</div>';
+    /* peta jalur */
+    h += `<div class="ab-card pt-map"><h4>🗺️ Jalur Menuju 2045${adm() ? '<button class="ab-btn" onclick="_abForm(\'peta\')">＋ Tahapan</button>' : ''}</h4>${petaMapH(all, F, sel.id)}
+      <div class="pt-lg"><span><i class="s-Selesai"></i>Selesai</span><span><i class="s-Berjalan"></i>Berjalan</span><span><i class="s-Rencana"></i>Rencana</span></div>
+      <div class="ab-note" style="margin-top:4px">Ketuk titik pada jalur untuk melihat tahapannya.</div></div>`;
+    /* detail terpilih */
+    var nav = F.length ? F : all, ni = nav.indexOf(sel), prv = ni > 0 ? nav[ni - 1] : null, nxt = ni >= 0 && ni < nav.length - 1 ? nav[ni + 1] : (ni < 0 ? nav[0] : null);
+    var yrs = (+sel.tahun || 0) - nw.y, when = yrs > 0 ? yrs + ' tahun lagi' : yrs === 0 ? 'tahun ini' : Math.abs(yrs) + ' tahun lalu';
+    var prg = sel.status === 'Selesai' ? 100 : (sel.progres != null && sel.progres !== '' ? Math.max(0, Math.min(100, +sel.progres || 0)) : null), fs = faseOf(sel.tahun);
+    h += `<div class="ab-card pt-det s-${esc(sel.status)}"><div class="pt-dh"><button type="button" class="ab-btn o" ${prv ? `onclick="_abPetaSel('${esc(prv.id)}')"` : 'disabled style="opacity:.35"'} aria-label="Tahapan sebelumnya">‹</button>
+      <div class="pt-dt"><small>${esc(sel.tahun)} · ${when}</small><b>${esc(sel.judul)}</b></div>
+      <button type="button" class="ab-btn o" ${nxt ? `onclick="_abPetaSel('${esc(nxt.id)}')"` : 'disabled style="opacity:.35"'} aria-label="Tahapan berikutnya">›</button></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0">${petaChip(sel.status)} ${pilChip(sel.pilar)} <span class="ab-chip belum">${fs.ic} ${fs.t}</span></div>
+      ${prg !== null ? `<div class="ab-note">Progres ${prg.toFixed(0)}%</div>${bar(prg, 'g')}` : ''}
+      <div class="ab-note" style="font-size:12px;opacity:.9;margin-top:6px;white-space:pre-line">${esc(sel.uraian || 'Belum ada uraian untuk tahapan ini.')}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${sel.pilar && PILAR_NAMA[sel.pilar] ? `<button class="ab-btn o" onclick="_abPetaGo('${esc(sel.pilar)}')">Buka pilar ›</button>` : ''}
+      ${adm() ? `<button class="ab-btn o" onclick="_abPetaSt('${esc(sel.id)}')">Ubah status</button><button class="ab-btn o" onclick="_abForm('peta','${esc(sel.id)}')">✏️ Ubah</button><button class="ab-btn r" onclick="_abDel('peta','${esc(sel.id)}')">Hapus</button>` : ''}</div></div>`;
+    /* garis waktu */
+    var Y = {}, yo = []; F.forEach(function(x){ var k = +x.tahun || 0; if (!Y[k]) { Y[k] = []; yo.push(k); } Y[k].push(x); }); yo.sort(function(a, b){ return a - b; });
+    h += `<div class="ab-card"><h4>Garis Waktu <span class="ab-note" style="font-weight:600">${F.length} tahapan</span></h4>${F.length ? `<div class="pt-tl">${yo.map(function(y){
+      return `<div class="pt-yr"><div class="pt-y"><i></i><b>${y}</b><span>${y < nw.y ? 'sudah lewat' : y === nw.y ? 'tahun ini' : (y - nw.y) + ' th lagi'}</span></div>${Y[y].map(function(x){
+        var pg = x.status === 'Selesai' ? 100 : (x.progres != null && x.progres !== '' ? Math.max(0, Math.min(100, +x.progres || 0)) : null);
+        return `<button type="button" class="pt-c s-${esc(x.status)}${x.id === sel.id ? ' on' : ''}" onclick="_abPetaSel('${esc(x.id)}',1)"><b>${esc(x.judul)}</b><span>${petaChip(x.status)} ${pilChip(x.pilar)}</span>${x.uraian ? `<small>${esc(String(x.uraian).slice(0, 80))}${String(x.uraian).length > 80 ? '…' : ''}</small>` : ''}${pg !== null ? barNow(pg, 'g') : ''}</button>`;
+      }).join('')}</div>`;
+    }).join('')}</div>` : '<div class="ab-note">Tidak ada tahapan yang cocok dengan filter.</div>'}</div>`;
+    return h;
+  }
+
+  /* ═══ INDEKS KESEJAHTERAAN — hasil survei, formulir survei, indikator ═══ */
+  var DIM = [
+    { k:'eko', ic:'💰', t:'Ekonomi' }, { k:'edu', ic:'🎓', t:'Pendidikan' }, { k:'kes', ic:'🩺', t:'Kesehatan' },
+    { k:'lin', ic:'🌿', t:'Lingkungan' }, { k:'sos', ic:'🤝', t:'Sosial & Solidaritas' }, { k:'agm', ic:'🕌', t:'Agama & Budaya' }
+  ];
+  var DIM_PROG = {
+    eko:['koperasi', 'Koperasi Renco · Wirausaha Renco'], edu:['gakure', 'Renco Gakure · Pendidikan dan Beasiswa'], kes:['takaful', 'Renco Takaful'],
+    lin:['jariyah', 'Aren Jariyah · Gumi Renco dan Sampah Jadi Berkah'], sos:['takaful', 'Renco Takaful · Takaful Peduli'], agm:['gakure', 'Renco Gakure']
+  };
+  var SKALA = ['Sangat tidak setuju', 'Tidak setuju', 'Cukup', 'Setuju', 'Sangat setuju'];
+  var DEF_Q = [
+    ['eko', 'Penghasilan keluarga saya cukup untuk kebutuhan pokok sebulan.'], ['eko', 'Keluarga saya punya tabungan atau dana cadangan untuk keperluan mendadak.'],
+    ['edu', 'Semua anak usia sekolah di keluarga saya dapat bersekolah tanpa terhambat biaya.'], ['edu', 'Saya atau anggota keluarga punya kesempatan belajar keterampilan baru.'],
+    ['kes', 'Keluarga saya mudah mendapatkan layanan kesehatan saat dibutuhkan.'], ['kes', 'Anggota keluarga saya umumnya sehat dan kebutuhan gizinya terpenuhi.'],
+    ['lin', 'Keluarga saya punya akses air bersih dan sanitasi yang layak.'], ['lin', 'Lingkungan sekitar rumah bersih dan sampahnya terkelola dengan baik.'],
+    ['sos', 'Warga saling membantu ketika ada yang tertimpa musibah.'], ['sos', 'Saya merasa dilibatkan dalam kegiatan dan keputusan warga.'],
+    ['agm', 'Kegiatan keagamaan dan pembinaan generasi muda berjalan baik di lingkungan kami.'], ['agm', 'Budaya dan tradisi baik di Renco terjaga dan diwariskan kepada generasi muda.']
+  ].map(function(x, i){ return { id:'q' + (i + 1), dim:x[0], teks:x[1], aktif:true }; });
+  function dimOf(k){ return DIM.filter(function(x){ return x.k === k; })[0] || DIM[0]; }
+  function svQs(){ var d = D(); return d.svTanya.length ? d.svTanya : DEF_Q; }
+  function svQsAktif(){ return svQs().filter(function(q){ return q.aktif !== false; }); }
+  function svEnsure(){ var d = D(); if (!d.svTanya.length) d.svTanya = DEF_Q.map(function(q){ return { id:q.id, dim:q.dim, teks:q.teks, aktif:true }; }); return d.svTanya; }
+  function svPers(){ return D().svPeriode.slice().sort(function(a, b){ return String(b.mulai || '').localeCompare(String(a.mulai || '')) || String(b.id).localeCompare(String(a.id)); }); }
+  function svPer(id){ return D().svPeriode.filter(function(p){ return p.id === id; })[0] || null; }
+  function svOpen(p){ var t = today(); return p.status !== 'Tutup' && (!p.mulai || t >= p.mulai) && (!p.selesai || t <= p.selesai); }
+  function svAns(pid){ return D().svJawab.filter(function(x){ return x.periode === pid; }); }
+  function svScore(a){ var qs = svQs(), r = { dims:{}, total:null }, tot = 0, tn = 0; DIM.forEach(function(dm){ var s = 0, c = 0; qs.forEach(function(q){ if (q.dim !== dm.k) return; var v = +(a.skor || {})[q.id]; if (v >= 1 && v <= 5) { s += v; c++; } }); if (c) { r.dims[dm.k] = (s / c - 1) / 4 * 100; tot += r.dims[dm.k]; tn++; } }); if (tn) r.total = tot / tn; return r; }
+  function svHasil(pid){
+    var qs = svQs(), A = svAns(pid), dims = {}, tot = 0, tn = 0;
+    DIM.forEach(function(dm){
+      var ids = qs.filter(function(q){ return q.dim === dm.k; }).map(function(q){ return q.id; }), s = 0, c = 0;
+      A.forEach(function(a){ ids.forEach(function(id){ var v = +(a.skor || {})[id]; if (v >= 1 && v <= 5) { s += v; c++; } }); });
+      dims[dm.k] = c ? { s:(s / c - 1) / 4 * 100, c:c } : null;
+      if (dims[dm.k]) { tot += dims[dm.k].s; tn++; }
+    });
+    return { n:A.length, dims:dims, total:tn ? tot / tn : null };
+  }
+  function svKat(s){ return s == null ? '–' : s >= 80 ? 'Sangat Baik' : s >= 60 ? 'Baik' : s >= 40 ? 'Cukup' : 'Perlu Perhatian'; }
+  function svKatCls(s){ return s == null ? 'belum' : s >= 60 ? 'lunas' : s >= 40 ? 'sebagian' : 'terlambat'; }
+  function dltChip(v){ if (v == null || isNaN(v)) return ''; var r = Math.round(v * 10) / 10; return '<span class="ik-dl ' + (r > 0 ? 'up' : r < 0 ? 'dn' : '') + '">' + (r > 0 ? '▲ +' : r < 0 ? '▼ ' : '＝ ') + numId(r) + '</span>'; }
+  window._abGoPilar = function(cat){ closePanel(); window._abCat(cat); };
+  function radarH(R, Rp){
+    var cx = 130, cy = 112, Rr = 78, n = DIM.length;
+    function pt(i, v){ var a = -Math.PI / 2 + i * 2 * Math.PI / n; return [(cx + Math.cos(a) * Rr * v / 100).toFixed(1), (cy + Math.sin(a) * Rr * v / 100).toFixed(1)]; }
+    function poly(res){ return DIM.map(function(dm, i){ return pt(i, res.dims[dm.k] ? res.dims[dm.k].s : 0).join(','); }).join(' '); }
+    var o = '<svg viewBox="0 0 260 224" class="ik-rd" role="img" aria-label="Diagram radar enam dimensi kesejahteraan">';
+    [25, 50, 75, 100].forEach(function(v){ o += '<polygon class="rd-g" points="' + DIM.map(function(dm, i){ return pt(i, v).join(','); }).join(' ') + '"/>'; });
+    DIM.forEach(function(dm, i){ var p = pt(i, 100), q = pt(i, 124); o += '<line class="rd-g" x1="' + cx + '" y1="' + cy + '" x2="' + p[0] + '" y2="' + p[1] + '"/><text x="' + q[0] + '" y="' + (+q[1] + 5) + '" text-anchor="middle" font-size="15">' + dm.ic + '</text>'; });
+    if (Rp) o += '<polygon class="rd-p" points="' + poly(Rp) + '"/>';
+    o += '<polygon class="rd-c" points="' + poly(R) + '"/>';
+    DIM.forEach(function(dm, i){ if (R.dims[dm.k]) { var p = pt(i, R.dims[dm.k].s); o += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3.2" fill="#1a6640"><title>' + esc(dm.t) + ': ' + R.dims[dm.k].s.toFixed(0) + '</title></circle>'; } });
+    return o + '</svg>';
+  }
+  function ikHasil(){
+    var pers = svPers(), WD = pers.filter(function(p){ return svAns(p.id).length; }), h = '';
+    if (!WD.length) {
+      return `<div class="ab-card" style="text-align:center"><div style="font-size:38px">📊</div><h4 style="justify-content:center">Belum ada hasil survei</h4>
+        <div class="ab-note">Indeks dihitung dari jawaban survei warga pada tiap periode. ${pers.length ? 'Ajak anggota mengisi survei yang sedang dibuka.' : (adm() ? 'Buat periode survei pertama di tab Kelola.' : 'Pengurus belum membuka survei.')}</div>
+        <div style="margin-top:10px"><button class="ab-btn" onclick="_abSet('ik','tab','${pers.length || !adm() ? 'sv' : 'kel'}')">${pers.length || !adm() ? '📝 Ke tab Survei' : '⚙️ Ke tab Kelola'}</button></div></div>`;
+    }
+    var cur = WD.filter(function(p){ return p.id === ST.ik.per; })[0] || WD[0]; ST.ik.per = cur.id;
+    var prev = WD[WD.indexOf(cur) + 1] || null, R = svHasil(cur.id), Rp = prev ? svHasil(prev.id) : null, nA = (DB.nasabah || []).length, part = nA ? Math.min(100, R.n / nA * 100) : null;
+    h += '<div class="ab-fchips">' + WD.map(function(p){ return `<button type="button" class="ab-tab${p.id === cur.id ? ' on' : ''}" onclick="_abSet('ik','per','${esc(p.id)}')">${esc(p.nama)}</button>`; }).join('') + '</div>';
+    var tot = R.total == null ? 0 : R.total;
+    h += `<div class="ab-card"><h4>Indeks Kesejahteraan · ${esc(cur.nama)}</h4><div style="display:flex;align-items:center;gap:14px"><div class="ab-ring" data-p="${tot.toFixed(1)}"><span>${tot.toFixed(0)}</span></div>
+      <div style="flex:1;min-width:0"><div class="ab-lbl">Skor 0–100</div><div style="margin:3px 0"><span class="ab-chip ${svKatCls(R.total)}">${svKat(R.total)}</span> ${Rp && Rp.total != null && R.total != null ? dltChip(R.total - Rp.total) : ''}</div>
+      <div class="ab-note">${Rp ? 'Dibanding ' + esc(prev.nama) : 'Pengukuran pertama'}</div></div></div>
+      <div class="ab-grid" style="margin-top:10px"><div class="ab-kv"><span class="ab-lbl">Responden</span><b>${R.n}</b></div><div class="ab-kv"><span class="ab-lbl">Partisipasi</span><b>${part == null ? '–' : part.toFixed(0) + '%'}</b></div></div></div>`;
+    h += `<div class="ab-card"><h4>Peta Enam Dimensi</h4>${radarH(R, Rp)}<div class="ab-note" style="text-align:center">${Rp ? 'Garis putus-putus: ' + esc(prev.nama) + '.' : 'Makin ke tepi, makin baik.'}</div></div>`;
+    h += '<div class="ab-card"><h4>Skor per Dimensi</h4>' + DIM.map(function(dm){
+      var x = R.dims[dm.k], p = Rp && Rp.dims[dm.k] ? Rp.dims[dm.k].s : null;
+      return `<div class="ik-dim"><div class="ic">${dm.ic}</div><div class="m"><div class="r"><b>${dm.t}</b><span>${x ? x.s.toFixed(0) : '–'} ${x && p != null ? dltChip(x.s - p) : ''}</span></div>${bar(x ? x.s : 0, x && x.s >= 60 ? 'g' : '')}</div></div>`;
+    }).join('') + '</div>';
+    var ds = DIM.filter(function(dm){ return R.dims[dm.k]; }).sort(function(a, b){ return R.dims[a.k].s - R.dims[b.k].s; });
+    if (ds.length > 1) {
+      var lo = ds[0], hi = ds[ds.length - 1], dp = DIM_PROG[lo.k];
+      h += `<div class="ab-card"><h4>💡 Prioritas &amp; Kekuatan</h4><div class="ab-note" style="font-size:12px;opacity:.9;line-height:1.55">Dimensi paling perlu perhatian: <b>${lo.ic} ${lo.t}</b> (skor ${R.dims[lo.k].s.toFixed(0)}). Dimensi terkuat: <b>${hi.ic} ${hi.t}</b> (${R.dims[hi.k].s.toFixed(0)}).</div>
+        <div style="margin-top:8px"><button class="ab-btn o" onclick="_abGoPilar('${dp[0]}')">Program terkait: ${esc(dp[1])} ›</button></div></div>`;
+    }
+    if (WD.length > 1) {
+      var tr = WD.slice().reverse().slice(-6), res = tr.map(function(p){ return { p:p, t:svHasil(p.id).total }; });
+      h += `<div class="ab-card"><h4>📈 Tren Antarperiode</h4><div class="ab-spark">${res.map(function(x){ return `<i style="height:${Math.max(8, x.t || 0)}%" title="${esc(x.p.nama)}: ${(x.t || 0).toFixed(0)}"></i>`; }).join('')}</div>
+        <div class="ab-note" style="margin-top:6px">${res.map(function(x){ return esc(x.p.nama) + ' <b>' + (x.t == null ? '–' : x.t.toFixed(0)) + '</b>'; }).join(' · ')}</div></div>`;
+    }
+    return h;
+  }
+  function ikSurvei(){
+    var pers = svPers(), kk = myKK(), h = '', qn = svQsAktif().length;
+    h += `<div class="ab-card"><h4>📝 Survei Kesejahteraan Warga</h4><div class="ab-note" style="font-size:12px;opacity:.88;line-height:1.55">Survei singkat berisi ${qn} pernyataan (± 3 menit) di enam dimensi: ekonomi, pendidikan, kesehatan, lingkungan, sosial, serta agama dan budaya. Jawaban dipakai menghitung Indeks Kesejahteraan; warga hanya melihat hasil rata-rata, bukan jawaban perorangan.</div></div>`;
+    if (!pers.length) return h + `<div class="ab-card"><div class="ab-note">${adm() ? 'Belum ada periode survei. Buat di tab Kelola.' : 'Belum ada survei yang dibuka. Nantikan pengumuman pengurus.'}</div></div>`;
+    pers.forEach(function(p){
+      var A = svAns(p.id), op = svOpen(p), mine = kk ? A.filter(function(x){ return x.pid === kk; })[0] : null;
+      h += `<div class="ab-card"><h4>${esc(p.nama)} <span class="ab-chip ${op ? 'lunas' : 'belum'}">${op ? 'Dibuka' : 'Ditutup'}</span></h4>
+        <div class="ab-note">${p.mulai ? tgl(p.mulai) : 'Sejak awal'}${p.selesai ? ' – ' + tgl(p.selesai) : ''} · ${A.length} responden</div>`;
+      if (kk && !adm()) {
+        if (mine) h += `<div class="ab-note" style="margin-top:8px">✅ Terima kasih, Anda sudah mengisi pada ${tgl(mine.tanggal)}.</div>${op ? `<div style="margin-top:8px"><button class="ab-btn o" onclick="_abSvIsi('${esc(p.id)}')">✏️ Ubah Jawaban Saya</button></div>` : ''}`;
+        else if (op) h += `<div style="margin-top:8px"><button class="ab-btn" onclick="_abSvIsi('${esc(p.id)}')">📝 Isi Survei</button></div>`;
+        else h += '<div class="ab-note" style="margin-top:8px">Periode ini sudah ditutup.</div>';
+      } else if (!adm()) h += '<div class="ab-note" style="margin-top:8px">Survei diisi melalui akun nasabah.</div>';
+      if (adm()) {
+        h += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><button class="ab-btn" onclick="_abSvPilih('${esc(p.id)}')">📝 Isi atas nama anggota</button></div>`;
+        h += `<details class="ab-it" style="margin-top:10px"><summary><div class="t">Daftar responden (${A.length})</div></summary><div class="in">${A.slice().sort(function(a, b){ return String(b.tanggal).localeCompare(String(a.tanggal)); }).map(function(a){
+          var sc = svScore(a);
+          return `<div class="ab-row" style="align-items:flex-start"><div class="l" style="flex:1"><b>${esc(a.nama)}</b><span>${tgl(a.tanggal)}${a.wilayah ? ' · ' + esc(a.wilayah) : ''} · skor ${sc.total == null ? '–' : sc.total.toFixed(0)}</span>${a.catatan ? `<span>“${esc(a.catatan)}”</span>` : ''}</div><button class="ab-btn r" onclick="_abSvAnsDel('${esc(a.id)}')">Hapus</button></div>`;
+        }).join('') || '<div class="ab-note">Belum ada responden.</div>'}</div></details>`;
+      }
+      h += '</div>';
+    });
+    return h;
+  }
+  function ikKelola(){
+    var pers = svPers(), qs = svQs(), h = '';
+    h += `<div class="ab-card"><h4>Periode Survei<button class="ab-btn" onclick="_abSvPerForm()">＋ Periode</button></h4><div class="ab-note">Satu anggota hanya punya satu jawaban per periode; ia bisa mengubahnya selama periode dibuka.</div></div>`;
+    h += pers.map(function(p){
+      var n = svAns(p.id).length, op = svOpen(p);
+      return `<div class="ab-card"><h4>${esc(p.nama)} <span class="ab-chip ${op ? 'lunas' : 'belum'}">${op ? 'Dibuka' : 'Ditutup'}</span></h4><div class="ab-note">${p.mulai ? tgl(p.mulai) : '-'}${p.selesai ? ' – ' + tgl(p.selesai) : ''} · ${n} responden</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><button class="ab-btn o" onclick="_abSvPerTg('${esc(p.id)}')">${p.status === 'Tutup' ? 'Buka' : 'Tutup'} periode</button><button class="ab-btn o" onclick="_abSvPerForm('${esc(p.id)}')">✏️ Ubah</button><button class="ab-btn o" onclick="_abSvCsv('${esc(p.id)}')">⬇️ CSV</button><button class="ab-btn r" onclick="_abSvPerDel('${esc(p.id)}')">Hapus</button></div></div>`;
+    }).join('') || '<div class="ab-note" style="margin:0 2px 10px">Belum ada periode.</div>';
+    h += `<div class="ab-card"><h4>Pertanyaan Survei<button class="ab-btn" onclick="_abSvTanyaForm()">＋ Pertanyaan</button></h4><div class="ab-note">Pertanyaan nonaktif tidak muncul di formulir, tetapi jawaban lama tetap dihitung. Skala jawaban 1–5 (sangat tidak setuju sampai sangat setuju).${D().svTanya.length ? '' : ' Saat ini memakai pertanyaan bawaan.'}</div></div>`;
+    DIM.forEach(function(dm){
+      var L = qs.filter(function(q){ return q.dim === dm.k; });
+      h += `<div class="ab-card"><h4>${dm.ic} ${dm.t}</h4>${L.map(function(q){
+        return `<div class="ab-row" style="align-items:flex-start"><div class="l" style="flex:1"><b style="${q.aktif === false ? 'opacity:.5;text-decoration:line-through' : ''}">${esc(q.teks)}</b></div><div style="display:flex;gap:4px"><button class="ab-btn o" onclick="_abSvTanyaTg('${esc(q.id)}')">${q.aktif === false ? 'Aktifkan' : 'Nonaktif'}</button><button class="ab-btn r" onclick="_abSvTanyaDel('${esc(q.id)}')">✕</button></div></div>`;
+      }).join('') || '<div class="ab-note">Belum ada pertanyaan.</div>'}</div>`;
+    });
+    return h;
+  }
+  function vIndeksX(){
+    var m = curMenu(), tab = ST.ik.tab || 'ring', h = supHead(m);
+    h += tabsH('ik', [['ring', '📊 Hasil'], ['sv', '📝 Survei'], ['ind', '📌 Indikator']].concat(adm() ? [['kel', '⚙️ Kelola']] : []), tab);
+    return h + (tab === 'sv' ? ikSurvei() : tab === 'ind' ? vIndikator() : tab === 'kel' && adm() ? ikKelola() : ikHasil());
+  }
+  /* — formulir survei (lembar isian) — */
+  window._abSvIsi = function(pid, kkId){
+    var d = D(), per = svPer(pid); if (!per) return;
+    var kk = kkId || myKK();
+    if (!kk) { alert('Survei ini diisi oleh akun nasabah.'); return; }
+    if (!adm() && !svOpen(per)) { alert('Periode survei ini sudah ditutup.'); return; }
+    var qs = svQsAktif(); if (!qs.length) { alert('Belum ada pertanyaan survei.'); return; }
+    var old = d.svJawab.filter(function(x){ return x.periode === pid && x.pid === kk; })[0], val = {};
+    if (old) Object.keys(old.skor || {}).forEach(function(k){ val[k] = +old.skor[k]; });
+    var prev = document.getElementById('abSvForm'); if (prev) prev.remove();
+    var ov = document.createElement('div'); ov.className = 'ab-ov'; ov.id = 'abSvForm';
+    var body = '';
+    DIM.forEach(function(dm){
+      var L = qs.filter(function(q){ return q.dim === dm.k; }); if (!L.length) return;
+      body += '<div class="sv-dh">' + dm.ic + ' ' + esc(dm.t.toUpperCase()) + '</div>' + L.map(function(q){
+        return `<div class="sv-q" data-q="${esc(q.id)}"><p>${esc(q.teks)}</p><div class="sv-lk">${[1, 2, 3, 4, 5].map(function(n){ return `<button type="button" class="ab-lk${val[q.id] === n ? ' on' : ''}" data-v="${n}" aria-label="${n} ${SKALA[n - 1]}">${n}</button>`; }).join('')}</div></div>`;
+      }).join('');
+    });
+    ov.innerHTML = `<div class="ab-sheet"><div class="sv-prog"><h3>Survei · ${esc(per.nama)}</h3><div class="ab-note">Responden: <b>${esc(nama(kk))}</b></div>
+      <div class="sv-lg">1 ${SKALA[0]} · 3 ${SKALA[2]} · 5 ${SKALA[4]}</div><div class="sv-cnt"><span id="svCnt">0/${qs.length}</span><div class="ab-bar g"><i id="svBar" style="width:0%"></i></div></div></div>
+      ${body}<label>Wilayah / dusun (opsional)</label><input id="svWil" type="text" value="${esc(old ? old.wilayah : '')}" placeholder="mis. Dusun Renco Utara">
+      <label>Harapan atau catatan (opsional)</label><textarea id="svCat" placeholder="Apa yang paling Anda harapkan untuk Renco?">${esc(old ? old.catatan : '')}</textarea>
+      <div class="act"><button class="ab-btn o" type="button" id="svCancel">Batal</button><button class="ab-btn" type="button" id="svOk">Kirim</button></div></div>`;
+    document.body.appendChild(ov);
+    function upd(){ var c = qs.filter(function(q){ return val[q.id] >= 1; }).length; document.getElementById('svCnt').textContent = c + '/' + qs.length; document.getElementById('svBar').style.width = (c / qs.length * 100) + '%'; }
+    upd();
+    ov.addEventListener('click', function(e){
+      if (e.target === ov) { ov.remove(); return; }
+      var b = e.target.closest && e.target.closest('.ab-lk'); if (!b) return;
+      var q = b.closest('.sv-q'), id = q.getAttribute('data-q'), v = +b.getAttribute('data-v');
+      val[id] = v; Array.prototype.forEach.call(q.querySelectorAll('.ab-lk'), function(x){ x.classList.toggle('on', x === b); }); upd();
+    });
+    document.getElementById('svCancel').onclick = function(){ ov.remove(); };
+    document.getElementById('svOk').onclick = function(){
+      var miss = qs.filter(function(q){ return !(val[q.id] >= 1); });
+      if (miss.length) { alert('Masih ada ' + miss.length + ' pernyataan yang belum dijawab.'); var el = ov.querySelector('.sv-q[data-q="' + miss[0].id + '"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block:'center' }); return; }
+      var rec = old || { id: uidx(), periode: pid, pid: kk };
+      rec.nama = nama(kk); rec.wilayah = document.getElementById('svWil').value.trim(); rec.catatan = document.getElementById('svCat').value.trim();
+      rec.tanggal = today(); rec.skor = {}; qs.forEach(function(q){ rec.skor[q.id] = val[q.id]; }); rec.oleh = me();
+      if (!old) d.svJawab.push(rec);
+      save(); ov.remove(); render();
+      try { if (typeof showToast === 'function') showToast('Terima kasih, jawaban survei tersimpan.'); else alert('Terima kasih, jawaban survei tersimpan.'); } catch(e) {}
+    };
+  };
+  window._abSvPilih = function(pid){
+    if (!adm()) return;
+    sheet('Isi Survei atas Nama Anggota', [
+      { k:'kk', l:'Anggota', type:'select', v:'', opts:[['', '— pilih anggota —']].concat((DB.nasabah || []).map(function(n){ return [n.id, n.nama]; })) }
+    ], function(o){ if (!need(o, ['kk'])) return false; setTimeout(function(){ window._abSvIsi(pid, o.kk); }, 30); });
+  };
+  window._abSvAnsDel = function(id){
+    if (!adm() || !confirm('Hapus jawaban survei ini?')) return;
+    var d = D(); d.svJawab = d.svJawab.filter(function(x){ return x.id !== id; }); save(); render();
+  };
+  window._abSvPerForm = function(id){
+    if (!adm()) return;
+    var d = D(), p = id ? svPer(id) : null;
+    sheet(p ? 'Ubah Periode Survei' : 'Tambah Periode Survei', [
+      { k:'nama', l:'Nama periode', v:p ? p.nama : '', ph:'mis. Survei Semester 2 2026' },
+      { k:'mulai', l:'Mulai', type:'date', v:p ? p.mulai : today() }, { k:'selesai', l:'Batas akhir (opsional)', type:'date', v:p ? p.selesai : '' },
+      { k:'status', l:'Status', type:'select', v:p ? p.status : 'Buka', opts:[['Buka', 'Buka'], ['Tutup', 'Tutup']] }
+    ], function(o){
+      if (!need(o, ['nama'])) return false;
+      if (o.mulai && o.selesai && o.selesai < o.mulai) { alert('Batas akhir tidak boleh sebelum tanggal mulai.'); return false; }
+      var r = p || { id: 'sp_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36) };
+      r.nama = o.nama.trim(); r.mulai = o.mulai || ''; r.selesai = o.selesai || ''; r.status = o.status === 'Tutup' ? 'Tutup' : 'Buka';
+      if (!p) d.svPeriode.push(r);
+    });
+  };
+  window._abSvPerTg = function(id){ if (!adm()) return; var p = svPer(id); if (!p) return; p.status = p.status === 'Tutup' ? 'Buka' : 'Tutup'; if (p.status === 'Buka' && p.selesai && p.selesai < today()) p.selesai = ''; save(); render(); };
+  window._abSvPerDel = function(id){
+    if (!adm()) return; var d = D(), p = svPer(id); if (!p) return;
+    var n = svAns(id).length;
+    if (!confirm('Hapus periode "' + p.nama + '"' + (n ? ' beserta ' + n + ' jawaban responden' : '') + '? Tindakan ini tidak bisa dibatalkan.')) return;
+    d.svPeriode = d.svPeriode.filter(function(x){ return x.id !== id; }); d.svJawab = d.svJawab.filter(function(x){ return x.periode !== id; });
+    if (ST.ik.per === id) ST.ik.per = ''; save(); render();
+  };
+  window._abSvTanyaForm = function(){
+    if (!adm()) return;
+    sheet('Tambah Pertanyaan Survei', [
+      { k:'dim', l:'Dimensi', type:'select', v:'eko', opts:DIM.map(function(x){ return [x.k, x.ic + ' ' + x.t]; }) },
+      { k:'teks', l:'Pernyataan (jawaban skala 1–5)', type:'textarea', v:'', ph:'mis. Keluarga saya mudah menjangkau layanan Posyandu.' }
+    ], function(o){
+      if (!need(o, ['teks'])) return false;
+      svEnsure().push({ id: 'q_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), dim: o.dim, teks: o.teks.trim(), aktif: true });
+    });
+  };
+  window._abSvTanyaTg = function(id){ if (!adm()) return; var L = svEnsure(), q = L.filter(function(x){ return x.id === id; })[0]; if (!q) return; q.aktif = q.aktif === false; save(); render(); };
+  window._abSvTanyaDel = function(id){
+    if (!adm() || !confirm('Hapus pertanyaan ini? Jawaban lama untuk pertanyaan ini tidak akan dihitung lagi. Gunakan “Nonaktif” bila ingin menyimpan hasil lama.')) return;
+    var d = D(); svEnsure(); d.svTanya = d.svTanya.filter(function(x){ return x.id !== id; }); save(); render();
+  };
+  window._abSvCsv = function(pid){
+    if (!adm()) return; var p = svPer(pid); if (!p) return;
+    var qs = svQs(), A = svAns(pid);
+    function c(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+    var rows = [['Tanggal', 'Nama', 'Wilayah'].concat(qs.map(function(q){ return dimOf(q.dim).t + ': ' + q.teks; }), ['Skor indeks', 'Catatan'])];
+    A.forEach(function(a){ var sc = svScore(a); rows.push([a.tanggal, a.nama, a.wilayah || ''].concat(qs.map(function(q){ return (a.skor || {})[q.id] || ''; }), [sc.total == null ? '' : sc.total.toFixed(1), a.catatan || ''])); });
+    var blob = new Blob(['\ufeff' + rows.map(function(r){ return r.map(c).join(','); }).join('\r\n')], { type:'text/csv;charset=utf-8' });
+    var el = document.createElement('a'); el.href = URL.createObjectURL(blob); el.download = 'survei-' + String(p.nama).replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.csv';
+    document.body.appendChild(el); el.click(); el.remove();
+  };
+  var VIEWS = { peduli: function(){ return dpH('peduli'); }, dana: vDana, peta: vPeta, indeks: vIndeksX, gumi: vGumi, sampah: vSampah, edu: vEdu, target: vTarget, cicilan: vCicilan, progres: vProgres, buku: vBuku, umkm: vUmkm, laporan: vLaporan };
   var watch = null;
-  function curMenu(){ return MENU.filter(function(m){ return m.k === ST.tab; })[0] || MENU[0]; }
+  function curMenu(){
+    if (String(ST.tab).indexOf('u_') === 0) { var u = unitById(ST.tab); if (u) return { k:u.id, ic:esc(u.ic || '🌱'), t:esc(u.nama), d:esc(u.tagline || ''), unit:u }; }
+    return MENU.filter(function(m){ return m.k === ST.tab; })[0] || MENU[0];
+  }
   function livePanel(){ return document.querySelector('.ab-pn:not(.out)'); }
   function stopWatch(){ if (watch) { clearInterval(watch); watch = null; } }
   function startWatch(){
@@ -83367,13 +83938,13 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
       startWatch();
     }
     pn.querySelector('h3').innerHTML = '<span>' + m.ic + '</span>' + m.t;
-    var th = m.k === 'buku' ? 'bk' : m.k === 'umkm' ? 'um' : m.k === 'edu' ? 'ed' : m.k === 'sampah' ? 'sp' : m.k === 'gumi' ? 'gm' : m.sup ? 'su' : 'lap';
-    pn.setAttribute('data-th', th);
-    pn.querySelector('small').textContent = th === 'bk' ? 'Gerakan 1000 Buku' : th === 'um' ? 'Gerakan 100 UMKM Baru' : th === 'ed' ? 'Satu Rumah Satu Sarjana & Hafiz' : th === 'sp' ? 'Renco Bersih, Masa Depan Terjaga' : th === 'gm' ? 'Jaga Bumi, Rawat Air, Tumbuhkan Pangan' : th === 'su' ? 'Ruang Cakrawala' : 'Lapangan Renco · Gerakan 100 Pemuda';
-    pn.querySelector('.tb-art').innerHTML = th === 'bk' ? artBook() : th === 'um' ? artUm() : th === 'ed' ? artEdu() : th === 'sp' ? artSampah() : th === 'gm' ? artGumi() : th === 'su' ? '' : FIELD;
+    var th = m.unit ? 'un' : m.k === 'buku' ? 'bk' : m.k === 'umkm' ? 'um' : m.k === 'edu' ? 'ed' : m.k === 'sampah' ? 'sp' : m.k === 'gumi' ? 'gm' : m.sup ? 'su' : 'lap';
+    pn.setAttribute('data-th', th); if (m.unit) pn.setAttribute('data-cat', m.unit.cat); else pn.removeAttribute('data-cat');
+    pn.querySelector('small').textContent = th === 'un' ? (PILAR_NAMA[m.unit.cat] + ' · Unit Program') : th === 'bk' ? 'Gerakan 1000 Buku' : th === 'um' ? 'Gerakan 100 UMKM Baru' : th === 'ed' ? 'Satu Rumah Satu Sarjana & Hafiz' : th === 'sp' ? 'Renco Bersih, Masa Depan Terjaga' : th === 'gm' ? 'Jaga Bumi, Rawat Air, Tumbuhkan Pangan' : th === 'su' ? 'Ruang Cakrawala' : 'Lapangan Renco · Gerakan 100 Pemuda';
+    pn.querySelector('.tb-art').innerHTML = th === 'un' ? '' : th === 'bk' ? artBook() : th === 'um' ? artUm() : th === 'ed' ? artEdu() : th === 'sp' ? artSampah() : th === 'gm' ? artGumi() : th === 'su' ? '' : FIELD;
     var body = pn.querySelector('.ab-pn-body'), same = pn.getAttribute('data-k') === m.k, sc = same ? body.scrollTop : 0;
     pn.setAttribute('data-k', m.k);
-    body.innerHTML = (th === 'lap' ? '<div class="ab-gtabs">' + MENU.filter(function(x){ return !x.ban && !x.sup; }).map(function(x){ return gtile(x.ic + ' ' + x.t, x.k === m.k, "_abTab('" + x.k + "')"); }).join('') + '</div>' : '') + VIEWS[m.k]();
+    body.innerHTML = (th === 'lap' ? '<div class="ab-gtabs">' + MENU.filter(function(x){ return !x.ban && !x.sup; }).map(function(x){ return gtile(x.ic + ' ' + x.t, x.k === m.k, "_abTab('" + x.k + "')"); }).join('') + '</div>' : '') + (m.unit ? vUnit(m.unit) : VIEWS[m.k]());
     animBars(body); body.scrollTop = sc;
   }
   function closePanel(){
@@ -83675,27 +84246,10 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
   }
   var PETA_S = ['Rencana', 'Berjalan', 'Selesai'];
   function petaChip(st){ return '<span class="ab-chip ' + (st === 'Selesai' ? 'lunas' : st === 'Berjalan' ? 'sebagian' : 'belum') + '">' + esc(st) + '</span>'; }
-  window._abPetaSt = function(id){
-    if (!adm()) return;
-    var x = D().peta.find(function(u){ return u.id === id; }); if (!x) return;
-    x.status = PETA_S[(PETA_S.indexOf(x.status) + 1) % PETA_S.length]; save(); render();
-  };
-  function vPeta(){
-    var m = curMenu(), L = D().peta, sl = L.filter(function(x){ return x.status === 'Selesai'; }).length, pc = L.length ? sl / L.length * 100 : 0;
-    var h = supHead(m);
-    h += '<div class="ab-card"><h4>Tahapan Menuju 2045' + (adm() ? '<button class="ab-btn" onclick="_abForm(\'peta\')">＋ Tahapan</button>' : '') + '</h4>'
-      + (L.length ? '<div class="ab-note">' + sl + ' dari ' + L.length + ' tahapan selesai (' + pc.toFixed(0) + '%)</div>' + bar(pc, 'g') : '<div class="ab-note">Belum ada tahapan yang dicatat pengurus.</div>') + '</div>';
-    h += L.slice().sort(function(a, b){ return (+a.tahun || 0) - (+b.tahun || 0); }).map(function(x){
-      return '<details class="ab-it"><summary><div class="t">📍 ' + esc(x.tahun) + ' · ' + esc(x.judul) + '</div><div class="s">' + petaChip(x.status) + '</div></summary><div class="in">'
-        + '<dl class="ab-dl"><dt>Tahun</dt><dd>' + esc(x.tahun) + '</dd><dt>Tahapan</dt><dd>' + esc(x.judul) + '</dd><dt>Uraian</dt><dd>' + esc(x.uraian || '-') + '</dd><dt>Status</dt><dd>' + esc(x.status) + '</dd></dl>'
-        + (adm() ? '<div style="display:flex;gap:6px"><button class="ab-btn o" onclick="_abPetaSt(\'' + esc(x.id) + '\')">Ubah status</button><button class="ab-btn r" onclick="_abDel(\'peta\',\'' + esc(x.id) + '\')">Hapus</button></div>' : '') + '</div></details>';
-    }).join('');
-    return h;
-  }
-  function vIndeks(){
+  function vIndikator(){
     var m = curMenu(), L = D().indeks, G = {}, order = [];
     L.forEach(function(x){ var k = String(x.indikator || '').trim(); if (!k) return; if (!G[k]) { G[k] = []; order.push(k); } G[k].push(x); });
-    var h = supHead(m);
+    var h = '';
     h += '<div class="ab-card"><h4>Pengukuran Berkala' + (adm() ? '<button class="ab-btn" onclick="_abForm(\'indeks\')">＋ Ukur</button>' : '') + '</h4><div class="ab-note">Tiap indikator dicatat dari waktu ke waktu agar perubahan kondisi masyarakat terlihat. Nilai terbaru dibandingkan dengan pengukuran sebelumnya.</div></div>';
     h += order.map(function(k){
       var a = G[k].slice().sort(function(x, y){ return String(x.tanggal).localeCompare(String(y.tanggal)); }), last = a[a.length - 1], prev = a.length > 1 ? a[a.length - 2] : null, un = last.satuan ? ' ' + esc(last.satuan) : '';
@@ -83818,6 +84372,7 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
       + ban('bk', 'buku', '📚', 'Perpustakaan Renco', 'Gerakan 1000 Buku', 'Terkumpul', tb, Tb, 'buku', ART_BK);
     else box.innerHTML = '<div class="ab-sup"><div class="ab-sup-h">RUANG CAKRAWALA</div><div class="ab-sup-g two">' + supC('peta') + supC('indeks') + '</div></div>'
       + cwBox(d);
+    if (c) box.insertAdjacentHTML('beforeend', unitsH(c));
   }
   /* ── Ruang Cakrawala: pesan, balasan (chat), dan arsip bulanan ── */
   function cwPid(){ try { var u = window.AUTH && AUTH.user; return (u && (u.nasabahId || u.username || u.nama)) || 'anon'; } catch(e){ return 'anon'; } }
@@ -83985,7 +84540,7 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
   window.addEventListener('resize', applyBall);
   function heroH(){ return '<div class="ab-wrap"><div class="ab-hero" onclick="_abHero()">' + FIELD + '<h2>Lapangan Renco</h2><small>Gerakan 100 Pemuda</small><button type="button" class="ab-ball" data-k="lap" aria-label="Menu Lapangan Renco" title="Ketuk untuk menu, geser untuk memindah">⚽</button></div><p class="ab-hint">Ketuk ikon bola untuk melihat informasi selengkapnya</p></div>'; }
   function rootH(){
-    if (!ST.cat) return '<div class="ab-pil">' + Object.keys(CATS).map(function(k){ var c = CATS[k], p = PIL[k]; return '<button type="button" class="ab-pl" style="background:' + p.g + '" onclick="_abCat(\'' + k + '\')"><span class="ic">' + p.ic + '</span><b>' + c.t + '</b><small>' + c.s + '</small><span class="n">' + p.n + '</span></button>'; }).join('') + '</div><div class="ab-bans"></div>';
+    if (!ST.cat) return '<div class="ab-pil">' + Object.keys(CATS).map(function(k){ var c = CATS[k], p = PIL[k]; return '<button type="button" class="ab-pl" style="background:' + p.g + '" onclick="_abCat(\'' + k + '\')"><span class="ic">' + p.ic + '</span><b>' + c.t + '</b><small>' + c.s + '</small><span class="n">' + p.n + unitCountTxt(k) + '</span></button>'; }).join('') + '</div><div class="ab-bans"></div>';
     return '<button type="button" class="ab-back" onclick="_abHome()">‹ 4 Pilar</button>' + catH(ST.cat, true) + (ST.cat === 'jariyah' ? heroH() : '') + '<div class="ab-bans"></div>';
   }
   function swapRoot(){ var r = document.getElementById('abRoot'); if (!r) return; closePop(); r.innerHTML = rootH(); render(); try { r.scrollIntoView({ block:'start' }); window.scrollTo(0, 0); } catch(e){} }
@@ -84139,7 +84694,7 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
       { k:'c', l:'Target kebun pangan keluarga (kebun)', type:'number', v:s.targetKebun || '' }
     ], function(o){ s.targetPohon = Math.max(0, Math.round(+o.a || 0)); s.targetAir = Math.max(0, Math.round(+o.b || 0)); s.targetKebun = Math.max(0, Math.round(+o.c || 0)); });
     if (kind === 'danaProg') {
-      var pg = DP[id]; if (!pg) return;
+      var pg = dpOf(id); if (!pg) return;
       return sheet('Catat Dana — ' + pg.t, [
         { k:'jenis', l:'Jenis', type:'select', v:'masuk', opts:[['masuk', 'Dana masuk'], ['penggunaan', 'Penggunaan dana']] },
         { k:'jumlah', l:'Jumlah (Rp)', type:'number', v:'' }, { k:'tanggal', l:'Tanggal', type:'date', v:today() },
@@ -84168,14 +84723,24 @@ html.renco-dark .ab-cat small{ color:#f5d77e; }
       d.danaAbadi.push({ id: uidx(), tanggal: o.tanggal || today(), jenis: o.jenis, jumlah: Math.round(+o.jumlah), ket: o.ket.trim(), oleh: me() });
     });
     if (kind === 'abadiTarget') return sheet('Atur Target Dana Abadi', [{ k:'t', l:'Target dana abadi (Rp)', type:'number', v:s.targetDanaAbadi || '' }], function(o){ s.targetDanaAbadi = Math.max(0, Math.round(+o.t || 0)); });
-    if (kind === 'peta') return sheet('Tambah Tahapan Peta Masa Depan', [
-      { k:'tahun', l:'Tahun', type:'number', v:'', ph:'mis. 2030' }, { k:'judul', l:'Tahapan', ph:'mis. Aset bersama terbeli' },
-      { k:'uraian', l:'Uraian (opsional)', type:'textarea', v:'' }, { k:'status', l:'Status', type:'select', v:'Rencana', opts:PETA_S.map(function(x){ return [x, x]; }) }
-    ], function(o){
-      if (!need(o, ['tahun', 'judul'])) return false;
-      var y = Math.round(+o.tahun); if (!(y >= 2000 && y <= 2100)) { alert('Tahun tidak valid.'); return false; }
-      d.peta.push({ id: uidx(), tahun: y, judul: o.judul.trim(), uraian: o.uraian.trim(), status: o.status });
-    });
+    if (kind === 'peta') {
+      var pt = id ? d.peta.filter(function(x){ return x.id === id; })[0] : null;
+      return sheet(pt ? 'Ubah Tahapan Peta Masa Depan' : 'Tambah Tahapan Peta Masa Depan', [
+        { k:'tahun', l:'Tahun', type:'number', v:pt ? pt.tahun : '', ph:'mis. 2030' }, { k:'judul', l:'Tahapan', v:pt ? pt.judul : '', ph:'mis. Aset bersama terbeli' },
+        { k:'pilar', l:'Pilar terkait', type:'select', v:pt ? (pt.pilar || '') : '', opts:[['', 'Umum (lintas pilar)']].concat(Object.keys(PILAR_NAMA).map(function(k){ return [k, PILAR_NAMA[k]]; })) },
+        { k:'uraian', l:'Uraian (opsional)', type:'textarea', v:pt ? pt.uraian : '' },
+        { k:'status', l:'Status', type:'select', v:pt ? pt.status : 'Rencana', opts:PETA_S.map(function(x){ return [x, x]; }) },
+        { k:'progres', l:'Progres % (opsional, 0–100)', type:'number', v:pt && pt.progres != null ? pt.progres : '' }
+      ], function(o){
+        if (!need(o, ['tahun', 'judul'])) return false;
+        var y = Math.round(+o.tahun); if (!(y >= 2000 && y <= 2100)) { alert('Tahun tidak valid.'); return false; }
+        var pg = String(o.progres).trim() === '' ? null : Math.max(0, Math.min(100, Math.round(+o.progres || 0)));
+        if (o.status === 'Selesai') pg = 100;
+        var r = pt || { id: uidx() };
+        r.tahun = y; r.judul = o.judul.trim(); r.uraian = o.uraian.trim(); r.status = o.status; r.pilar = PILAR_NAMA[o.pilar] ? o.pilar : ''; r.progres = pg;
+        if (!pt) d.peta.push(r);
+      });
+    }
     if (kind === 'indeks') return sheet('Catat Pengukuran Indikator', [
       { k:'indikator', l:'Indikator', ph:'mis. Pendapatan rata-rata keluarga' }, { k:'nilai', l:'Nilai terukur', type:'number', v:'' },
       { k:'satuan', l:'Satuan (opsional)', ph:'mis. Rp, %, orang' }, { k:'tanggal', l:'Tanggal pengukuran', type:'date', v:today() }, { k:'ket', l:'Catatan (opsional)' }
@@ -85126,6 +85691,7 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
       o.edu = sum(d.danaBea, function(x){ return x.jumlah; });
       o.abadi = sum(d.danaAbadi, function(x){ return x.jenis === 'setoran' ? x.jumlah : 0; });
       ['buku','umkm','sampah','gumi','peduli'].forEach(function(k){ o[k] = sum(d.danaProg, function(x){ return x.prog === k && x.jenis === 'masuk' ? x.jumlah : 0; }); });
+      (d.unitProg || []).forEach(function(u){ o[u.id] = sum(d.danaProg, function(x){ return x.prog === u.id && x.jenis === 'masuk' ? x.jumlah : 0; }); });
     } catch(e) {}
     return o;
   }
@@ -85144,6 +85710,7 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
   function amt(){ var e = document.getElementById('rpv45Amt'); return e ? (parseInt(String(e.value).replace(/\D/g, ''), 10) || 0) : 0; }
 
   window.rpV45HTML = function(fresh){
+    syncUnits();
     var id = kk();
     if (!id) return '<div class="rpv45"><div class="rpv45-card"><div class="rpv45-empty">Fitur ini tersedia untuk akun nasabah.</div></div></div>';
     if (fresh === true) { ST.step = 1; ST.cat = null; ST.anim = ''; ST.histOpen = false; }
@@ -85196,6 +85763,20 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
       + '</div></div>';
     return h;
   };
+  /* Unit program tambahan buatan admin ikut muncul di pilar yang sesuai */
+  function syncUnits(){
+    try {
+      var d = (window.DB && DB.asetBersama) || {}, U = Array.isArray(d.unitProg) ? d.unitProg : [];
+      for (var i = PROG.length - 1; i >= 0; i--) if (PROG[i].unit) PROG.splice(i, 1);
+      CATS.forEach(function(c){ c.items = c.items.filter(function(k){ return String(k).indexOf('u_') !== 0; }); });
+      U.forEach(function(u){
+        if (u.status !== 'Aktif') return;
+        var c = CATS.filter(function(x){ return x.id === u.cat; })[0]; if (!c) return;
+        PROG.push({ k:u.id, ic:u.ic || '🌱', t:u.nama, d:u.tagline || u.uraian || 'Unit program Vision 2045.', unit:true });
+        c.items.push(u.id);
+      });
+    } catch(e) {}
+  }
   function rerender(anim){ ST.anim = anim || ''; var c = document.getElementById('rpContent'); if (c) { c.innerHTML = window.rpV45HTML(); try { c.scrollTop = 0; var ct = document.getElementById('content'); if (ct) ct.scrollTop = 0; } catch(e){} } }
   window.rpV45Pick = function(k){ ST.prog = k; setTimeout(function(){ ST.step = 2; rerender('slide-next'); setTimeout(function(){ var a = document.getElementById('rpv45Amt'); if (a && window.innerWidth > 700) a.focus(); }, 320); }, 220); };
   window.rpV45Darurat = function(){
@@ -85348,7 +85929,7 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
         var pe = d.peserta.filter(function(x){ return x.kkId === id && x.aktif !== false; })[0];
         if (!pe) { pe = { id: uidv(), kkId: id, komitmen: 0, aktif: true, pembayaran: [] }; d.peserta.push(pe); }
         (pe.pembayaran = pe.pembayaran || []).push({ id: ref, jumlah: j, tanggal: tg, ket: ketP });
-      } else if (['buku', 'umkm', 'sampah', 'gumi', 'peduli'].indexOf(P.prog) >= 0) {
+      } else if (['buku', 'umkm', 'sampah', 'gumi', 'peduli'].indexOf(P.prog) >= 0 || String(P.prog).indexOf('u_') === 0) {
         d.danaProg.push({ id: ref, prog: P.prog, tanggal: tg, jenis: 'masuk', jumlah: j, ket: ketP, oleh: nm, sumber: 'RencoPay' });
       } else if (P.prog === 'edu') {
         d.danaBea.push({ id: ref, tanggal: tg, donatur: nm, jumlah: j, ket: ketP });
