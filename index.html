@@ -2563,6 +2563,8 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }
       } catch(kmsErr) { console.warn('[RENCO☁] Master device: gagal merge komplainSkor:', kmsErr.message); }
+      // Pengajuan Renco Takaful BARU dari Nasabah tetap diterima di Master Device
+      try { if (cloudData && Array.isArray(cloudData.takaful) && typeof window._takafulMergeMaster === 'function') window._takafulMergeMaster(cloudData.takaful); } catch(tkfErr) { console.warn('[RENCO☁] Master device: gagal merge takaful:', tkfErr.message); }
       try { if (window.TagihanApp && typeof window.TagihanApp.reloadFromDB === 'function') window.TagihanApp.reloadFromDB(); } catch(e2) {}
 
       console.log('[RENCO☁] Master device: cloud data lainnya diabaikan — device ini adalah sumber kebenaran (kecuali pendingTransaksi baru)');
@@ -8139,6 +8141,10 @@ function _aksesMenuEfektif() {
     }
   } catch(e) {}
   var res = a ? a.slice() : ['home'];
+  /* Renco Takaful adalah halaman turunan Keuangan (kartu di grid Keuangan, tidak ada di daftar Kelola User):
+     siapa pun yang berhak membuka 'keuangan' otomatis boleh membuka 'takaful'. Tanpa ini navTo('takaful')
+     ditolak "Akses ditolak" untuk nasabah karena id 'takaful' tidak pernah tersimpan di aksesMenu. */
+  if (res.indexOf('keuangan') !== -1 && res.indexOf('takaful') === -1) res.push('takaful');
   /* Saklar global (cloud): menu yang disembunyikan admin untuk SEMUA nasabah, apa pun isi daftar akses per-user */
   try {
     var hm = window.DB && DB.appSettings && DB.appSettings.hiddenMenus;
@@ -8296,7 +8302,7 @@ function _applyNasabahDataIsolation() {
   };
 
   /* 3. keuanganTab → izinkan Simpanan/Pinjaman/Pembiayaan/Pembayaran/SHU/Aset, filter ke nasabah sendiri */
-  window._nasabahKeuanganTabAllowed = ['simpanan','pinjaman','pembiayaan-keuangan','pembayaran','shu','aset','asetbersama','kalkulator','catatuang'];
+  window._nasabahKeuanganTabAllowed = ['simpanan','pinjaman','pembiayaan-keuangan','pembayaran','shu','aset','asetbersama','kalkulator','catatuang','takaful'];
   var _keuPatchInterval = setInterval(function() {
     var origFn = window.keuanganTab;
     if (!origFn || origFn._nsPatched) { clearInterval(_keuPatchInterval); return; }
@@ -15894,6 +15900,11 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
   <div id="vision2045Content" style="padding:0 0 90px"></div>
 </div>
 
+<!-- ========== RENCO TAKAFUL (unit otonom koperasi) ========== -->
+<div class="page" id="page-takaful">
+  <div id="takafulContent" style="padding:0 0 90px"></div>
+</div>
+
 <!-- ========== RENCO PAY PAGE ========== -->
 <div class="page" id="page-rencoPay">
 
@@ -19419,6 +19430,7 @@ function _dbMigrate() {
     'laporanKerjaRencana',  // rencana kerja pengurus
     'komplainSkor',  // komplain Skor Kepercayaan nasabah
     'tiket',  // tiket komplain transaksi
+    'takaful',  // pinjaman dana darurat Renco Takaful
     'pengurusList',  // struktur pengurus koperasi (nama, jabatan, pendidikan, pengalaman, foto)
     'auditLog'  // jejak audit permanen — TIDAK PERNAH direset/dihapus oleh migrasi ini
   ];
@@ -31396,7 +31408,8 @@ var _keuanganGridItems = {
     { tab:'shu',                 label:'SHU',         desc:'Lihat pembagian SHU Anda',                  grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#92400e',
       emoji:_kgIcon('shu','#d97706') },
     { tab:'takaful',             label:'Takaful',     desc:'Pinjaman dana darurat anggota',  grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#c2570f',
-      emoji:'<span style="font-size:26px;line-height:1">🛡️</span>', isNew:true },
+      emoji:'<span class="kgb-ar" lang="ar" dir="rtl">تكافل</span>', isNew:true,
+      directNav: 'takaful' },
     { tab:'aset',                label:'Aset',        desc:'Kelola aset milik koperasi',                grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#2d6a4f',
       emoji:_kgIcon('aset','#57534e') },
     { tab:'laporan',            label:'Laporan',     desc:'Laporan keuangan, arsip & tunggakan',         grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#b07a00',
@@ -31418,7 +31431,8 @@ var _keuanganGridItems = {
     { tab:'shu',                 label:'SHU',         desc:'Lihat pembagian SHU Anda',                  grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#92400e',
       emoji:_kgIcon('shu','#d97706') },
     { tab:'takaful',             label:'Takaful',     desc:'Ajukan pinjaman dana darurat',  grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#c2570f',
-      emoji:'<span style="font-size:26px;line-height:1">🛡️</span>', isNew:true },
+      emoji:'<span class="kgb-ar" lang="ar" dir="rtl">تكافل</span>', isNew:true,
+      directNav: 'takaful' },
     { tab:'aset',                label:'Aset',        desc:'Kelola aset milik Anda',                    grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#2d6a4f',
       emoji:_kgIcon('aset','#57534e') },
     { tab:'laporan',            label:'Laporan',     desc:'Laporan keuangan, arsip & tunggakan',         grad:'linear-gradient(135deg,#1a472a,#2d6a4f)', color:'#b07a00',
@@ -36412,7 +36426,7 @@ function renderSHUDanaLembagaTab(tahun, shuCadangan, shuSosial, shuPendidikan, s
 
   <!-- Catatan kaki -->
   <div style="margin:4px 16px 24px;padding:10px 14px;border-left:3px solid var(--gold);background:rgba(244,169,34,0.06);border-radius:0 10px 10px 0;font-size:11px;color:var(--text-soft);line-height:1.7">
-    Konfirmasi menandai dana telah dialokasikan ke pos pembukuan yang sesuai.<br>🛡️ <b>Renco Takaful</b> adalah program pinjaman dana darurat koperasi untuk anggota; dananya bersumber dari alokasi SHU ini.
+    Konfirmasi menandai dana telah dialokasikan ke pos pembukuan yang sesuai.<br>🛡️ <b>Renco Takaful</b> adalah unit otonom koperasi (pinjaman dana darurat anggota). Dana dari alokasi SHU ini dipindahkan ke buku &amp; rekening Takaful, tetapi <b>kepemilikan tetap koperasi</b> dan dicatat sebagai Aset “Dana Takaful”, bukan PHU.
   </div>`;
 }
 
@@ -36433,15 +36447,9 @@ function shuDanaLembagaKonfirmasi(jenis, tahun, jumlah) {
       keterangan: catatan || `SHU ${tahun} – Renco Takaful`,
       tanggal: tglBayar, createdAt: tglBayar
     });
-    // ── Auto: tambah ke PHU Pendapatan sebagai kredit saldo PHU ──
-    if (!DB.phuPendapatan) DB.phuPendapatan = [];
-    DB.phuPendapatan = DB.phuPendapatan.filter(x => !(x._shuRef===tahun+'_sosial-pendidikan'));
-    DB.phuPendapatan.push({
-      id: uid(), jumlah, kategori:'lain-lain',
-      keterangan: `[SHU ${tahun}] Renco Takaful`,
-      tanggal: tglBayar.slice(0,10), createdAt: tglBayar,
-      _shuRef: tahun+'_sosial-pendidikan'
-    });
+    // ── Renco Takaful = unit otonom; TIDAK masuk PHU. Setelah dana dipindahkan ke kas Takaful (menu Takaful › Terima),
+    //    kepemilikan tetap koperasi → dicatat sebagai Aset Koperasi "Dana Takaful" (lihat modul takaful-js). ──
+    if (DB.phuPendapatan) DB.phuPendapatan = DB.phuPendapatan.filter(x => !(x._shuRef===tahun+'_sosial-pendidikan'));
   } else {
     DB.shuDanaLembaga = DB.shuDanaLembaga.filter(d => !(d.tahun===tahun && d.jenis===jenis));
     DB.shuDanaLembaga.push({id:'dl'+uid(), jenis, tahun, jumlah, status:'lunas', tanggalBayar:tglBayar, catatan});
@@ -36465,7 +36473,7 @@ function shuDanaLembagaKonfirmasi(jenis, tahun, jumlah) {
   }
   saveDB();
   shuTab('dana-lembaga', null);
-  showToast('✅ Dana '+(jenis==='cadangan'?'Cadangan':'Renco Takaful')+' terkonfirmasi & Saldo PHU diperbarui');
+  showToast(jenis==='sosial-pendidikan' ? '✅ Dana Renco Takaful terkonfirmasi — pindahkan di menu Takaful › Terima agar tercatat sebagai Aset Koperasi' : '✅ Dana '+(jenis==='cadangan'?'Cadangan':'Dana')+' terkonfirmasi & Saldo PHU diperbarui');
 }
 
 function shuDanaLembagaBatal(jenis, tahun) {
@@ -72164,6 +72172,17 @@ body.rp-theme #page-keuangan #keuanganGridInner .keu-grid-card .kgb-icon svg [st
 body.rp-theme #page-keuangan #keuanganGridInner .keu-grid-card .kgb-icon svg [fill]:not([fill^="url"]):not([fill="none"]):not([fill="white"]):not([fill="#fff"]){fill:var(--t-acc)!important}
 body.rp-theme #page-keuangan #keuanganGridInner .keu-grid-card.kgc-selected .kgb-icon{background:linear-gradient(135deg,#f4a922,#ffd166)!important;border-color:#f4a922!important}
 body.rp-theme #page-keuangan #keuanganGridInner .keu-grid-card.kgc-selected .kgb-icon svg [stroke]:not([stroke^="url"]):not([stroke="none"]):not([stroke="white"]):not([stroke="#fff"]){stroke:#1a472a!important}
+
+/* Ikon Takaful di grid Keuangan: kaligrafi teks Arab "تكافل" (mengikuti warna ikon SVG di tiap tema/state) */
+#page-keuangan #keuanganGridInner .keu-grid-card .kgb-icon .kgb-ar{
+  font-family:'Amiri','Scheherazade New','Noto Naskh Arabic','Traditional Arabic',serif;
+  font-size:24px;font-weight:700;line-height:1;white-space:nowrap;direction:rtl;
+  color:#2d6a4f;display:block;padding-top:3px;letter-spacing:0;text-align:center;
+}
+#page-keuangan #keuanganGridInner .keu-grid-card.kgc-selected .kgb-icon .kgb-ar{color:#1a472a}
+body.rp-theme #page-keuangan #keuanganGridInner .keu-grid-card .kgb-icon .kgb-ar{color:var(--t-acc)}
+body.rp-theme #page-keuangan #keuanganGridInner .keu-grid-card.kgc-selected .kgb-icon .kgb-ar{color:#1a472a}
+
 body.rp-theme #page-keuangan #keuanganGridInner .keu-grid-card.kgc-selected .kgb-icon svg [fill]:not([fill^="url"]):not([fill="none"]):not([fill="white"]):not([fill="#fff"]){fill:#1a472a!important}
 body.rp-theme #page-keuangan #keuanganGridInner .keu-grid-card.kgc-selected .kgb-label{color:#ffd166!important}
 /* kontras ikon Aksi Cepat pada tema gelap */
@@ -78786,7 +78805,7 @@ F('kontribusiV45', 'Cara Kontribusi Vision 2045', '🤝', false, /\b(kontribusi|
   ['Kontribusi diambil dari **saldo RencoPay**. Langkahnya:', '1. Buka **Vision 2045**, lalu pilih program: Aset Bersama (Lapangan Renco), Pendidikan dan Beasiswa, Perpustakaan Renco, Wirausaha Renco, Sampah Jadi Berkah, Gumi Renco, atau Dana Abadi Renco.', '2. Isi **jumlah pendanaan** (minimal **Rp 1.000**). Ada pilihan cepat 10 rb, 25 rb, 50 rb, 100 rb, 250 rb, atau **Semua saldo**. Catatan boleh diisi, boleh dikosongkan.', '3. Ketuk **Lanjut**, cek rincian di layar **Konfirmasi Pendanaan**, lalu ketuk **Danai Sekarang**.', '4. Masukkan **PIN RencoPay**. Setelah berhasil muncul layar **Terima Kasih**.', '', '• Kalau saldo kurang, **Top Up** RencoPay dulu.', '• PIN RencoPay harus sudah aktif (atur di menu **Login Cepat**).', '• Dana yang sudah disalurkan **tidak bisa dibatalkan** dari aplikasi, jadi pastikan program dan jumlahnya benar.', '• Total kontribusi dan **riwayat pendanaan** pribadimu tampil di halaman Vision 2045. Ketuk **Lihat rincian kontribusi per program** untuk rinciannya.', '• Akun **admin** tidak memakai fitur ini. Pencatatan setoran Lapangan Renco dan dana program dilakukan admin di panel masing-masing.'],
   [{ t: 'Buka Vision 2045', go: 'nav:vision2045' }, { t: 'Top Up RencoPay', go: 'rp:topup' }], ['Menu Vision 2045', 'Apa itu Vision 2045?']);
 F('vision2045', 'Vision 2045', '🎯', false, /\b(vision ?2045|renco vision|menu vision|lapangan renco|gerakan 100 pemuda|aset bersama|dana abadi|peta masa depan|indeks kesejahteraan|gumi renco|sampah jadi berkah|satu rumah satu (sarjana|hafiz)|1000 buku|100 umkm)\b/, 'Tombol **Vision 2045** di navigasi bawah (untuk akun **nasabah**) atau kartu **Vision 2045** di menu RencoPay.',
-  ['**Vision 2045** adalah halaman gerakan bersama warga Renco menuju 2045, berpusat pada **Lapangan Renco · Gerakan 100 Pemuda**. Tagline-nya **"Dari Kita untuk Generasi"**, dan ini merupakan **Gerakan Pemuda Aren Community**. Isinya:', '• 🏞️ **Aset Bersama (Lapangan Renco)**: kontribusi untuk pembelian tanah bersama, **target 2030**. Setoran bebas nominal.', '• 🎓 **Pendidikan dan Beasiswa**: **Satu Rumah Satu Sarjana** (beasiswa kuliah) dan **Satu Rumah Satu Hafiz** (hafalan dan pembinaan Al-Qur’an).', '• 📚 **Perpustakaan Renco**: Gerakan **1000 Buku**.', '• 🛍️ **Wirausaha Renco**: Gerakan **100 UMKM Baru**.', '• ♻️ **Sampah Jadi Berkah**: bank sampah, penjemputan, dan pengolahan.', '• 🌍 **Gumi Renco**: penghijauan, air bersih, dan ketahanan pangan.', '• 🏦 **Dana Abadi Renco**, 🗺️ **Peta Masa Depan**, dan 📈 **Indeks Kesejahteraan** sebagai penopang jangka panjang.', '', 'Ada juga tombol **Join Us** di menu Semeton® yang membuka situs Renco Vision 2045. Ketuk sekali untuk mengaktifkan, ketuk lagi untuk membukanya di tab baru.'],
+  ['**Vision 2045** adalah halaman gerakan bersama warga Renco menuju 2045, berpusat pada **Lapangan Renco · Gerakan 100 Pemuda**. Tagline-nya **"Dari Kita untuk Generasi"**, dan ini merupakan **Gerakan Pemuda Aren Community**. Isinya:', '• 🏞️ **Aset Bersama (Lapangan Renco)**: kontribusi untuk pembelian tanah bersama, **target 2030**. Setoran bebas nominal.', '• 🎓 **Pendidikan dan Beasiswa**: **Satu Rumah Satu Sarjana** (beasiswa kuliah) dan **Satu Rumah Satu Hafiz** (hafalan dan pembinaan Al-Qur’an).', '• 📚 **Perpustakaan Renco**: Gerakan **1000 Buku**.', '• 🛍️ **Wirausaha Renco**: Gerakan **100 UMKM Baru**.', '• ♻️ **Sampah Jadi Berkah**: bank sampah, penjemputan, dan pengolahan.', '• 🌍 **Gumi Renco**: penghijauan, air bersih, dan ketahanan pangan.', '• 🏦 **Dana Abadi Renco**, 🗺️ **Peta Masa Depan**, dan 📈 **Indeks Kesejahteraan** sebagai penopang jangka panjang.', '', 'Program dikelompokkan ke **4 kategori** (sama di halaman Vision 2045 dan RencoPay): **Aren Jariyah** (Aset Bersama, Gumi Renco, Sampah Jadi Berkah; satu kesatuan dengan **Dana Abadi Renco**: Aren Jariyah adalah pilar gerakannya, Dana Abadi Renco adalah identitas dan fondasi pendanaannya; ketuk judulnya untuk membuka), **Koperasi Renco** (Wirausaha Renco), **Renco Takaful** (Takaful Darurat, Takaful Peduli), dan **Renco Gakure** (Pendidikan dan Beasiswa, Perpustakaan Renco). Saat pertama dibuka, halaman hanya menampilkan **4 pilar** ini; ketuk salah satu untuk melihat programnya, dan ketuk **‹ 4 Pilar** untuk kembali.', '', 'Ada juga tombol **Join Us** di menu Semeton® yang membuka situs Renco Vision 2045. Ketuk sekali untuk mengaktifkan, ketuk lagi untuk membukanya di tab baru.'],
   [{ t: 'Buka Vision 2045', go: 'nav:vision2045' }, { t: 'Buka Semeton®', go: 'nav:forum' }], ['Aset Bersama', 'Pendidikan & Beasiswa', 'Menu Semeton®']);
 F('diskusi', 'Diskusi', '🗣️', false, /\b(menu|tab|fitur)? ?diskusi\b|review koperasi|rating aplikasi|bersihkan chat|ruang obrol/, '**Forum → Diskusi**.',
   ['• Ngobrol dengan sesama anggota (tombol **Tulis**).', '• Ada **Review Koperasi** dan **Rating Aplikasi** untuk memberi masukan.', '• **Bersihkan Chat** untuk merapikan percakapan.'],
@@ -78955,7 +78974,7 @@ var KB = [
     build: function(){ return { text: '**Semeton®** 🎮\nSemeton® adalah ruang komunitas, hiburan, dan **alat bantu** harian untuk anggota Renco. Menunya terbagi dalam 5 kategori: **Komunitas & Hiburan** (Diskusi, Polling, Games, Arisan, Berita, Kalender, 100 Nasehat, Edukasi), **Keuangan & Bisnis** (Catat Uang, Kalkulator, Hitung HPP, Margin & Untung, Anggaran), **Pekerjaan & Aktivitas** (Tugas, Catatan, Pengingat, Invoice), **Alat Bantu Digital** (QR, Kompres Foto, Konversi) dan **Perencanaan Diri** (Target Pribadi, Jurnal Harian, Bank Ide).\n\nSaat pertama dibuka, hanya **Komunitas & Hiburan** yang tampil. Ketuk judul kategori lain untuk membuka atau menutup menunya.', chips: ['Menu Semeton®', 'Hitung HPP', 'Vision 2045'] }; } },
   { id: 'k:vision2045', kw: ['vision', '2045', 'lapangan', 'gerakan'],
     re: /apa itu (renco )?vision|tentang (renco )?vision|vision ?2045 (itu|adalah)|tujuan (renco )?vision|visi 2045|gerakan 100 pemuda|lapangan renco itu/,
-    build: function(){ return { text: '**Renco Vision 2045** 🎯\nGerakan jangka panjang warga Renco untuk membangun kesejahteraan bersama menuju tahun **2045**. Tagline-nya **"Dari Kita untuk Generasi"**, dan ini merupakan **Gerakan Pemuda Aren Community**. Titik awalnya **Lapangan Renco · Gerakan 100 Pemuda**: mengumpulkan kontribusi untuk **aset bersama** (tanah bersama, target 2030) yang dikelola amanah dan produktif.\n\nProgram turunannya: **Satu Rumah Satu Sarjana** dan **Satu Rumah Satu Hafiz** (pendidikan), **Gerakan 1000 Buku** (Perpustakaan Renco), **Gerakan 100 UMKM Baru** (Wirausaha Renco), **Sampah Jadi Berkah**, dan **Gumi Renco** (lingkungan dan pangan). Penopang jangka panjangnya: **Dana Abadi Renco**, **Peta Masa Depan** (tahapan menuju 2045), dan **Indeks Kesejahteraan** (mengukur perubahan kondisi masyarakat).\n\nSemangatnya sama dengan koperasi: **gotong royong**, transparan, dan hasilnya dinikmati bersama.', chips: ['Menu Vision 2045', 'Menu Semeton®', 'Tentang Koperasi Renco'] }; } },
+    build: function(){ return { text: '**Renco Vision 2045** 🎯\nGerakan jangka panjang warga Renco untuk membangun kesejahteraan bersama menuju tahun **2045**. Tagline-nya **"Dari Kita untuk Generasi"**, dan ini merupakan **Gerakan Pemuda Aren Community**. Titik awalnya **Lapangan Renco · Gerakan 100 Pemuda**: mengumpulkan kontribusi untuk **aset bersama** (tanah bersama, target 2030) yang dikelola amanah dan produktif.\n\nProgram turunannya: **Satu Rumah Satu Sarjana** dan **Satu Rumah Satu Hafiz** (pendidikan), **Gerakan 1000 Buku** (Perpustakaan Renco), **Gerakan 100 UMKM Baru** (Wirausaha Renco), **Sampah Jadi Berkah**, dan **Gumi Renco** (lingkungan dan pangan). Penopang jangka panjangnya: **Dana Abadi Renco**, **Peta Masa Depan** (tahapan menuju 2045), dan **Indeks Kesejahteraan** (mengukur perubahan kondisi masyarakat).\n\nProgramnya dikelompokkan ke 4 kategori: **Aren Jariyah** (keberlanjutan aset dan lingkungan), **Koperasi Renco** (kemandirian ekonomi), **Renco Takaful** (perlindungan dan solidaritas anggota), dan **Renco Gakure** (pendidikan dan pengembangan generasi).\n\nSemangatnya sama dengan koperasi: **gotong royong**, transparan, dan hasilnya dinikmati bersama.', chips: ['Menu Vision 2045', 'Menu Semeton®', 'Tentang Koperasi Renco'] }; } },
   { id: 'k:chatadmin', kw: ['chat', 'admin', 'balasan'],
     re: /balasan admin (otomatis|langsung)|chat admin (otomatis|langsung|real ?time)|(kapan|bagaimana|gimana).{0,20}balasan admin|auto ?(tampil|refresh).{0,15}chat/,
     build: function(){ return { text: '**Chat dengan Admin** 💬\nKetuk ikon **chat admin** di bagian atas Asisten Renco, lalu tulis pesanmu. Selama halaman chat admin terbuka, **balasan admin tampil otomatis** di layar (dicek berkala), jadi kamu tidak perlu menekan Balasan admin. Pesan baru langsung ditandai terbaca. Ketuk **Akhiri** untuk kembali ke asisten. Balasan tetap bisa dilihat kapan saja lewat **Balasan admin**.', chips: ['Hubungi Admin', 'Balasan admin'] }; } },
@@ -79057,6 +79076,7 @@ var WAWASAN = [
   'Mau tahu untung usahamu? Pakai **Semeton® → Keuangan & Bisnis → Hitung HPP** untuk menghitung harga pokok dan saran harga jual, lalu **Margin & Untung** untuk laba, markup, dan titik impas (BEP). 🧮',
   '**Kompres Foto** dan **QR Generator** di Semeton® (kategori Alat Bantu Digital) memudahkan mengirim foto dan membagikan tautan atau nomor rekening. Foto diproses di perangkatmu, **tidak diunggah ke server**. 📸',
   '**Renco Vision 2045** bergerak lewat **Lapangan Renco · Gerakan 100 Pemuda**: aset bersama (tanah, target 2030), Satu Rumah Satu Sarjana dan Hafiz, 1000 Buku, 100 UMKM Baru, Sampah Jadi Berkah, serta Gumi Renco. 🎯',
+  'Menu **Vision 2045** punya 4 kategori: **Aren Jariyah** (aset, Gumi Renco, Sampah Jadi Berkah; satu kesatuan dengan **Dana Abadi Renco**), **Koperasi Renco** (Wirausaha), **Renco Takaful** (Darurat dan Peduli), serta **Renco Gakure** (Pendidikan dan Perpustakaan). 🌱',
   'Di menu **Vision 2045**, **Dana Abadi Renco** dikumpulkan untuk keberlanjutan program jangka panjang, **Peta Masa Depan** memuat tahapan menuju 2045, dan **Indeks Kesejahteraan** mengukur perubahan kondisi masyarakat. 🗺️',
   'Kartu **Skor Kepercayaan** di menu Nasabah kini **tersembunyi secara default**. Ketuk tombol **🛡️ Skor Kepercayaan → Tampilkan** untuk melihat skor dan detailnya. 🛡️',
   '**Statistik di Beranda** (grafik donat dan kartu ringkasan) kini **tersembunyi secara default**. Ketuk **📊 Tampilkan Statistik** di Beranda kalau mau melihatnya. 📊',
@@ -82749,6 +82769,25 @@ html.renco-dark .ab-pn{ background:#0b0f0c; }
 .ab-sup-c .ic{ width:38px; height:38px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:20px; background:rgba(15,118,110,.16); }
 .ab-sup-c b{ font-size:11px; line-height:1.25; font-weight:800; }
 .ab-sup-c span{ font-size:9px; line-height:1.4; opacity:.75; }
+/* Kategori Vision 2045 (sama dengan RencoPay): Aren Jariyah · Koperasi Renco · Renco Takaful · Renco Gakure */
+.ab-cat{ margin:12px 2px 0; padding-left:10px; border-left:3px solid #d99a0b; }
+.ab-cat.ab-cat-first{ margin:0 2px 12px; }
+.ab-cat h3{ margin:0; font-size:14px; font-weight:900; letter-spacing:.2px; }
+.ab-cat small{ display:block; margin-top:1px; font-size:11px; font-weight:600; color:#7a5c00; }
+html.renco-dark .ab-cat small{ color:#f5d77e; }
+.ab-cat-dana{ display:flex; align-items:center; justify-content:space-between; gap:10px; width:calc(100% - 4px); text-align:left; background:transparent; border-top:0; border-right:0; border-bottom:0; color:inherit; font:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.ab-cat-dana .go{ flex:0 0 auto; font-size:11px; font-weight:800; padding:6px 10px; border-radius:999px; border:1.5px solid #d99a0b; background:linear-gradient(135deg,rgba(244,169,34,.20),rgba(255,209,102,.10)); }
+.ab-cat-dana:active .go{ transform:scale(.96); }
+.ab-pil{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.ab-pl{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:5px; min-height:158px; padding:16px 10px; border-radius:22px; border:1px solid rgba(244,214,122,.5); color:#fff; font:inherit; cursor:pointer; box-shadow:0 10px 22px rgba(6,20,12,.28); -webkit-tap-highlight-color:transparent; transition:transform .15s; }
+.ab-pl:active{ transform:scale(.97); }
+.ab-pl .ic{ font-size:34px; line-height:1; filter:drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.ab-pl b{ font-size:14.5px; font-weight:900; }
+.ab-pl small{ font-size:10.5px; line-height:1.3; opacity:.92; font-weight:600; }
+.ab-pl .n{ font-size:9px; line-height:1.35; opacity:.75; margin-top:2px; }
+.ab-back{ display:inline-flex; align-items:center; gap:4px; margin:0 0 10px; padding:6px 12px 6px 8px; border-radius:999px; border:1.5px solid rgba(217,154,11,.6); background:transparent; color:inherit; font:inherit; font-size:12px; font-weight:800; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.ab-sup-g.two{ grid-template-columns:repeat(2,1fr); }
+.ab-sup-g.two .ab-sup-c:last-child:nth-child(odd){ grid-column:1 / -1; }
 .ab-spark{ display:flex; align-items:flex-end; gap:4px; height:38px; margin-top:10px; }
 .ab-spark i{ flex:1; min-height:3px; border-radius:4px 4px 0 0; background:#0f766e; opacity:.85; }
 .ab-spark i:last-child{ opacity:1; background:#b7791f; }
@@ -82783,12 +82822,26 @@ html.renco-dark .ab-pn{ background:#0b0f0c; }
     { k:'sampah',   ban:1, ic:'♻️', t:'Sampah Jadi Berkah', d:'Renco Bersih, Masa Depan Terjaga: bank sampah, penjemputan, pengolahan, dan progres lingkungan.' },
     { k:'gumi',     ban:1, ic:'🌍', t:'Gumi Renco', d:'Jaga Bumi, Rawat Air, Tumbuhkan Pangan: penghijauan, air bersih, dan ketahanan pangan.' },
     { k:'dana',     sup:1, ic:'🏦', t:'Dana Abadi Renco',    d:'Dana jangka panjang untuk mendukung keberlanjutan program.' },
+    { k:'peduli',   sup:1, ic:'🤝', t:'Takaful Peduli',      d:'Dana solidaritas anggota untuk bantuan musibah dan kondisi sangat membutuhkan.' },
     { k:'peta',     sup:1, ic:'🗺️', t:'Peta Masa Depan',     d:'Rencana dan tahapan pembangunan menuju 2045.' },
     { k:'indeks',   sup:1, ic:'📈', t:'Indeks Kesejahteraan', d:'Mengukur perubahan kondisi masyarakat dari waktu ke waktu.' },
     { k:'laporan',  ic:'📑', t:'Laporan dan Legalitas', d:'Laporan penggunaan dana, keputusan rapat, dokumen aset, dan ketentuan kepemilikan.' }
   ];
   var BLN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-  var ST = { edu:{ tab:'ring', q:'', st:'all', prog:'menu' }, hz:{ tab:'ring', q:'', st:'all' }, sp:{ tab:'pusat', st:'all' }, gm:{ tab:'pusat' }, lapTab:'target', bk:{ tab:'ring', q:'', sort:'new' }, um:{ tab:'ring', q:'', st:'all', bd:'' }, pos:{ lap:{fx:.94,fy:.84}, buku:{fx:.93,fy:.8}, umkm:{fx:.93,fy:.8}, edu:{fx:.93,fy:.8}, sampah:{fx:.93,fy:.8}, gumi:{fx:.93,fy:.8} }, act:'lap', tab:'target', pesertaId:null, open:false, fx:.94, fy:.84 };
+  /* Kategori Vision 2045 — sama persis dengan pengelompokan di RencoPay */
+  var CATS = {
+    jariyah:  { t:'Aren Jariyah',   s:'Keberlanjutan Aset dan Lingkungan' },
+    koperasi: { t:'Koperasi Renco', s:'Kemandirian Ekonomi' },
+    takaful:  { t:'Renco Takaful',  s:'Perlindungan dan Solidaritas Anggota' },
+    gakure:   { t:'Renco Gakure',   s:'Pendidikan dan Pengembangan Generasi' }
+  };
+  function catH(k, first){ var c = CATS[k];
+    if (k === 'jariyah') return '<button type="button" class="ab-cat ab-cat-dana' + (first ? ' ab-cat-first' : '') + '" onclick="_abTab(\'dana\')" aria-label="Buka Dana Abadi Renco"><span class="tx"><h3>' + c.t + '</h3><small>Dana Abadi Renco · ' + c.s + '</small></span><span class="go" aria-hidden="true">🏦 ›</span></button>';
+    return '<div class="ab-cat' + (first ? ' ab-cat-first' : '') + '"><h3>' + c.t + '</h3><small>' + c.s + '</small></div>'; }
+  function supC(k){ var m = MENU.filter(function(x){ return x.k === k; })[0]; return m ? '<button type="button" class="ab-sup-c" onclick="_abTab(\'' + m.k + '\')"><div class="ic">' + m.ic + '</div><b>' + m.t + '</b><span>' + m.d + '</span></button>' : ''; }
+  function supDarurat(){ return '<button type="button" class="ab-sup-c" onclick="try{navTo(\'takaful\')}catch(e){}"><div class="ic">🆘</div><b>Takaful Darurat</b><span>Dana pinjaman tanpa bunga untuk kebutuhan mendesak anggota.</span></button>'; }
+  var PIL = { jariyah:{ ic:'🌳', g:'linear-gradient(135deg,#0f3d33,#1f7a5c)', n:'Lapangan Renco · Sampah · Gumi · Dana Abadi', act:'lap' }, koperasi:{ ic:'🏛️', g:'linear-gradient(135deg,#7a4a00,#d4a017)', n:'Wirausaha Renco', act:'umkm' }, takaful:{ ic:'🤲', g:'linear-gradient(135deg,#8a3b12,#d9772b)', n:'Takaful Darurat · Takaful Peduli', act:null }, gakure:{ ic:'🎓', g:'linear-gradient(135deg,#1c3a6b,#3b6fb5)', n:'Pendidikan dan Beasiswa · Perpustakaan', act:'edu' } };
+  var ST = { cat:null, edu:{ tab:'ring', q:'', st:'all', prog:'menu' }, hz:{ tab:'ring', q:'', st:'all' }, sp:{ tab:'pusat', st:'all' }, gm:{ tab:'pusat' }, lapTab:'target', bk:{ tab:'ring', q:'', sort:'new' }, um:{ tab:'ring', q:'', st:'all', bd:'' }, pos:{ lap:{fx:.94,fy:.84}, buku:{fx:.93,fy:.8}, umkm:{fx:.93,fy:.8}, edu:{fx:.93,fy:.8}, sampah:{fx:.93,fy:.8}, gumi:{fx:.93,fy:.8} }, act:'lap', tab:'target', pesertaId:null, open:false, fx:.94, fy:.84 };
   var FIELD = '<svg class="ab-field" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">'
     + '<defs><linearGradient id="abFg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#37913f"/><stop offset="1" stop-color="#256b30"/></linearGradient></defs>'
     + '<rect width="400" height="200" fill="url(#abFg)"/>'
@@ -82999,7 +83052,8 @@ html.renco-dark .ab-pn{ background:#0b0f0c; }
     buku:   { ic:'📚', t:'Perpustakaan Renco' },
     umkm:   { ic:'🛍️', t:'Wirausaha Renco' },
     sampah: { ic:'♻️', t:'Sampah Jadi Berkah' },
-    gumi:   { ic:'🌍', t:'Gumi Renco' }
+    gumi:   { ic:'🌍', t:'Gumi Renco' },
+    peduli: { ic:'🤝', t:'Takaful Peduli' }
   };
   function dpStat(k){
     var a = 0, b = 0, pay = 0;
@@ -83288,7 +83342,7 @@ html.renco-dark .ab-pn{ background:#0b0f0c; }
       + '<details><summary>⚖️ Ketentuan Kepemilikan</summary><div class="in">' + (adm() ? '<button class="ab-btn" style="margin-bottom:6px" onclick="_abForm(\'ketentuan\')">✏️ Ubah</button>' : '')
       + (d.ketentuan ? '<div class="ab-note" style="white-space:pre-wrap;font-size:12px;opacity:.9">' + esc(d.ketentuan) + '</div>' : '<div class="ab-note">Ketentuan kepemilikan belum diisi pengurus.</div>') + '</div></details>';
   }
-  var VIEWS = { dana: vDana, peta: vPeta, indeks: vIndeks, gumi: vGumi, sampah: vSampah, edu: vEdu, target: vTarget, cicilan: vCicilan, progres: vProgres, buku: vBuku, umkm: vUmkm, laporan: vLaporan };
+  var VIEWS = { peduli: function(){ return dpH('peduli'); }, dana: vDana, peta: vPeta, indeks: vIndeks, gumi: vGumi, sampah: vSampah, edu: vEdu, target: vTarget, cicilan: vCicilan, progres: vProgres, buku: vBuku, umkm: vUmkm, laporan: vLaporan };
   var watch = null;
   function curMenu(){ return MENU.filter(function(m){ return m.k === ST.tab; })[0] || MENU[0]; }
   function livePanel(){ return document.querySelector('.ab-pn:not(.out)'); }
@@ -83755,14 +83809,14 @@ html.renco-dark .ab-pn{ background:#0b0f0c; }
         + '<div class="bn-art">' + art + '</div><h3>' + ttl + '</h3><small>' + sub + '</small>'
         + '<button type="button" class="ab-ball" data-k="' + k + '" aria-label="Buka ' + ttl + '" title="Ketuk untuk membuka, geser untuk memindah">' + ic + '</button></div><p class="ab-hint">Ketuk ikon ' + (ic === '📚' ? 'buku' : ic === '🛍️' ? 'belanja' : ic === '♻️' ? 'daur ulang' : ic === '🌍' ? 'bumi' : 'toga') + ' untuk melihat informasi selengkapnya</p></div>';
     }
-    box.innerHTML = ban('bk', 'buku', '📚', 'Perpustakaan Renco', 'Gerakan 1000 Buku', 'Terkumpul', tb, Tb, 'buku', ART_BK)
-      + ban('um', 'umkm', '🛍️', 'Wirausaha Renco', 'Gerakan 100 UMKM Baru', 'Terdaftar', nu, Tu, 'UMKM', ART_UM)
-      + ban('ed', 'edu', '🎓', 'Pendidikan dan Beasiswa', 'Satu Rumah Satu Sarjana & Hafiz', '', 0, 0, '', artEdu())
-      + ban('sp', 'sampah', '♻️', 'Sampah Jadi Berkah', 'Renco Bersih, Masa Depan Terjaga', '', 0, 0, '', artSampah())
-      + ban('gm', 'gumi', '🌍', 'Gumi Renco', 'Jaga Bumi, Rawat Air, Tumbuhkan Pangan', '', 0, 0, '', artGumi())
-      + '<div class="ab-sup"><div class="ab-sup-h">RUANG CAKRAWALA</div><div class="ab-sup-g">'
-      + MENU.filter(function(m){ return m.sup; }).map(function(m){ return '<button type="button" class="ab-sup-c" onclick="_abTab(\'' + m.k + '\')"><div class="ic">' + m.ic + '</div><b>' + m.t + '</b><span>' + m.d + '</span></button>'; }).join('')
-      + '</div></div>'
+    var c = ST.cat;
+    if (c === 'jariyah') box.innerHTML = ban('sp', 'sampah', '♻️', 'Sampah Jadi Berkah', 'Renco Bersih, Masa Depan Terjaga', '', 0, 0, '', artSampah())
+      + ban('gm', 'gumi', '🌍', 'Gumi Renco', 'Jaga Bumi, Rawat Air, Tumbuhkan Pangan', '', 0, 0, '', artGumi());
+    else if (c === 'koperasi') box.innerHTML = ban('um', 'umkm', '🛍️', 'Wirausaha Renco', 'Gerakan 100 UMKM Baru', 'Terdaftar', nu, Tu, 'UMKM', ART_UM);
+    else if (c === 'takaful') box.innerHTML = '<div class="ab-sup"><div class="ab-sup-g two">' + supDarurat() + supC('peduli') + '</div></div>';
+    else if (c === 'gakure') box.innerHTML = ban('ed', 'edu', '🎓', 'Pendidikan dan Beasiswa', 'Satu Rumah Satu Sarjana & Hafiz', '', 0, 0, '', artEdu())
+      + ban('bk', 'buku', '📚', 'Perpustakaan Renco', 'Gerakan 1000 Buku', 'Terkumpul', tb, Tb, 'buku', ART_BK);
+    else box.innerHTML = '<div class="ab-sup"><div class="ab-sup-h">RUANG CAKRAWALA</div><div class="ab-sup-g two">' + supC('peta') + supC('indeks') + '</div></div>'
       + cwBox(d);
   }
   /* ── Ruang Cakrawala: pesan, balasan (chat), dan arsip bulanan ── */
@@ -83929,10 +83983,19 @@ html.renco-dark .ab-pn{ background:#0b0f0c; }
   document.addEventListener('pointerup', endDrag);
   document.addEventListener('pointercancel', endDrag);
   window.addEventListener('resize', applyBall);
+  function heroH(){ return '<div class="ab-wrap"><div class="ab-hero" onclick="_abHero()">' + FIELD + '<h2>Lapangan Renco</h2><small>Gerakan 100 Pemuda</small><button type="button" class="ab-ball" data-k="lap" aria-label="Menu Lapangan Renco" title="Ketuk untuk menu, geser untuk memindah">⚽</button></div><p class="ab-hint">Ketuk ikon bola untuk melihat informasi selengkapnya</p></div>'; }
+  function rootH(){
+    if (!ST.cat) return '<div class="ab-pil">' + Object.keys(CATS).map(function(k){ var c = CATS[k], p = PIL[k]; return '<button type="button" class="ab-pl" style="background:' + p.g + '" onclick="_abCat(\'' + k + '\')"><span class="ic">' + p.ic + '</span><b>' + c.t + '</b><small>' + c.s + '</small><span class="n">' + p.n + '</span></button>'; }).join('') + '</div><div class="ab-bans"></div>';
+    return '<button type="button" class="ab-back" onclick="_abHome()">‹ 4 Pilar</button>' + catH(ST.cat, true) + (ST.cat === 'jariyah' ? heroH() : '') + '<div class="ab-bans"></div>';
+  }
+  function swapRoot(){ var r = document.getElementById('abRoot'); if (!r) return; closePop(); r.innerHTML = rootH(); render(); try { r.scrollIntoView({ block:'start' }); window.scrollTo(0, 0); } catch(e){} }
+  window._abCat = function(k){ ST.cat = k; ST.act = PIL[k].act; swapRoot(); };
+  window._abHome = function(){ ST.cat = null; ST.act = null; swapRoot(); };
   window.renderAsetBersamaHTML = function(){
     if (!D()) return '<div class="ab"><div class="ab-note">Data belum siap.</div></div>';
+    ST.cat = null; ST.act = null;
     setTimeout(render, 0);
-    return '<div class="ab" id="abRoot"><div class="ab-wrap"><div class="ab-hero" onclick="_abHero()">' + FIELD + '<h2>Lapangan Renco</h2><small>Gerakan 100 Pemuda</small><button type="button" class="ab-ball" data-k="lap" aria-label="Menu Lapangan Renco" title="Ketuk untuk menu, geser untuk memindah">⚽</button></div><p class="ab-hint">Ketuk ikon bola untuk melihat informasi selengkapnya</p></div><div class="ab-bans"></div></div>';
+    return '<div class="ab" id="abRoot">' + rootH() + '</div>';
   };
   window._abBan = function(k){ if (ST.act !== k) { closePop(); ST.act = k; syncAct(); } };
   /* ── opsi gulir: banner/hero yang paling dekat tengah layar otomatis aktif ── */
@@ -84938,6 +85001,21 @@ body.on-rencopay #raFab, body.on-vision2045 #raFab{ display:none !important; }
 .rpv45-row .l span{color:#6a7a72;font-size:11px}
 .rpv45-row .r{font-weight:800;color:#b3261e;white-space:nowrap}
 .rpv45-empty{font-size:12px;color:#6a7a72;text-align:center;padding:10px 0}
+.rpv45-cat h4{margin:0 0 2px;font-size:14px}
+.rpv45-cs{font-size:11px;color:#7a5c00;margin:0 0 6px;font-weight:600}
+.rpv45-pil{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;border:1px solid rgba(217,154,11,.35)}
+.rpv45-pil .ic{flex:0 0 46px;height:46px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:24px;background:linear-gradient(135deg,rgba(244,169,34,.22),rgba(255,209,102,.12))}
+.rpv45-pil .tx{flex:1;min-width:0}
+.rpv45-pil .tx b{display:block;font-size:14.5px}
+.rpv45-pil .tx small{display:block;margin-top:2px;font-size:11px;color:#7a5c00;font-weight:600}
+html.renco-dark .rpv45-pil .tx small{color:#f5d77e}
+.rpv45-pil:active{transform:scale(.98)}
+.rpv45-cathd{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rpv45-cathd h4{margin:0 0 2px}
+.rpv45-cathd .go{flex:0 0 auto;font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;border:1.5px solid #d99a0b;background:linear-gradient(135deg,rgba(244,169,34,.20),rgba(255,209,102,.10))}
+.rpv45-cathd:active .go{transform:scale(.96)}
+.rpv45-go{display:block;font-size:10.5px;font-weight:600;color:#1a6b57;margin-top:1px}
+html.renco-dark .rpv45-cs{color:#f5d77e}
 .rpv45-sec{display:flex;align-items:baseline;justify-content:space-between;margin:16px 4px 8px}
 .rpv45-sec h4{margin:0;font-size:14px;font-weight:800;color:#0f3d33}
 .rpv45-sec span{font-size:11px;color:#6a7a72}
@@ -85020,8 +85098,17 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
     { k:'umkm',   ic:'🛍️', t:'Wirausaha Renco',               d:'Mendukung Gerakan 100 UMKM Baru: modal dan pembinaan wirausaha.' },
     { k:'sampah', ic:'♻️', t:'Sampah Jadi Berkah',            d:'Mendukung bank sampah, penjemputan, dan pengolahan sampah warga.' },
     { k:'gumi',   ic:'🌍', t:'Gumi Renco',                    d:'Mendukung penghijauan, air bersih, dan ketahanan pangan.' },
-    { k:'abadi', ic:'🏦', t:'Dana Abadi Renco',              d:'Dana jangka panjang untuk keberlanjutan program menuju 2045.' }
+    { k:'abadi', ic:'🏦', t:'Dana Abadi Renco',              d:'Dana jangka panjang untuk keberlanjutan program menuju 2045.' },
+    { k:'peduli', ic:'🤝', t:'Takaful Peduli',               d:'Bantuan solidaritas yang tidak wajib dikembalikan untuk anggota yang mengalami musibah atau kondisi sangat membutuhkan.' }
   ];
+  /* Pengelompokan program ke 4 kategori Vision 2045. 'darurat' bukan program pendanaan: hanya pintu ke menu Takaful (Keuangan). */
+  var CATS = [
+    { id:'jariyah',  t:'Aren Jariyah',   s:'Keberlanjutan Aset dan Lingkungan',        items:['aset','gumi','sampah'], abadi:true },
+    { id:'koperasi', t:'Koperasi Renco', s:'Kemandirian Ekonomi',                       items:['umkm'] },
+    { id:'takaful',  t:'Renco Takaful',  s:'Perlindungan dan Solidaritas Anggota',      items:['darurat','peduli'] },
+    { id:'gakure',   t:'Renco Gakure',   s:'Pendidikan dan Pengembangan Generasi',      items:['edu','buku'] }
+  ];
+  var DARURAT = { k:'darurat', ic:'🆘', t:'Takaful Darurat', d:'Dana pinjaman tanpa bunga untuk kebutuhan mendesak anggota, dengan pengembalian sesuai kemampuan.' };
   var META = {
     aset:  { s:'Tanah bersama · target 2030',      g:'linear-gradient(135deg,#0f3d33,#1f7a5c)' },
     edu:   { s:'Satu Rumah Satu Sarjana & Hafiz',  g:'linear-gradient(135deg,#1c3a6b,#3b6fb5)' },
@@ -85038,13 +85125,13 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
       o.aset = (d.peserta || []).reduce(function(t, pe){ return t + sum(pe.pembayaran, function(x){ return x.jumlah; }); }, 0);
       o.edu = sum(d.danaBea, function(x){ return x.jumlah; });
       o.abadi = sum(d.danaAbadi, function(x){ return x.jenis === 'setoran' ? x.jumlah : 0; });
-      ['buku','umkm','sampah','gumi'].forEach(function(k){ o[k] = sum(d.danaProg, function(x){ return x.prog === k && x.jenis === 'masuk' ? x.jumlah : 0; }); });
+      ['buku','umkm','sampah','gumi','peduli'].forEach(function(k){ o[k] = sum(d.danaProg, function(x){ return x.prog === k && x.jenis === 'masuk' ? x.jumlah : 0; }); });
     } catch(e) {}
     return o;
   }
   function rpShort(n){ n = +n || 0; if (n >= 1e9) return 'Rp ' + (n / 1e9).toFixed(1).replace('.0','') + ' M'; if (n >= 1e6) return 'Rp ' + (n / 1e6).toFixed(1).replace('.0','') + ' jt'; if (n >= 1e3) return 'Rp ' + Math.round(n / 1e3) + ' rb'; return 'Rp ' + n; }
   var QUICK = [10000, 25000, 50000, 100000, 250000];
-  var ST = { prog:'aset', busy:false, step:1, anim:'', histOpen:false, hist:[] };
+  var ST = { cat:null, prog:'aset', busy:false, step:1, anim:'', histOpen:false, hist:[] };
   function esc(t){ return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function rp(n){ return typeof fmt === 'function' ? fmt(n || 0) : 'Rp ' + Number(n || 0).toLocaleString('id-ID'); }
   function isAdm(){ return typeof isAdmin === 'function' && isAdmin(); }
@@ -85059,7 +85146,7 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
   window.rpV45HTML = function(fresh){
     var id = kk();
     if (!id) return '<div class="rpv45"><div class="rpv45-card"><div class="rpv45-empty">Fitur ini tersedia untuk akun nasabah.</div></div></div>';
-    if (fresh === true) { ST.step = 1; ST.anim = ''; ST.histOpen = false; }
+    if (fresh === true) { ST.step = 1; ST.cat = null; ST.anim = ''; ST.histOpen = false; }
     var s = saldo(id);
     var hist = getWalletNasabah(id).filter(function(t){ return t.kategori === 'Vision 2045'; }).slice().reverse();
     var total = hist.reduce(function(a, t){ return a + (+t.jumlah || 0); }, 0);
@@ -85087,10 +85174,19 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
       + '<div class="rpv45-hero">' + LOGO
       + '<div class="tot"><div class="s">Total kontribusi</div><div class="a">' + rp(total) + '</div></div>'
       + '<button type="button" class="rpv45-hbtn" onclick="rpV45Prog()">Lihat rincian kontribusi per program</button></div>'
-      + '<div class="rpv45-card"><h4>Pilih program</h4><div class="rpv45-list">'
-      + PROG.map(function(p){
-          return '<button type="button" class="rpv45-pg" onclick="rpV45Pick(\'' + p.k + '\')"><span class="ic">' + p.ic + '</span><b>' + esc(p.t) + '</b><svg class="chv" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
-        }).join('') + '</div></div>'
+      + '<div class="rpv45-sec"><h4>' + (ST.cat ? 'Pilih program' : '4 Pilar Vision 2045') + '</h4></div>'
+      + (ST.cat ? '<button type="button" class="rpv45-back" onclick="rpV45Home()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>4 Pilar</button>' : '')
+      + CATS.filter(function(c){ return !ST.cat || c.id === ST.cat; }).map(function(c){
+          if (!ST.cat) return '<button type="button" class="rpv45-card rpv45-pil" onclick="rpV45Cat(\'' + c.id + '\')"><span class="ic">' + ({ jariyah:'🌳', koperasi:'🏛️', takaful:'🤲', gakure:'🎓' })[c.id] + '</span><span class="tx"><b>' + esc(c.t) + '</b><small>' + esc(c.s) + '</small></span><svg class="chv" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+          return '<div class="rpv45-card rpv45-cat">'
+            + (c.abadi ? '<button type="button" class="rpv45-cathd" onclick="rpV45Pick(\'abadi\')" aria-label="Danai Dana Abadi Renco"><span class="tx"><h4>' + esc(c.t) + '</h4><div class="rpv45-cs">Dana Abadi Renco · ' + esc(c.s) + '</div></span><span class="go" aria-hidden="true">🏦 ›</span></button>'
+                         : '<h4>' + esc(c.t) + '</h4><div class="rpv45-cs">' + esc(c.s) + '</div>')
+            + '<div class="rpv45-list">'
+            + c.items.map(function(k){
+                var dr = k === 'darurat', p = dr ? DARURAT : progOf(k);
+                return '<button type="button" class="rpv45-pg" onclick="' + (dr ? 'rpV45Darurat()' : 'rpV45Pick(\'' + p.k + '\')') + '"><span class="ic">' + p.ic + '</span><b>' + esc(p.t) + (dr ? '<small class="rpv45-go">Buka menu Takaful</small>' : '') + '</b><svg class="chv" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+              }).join('') + '</div></div>';
+        }).join('')
       + '<div class="rpv45-card"><div class="rpv45-hh"><h4>Riwayat pendanaan saya</h4>'
       + (hist.length ? '<button type="button" class="rpv45-tg" onclick="rpV45ToggleHist()">' + (ST.histOpen ? 'Sembunyikan' : 'Tampilkan (' + hist.length + ')') + '</button>' : '') + '</div>'
       + (!hist.length ? '<div class="rpv45-empty">Belum ada pendanaan. Setiap rupiah membantu mewujudkan Renco 2045.</div>'
@@ -85102,6 +85198,12 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
   };
   function rerender(anim){ ST.anim = anim || ''; var c = document.getElementById('rpContent'); if (c) { c.innerHTML = window.rpV45HTML(); try { c.scrollTop = 0; var ct = document.getElementById('content'); if (ct) ct.scrollTop = 0; } catch(e){} } }
   window.rpV45Pick = function(k){ ST.prog = k; setTimeout(function(){ ST.step = 2; rerender('slide-next'); setTimeout(function(){ var a = document.getElementById('rpv45Amt'); if (a && window.innerWidth > 700) a.focus(); }, 320); }, 220); };
+  window.rpV45Darurat = function(){
+    try { if (typeof window.navTo === 'function') window.navTo('takaful'); else if (typeof navTo === 'function') navTo('takaful'); }
+    catch(e) { if (typeof showToast === 'function') showToast('Menu Takaful belum bisa dibuka.'); }
+  };
+  window.rpV45Cat = function(id){ ST.cat = id; rerender('slide-next'); };
+  window.rpV45Home = function(){ ST.cat = null; rerender('slide-prev'); };
   window.rpV45ToggleHist = function(){ ST.histOpen = !ST.histOpen; rerender(''); };
   function progName(t){ var k = t.ref, p = PROG.filter(function(x){ return x.k === k; })[0]; return p ? p.t : String(t.keterangan || '').replace(/^Pendanaan Vision 2045\s*—\s*/, '').replace(/\s*\(.*\)\s*$/, ''); }
   function detailRows(t){
@@ -85246,7 +85348,7 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
         var pe = d.peserta.filter(function(x){ return x.kkId === id && x.aktif !== false; })[0];
         if (!pe) { pe = { id: uidv(), kkId: id, komitmen: 0, aktif: true, pembayaran: [] }; d.peserta.push(pe); }
         (pe.pembayaran = pe.pembayaran || []).push({ id: ref, jumlah: j, tanggal: tg, ket: ketP });
-      } else if (['buku', 'umkm', 'sampah', 'gumi'].indexOf(P.prog) >= 0) {
+      } else if (['buku', 'umkm', 'sampah', 'gumi', 'peduli'].indexOf(P.prog) >= 0) {
         d.danaProg.push({ id: ref, prog: P.prog, tanggal: tg, jenis: 'masuk', jumlah: j, ket: ketP, oleh: nm, sumber: 'RencoPay' });
       } else if (P.prog === 'edu') {
         d.danaBea.push({ id: ref, tanggal: tg, donatur: nm, jumlah: j, ket: ketP });
@@ -90095,156 +90197,954 @@ html.renco-dark .sukb small{color:#9db3a5}
 </script>
 
 <style id="splash-logo-abu-emas">
-/* Logo R splash: abu-abu & transparan saat loading, berubah EMAS & jelas saat loading 100% (#splash.sp-done) */
+/* Logo R splash: ABU-ABU sejak loading 0%, berubah EMAS saat loading 100% (#splash.sp-done).
+   Glow emas & kilau juga dimatikan selama loading supaya logo tidak terlihat keemasan sebelum waktunya. */
 #splash .sp-logo, #splash.sp-lt-on .sp-lt-logo{
-  filter:grayscale(1) brightness(1.15) !important; opacity:.32 !important;
-  transition:opacity .9s ease, filter .9s ease !important; }
+  filter:grayscale(1) brightness(.95) contrast(.95) !important; opacity:.92 !important;
+  transition:filter .9s ease, opacity .6s ease !important; }
 #splash.sp-done .sp-logo, #splash.sp-lt-on.sp-done .sp-lt-logo{
-  filter:none !important; opacity:1 !important; }
-#splash .sp-glow{ opacity:.25; transition:opacity .9s ease; }
-#splash.sp-done .sp-glow{ opacity:1; }
+  filter:grayscale(0) brightness(1) contrast(1) !important; opacity:1 !important; }
+#splash .sp-glow{ animation:none !important; opacity:0 !important; transition:opacity .9s ease; }
+#splash.sp-done .sp-glow{ opacity:1 !important; animation:spGlow 3.2s ease-in-out infinite !important; }
+#splash:not(.sp-done) .sp-shine{ display:none !important; }
 </style>
 <style id="takaful-css">
 .tk{padding:14px 14px 90px;color:var(--text)}
-.tk-hero{border-radius:18px;padding:18px;color:#fff;background:linear-gradient(150deg,#2b0e00 0%,#7a2c00 60%,#c2570f 100%);box-shadow:0 6px 22px rgba(0,0,0,.18)}
+.tk-hero{border-radius:18px;padding:18px;color:#fff;background:linear-gradient(150deg,#071a45 0%,#0f3a8f 55%,#2b7de9 100%);box-shadow:0 6px 22px rgba(0,0,0,.18)}
 .tk-hero small{opacity:.75;font-size:11px;letter-spacing:.4px;text-transform:uppercase}
 .tk-hero .big{font-size:28px;font-weight:800;margin:4px 0 2px}
 .tk-hero .sub{font-size:11.5px;opacity:.8;line-height:1.5}
 .tk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .tk-grid div{background:rgba(255,255,255,.13);border-radius:12px;padding:8px 6px;text-align:center}
 .tk-grid b{display:block;font-size:13px}.tk-grid span{font-size:10px;opacity:.8}
-.tk-card{margin-top:12px;border-radius:16px;padding:14px;background:#fff;border:1px solid rgba(26,71,42,.12);box-shadow:0 2px 10px rgba(10,31,16,.06)}
+.tk-card{margin-top:12px;border-radius:16px;padding:14px;background:#fff;border:1px solid rgba(29,95,209,.12);box-shadow:0 2px 10px rgba(12,38,92,.06)}
 .tk-card h4{margin:0 0 8px;font-size:14px}
-.tk-note{font-size:11.5px;color:var(--text-soft);line-height:1.6}
+.tk-note{font-size:11.5px;color:#5b6f8c;line-height:1.6}
 .tk-row{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:5px 0}
-.tk-btn{border:0;border-radius:12px;padding:11px 14px;font-weight:700;font-size:13px;cursor:pointer;background:linear-gradient(135deg,#e05c1a,#f4a922);color:#fff}
-.tk-btn.sec{background:rgba(26,71,42,.1);color:var(--forest)}
+.tk-btn{border:0;border-radius:12px;padding:11px 14px;font-weight:700;font-size:13px;cursor:pointer;background:linear-gradient(135deg,#1747b8,#3b82f6);color:#fff}
+.tk-btn.sec{background:rgba(29,95,209,.1);color:#1c4fb8}
 .tk-btn.bad{background:rgba(230,57,70,.12);color:#c1121f}
 .tk-btn.sm{padding:7px 10px;font-size:11.5px;border-radius:9px}
-.tk input,.tk textarea{width:100%;box-sizing:border-box;border:1px solid rgba(26,71,42,.25);border-radius:10px;padding:10px;font-size:14px;margin:4px 0 8px;background:#fff;color:#1c3025}
+.tk input,.tk textarea{width:100%;box-sizing:border-box;border:1px solid rgba(29,95,209,.25);border-radius:10px;padding:10px;font-size:14px;margin:4px 0 8px;background:#fff;color:#10233f}
 .tk label{font-size:12px;font-weight:600}
-.tk-bar{height:8px;border-radius:6px;background:rgba(26,71,42,.12);overflow:hidden;margin:6px 0}
-.tk-bar i{display:block;height:100%;background:linear-gradient(90deg,#e05c1a,#f4a922)}
+.tk-bar{height:8px;border-radius:6px;background:rgba(29,95,209,.12);overflow:hidden;margin:6px 0}
+.tk-bar i{display:block;height:100%;background:linear-gradient(90deg,#1d5fd1,#60a5fa)}
 .tk-st{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px}
 .tk-st.pengajuan{background:#fff3cd;color:#8a6100}.tk-st.disetujui{background:#dbe7ff;color:#2347c5}
 .tk-st.dicairkan{background:#ffe3d1;color:#b23c00}.tk-st.lunas{background:#d6f5e0;color:#17653a}.tk-st.ditolak{background:#fde0e3;color:#b4232f}
-html.renco-dark .tk{color:#e8f2e4}
-html.renco-dark .tk-card{background:#0d1a12;border-color:rgba(255,255,255,.09);box-shadow:none}
-html.renco-dark .tk input,html.renco-dark .tk textarea{background:#08130c;color:#e8f2e4;border-color:rgba(255,255,255,.18)}
-html.renco-dark .tk-note{color:#9dc3aa}
-html.renco-dark .tk-btn.sec{background:rgba(255,255,255,.09);color:#cfe8d8}
+html.renco-dark .tk{color:#e6eeff}
+html.renco-dark .tk-card{background:#0c1a36;border-color:rgba(255,255,255,.09);box-shadow:none}
+html.renco-dark .tk input,html.renco-dark .tk textarea{background:#071226;color:#e6eeff;border-color:rgba(255,255,255,.18)}
+html.renco-dark .tk-note{color:#9db8e6}
+html.renco-dark .tk-btn.sec{background:rgba(255,255,255,.09);color:#cfe0ff}
 html.renco-dark .tk-bar{background:rgba(255,255,255,.1)}
+.tk-act{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.tk-act:empty{display:none}
+.tk-st.dibatalkan{background:#e9ecef;color:#555}
+.tk-due{margin-top:6px;font-size:11.5px;font-weight:600;padding:6px 9px;border-radius:9px;background:rgba(29,95,209,.08);color:#1c4fb8}
+.tk-due.bad{background:#fde0e3;color:#b4232f}
+.tk-sim{margin:0 0 8px;font-size:12px;padding:8px 10px;border-radius:10px;background:rgba(244,169,34,.16);color:#7a4a00;line-height:1.5}
+.tk-btn.wa{background:linear-gradient(135deg,#25d366,#128c7e)}
+.tk-search{margin:0 0 8px !important}
+.tk-chips,.tk-quick{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch}
+.tk-quick{margin:-2px 0 8px;padding:0}
+.tk-chip{flex:0 0 auto;border:1px solid rgba(29,95,209,.22);background:#fff;color:#1c4fb8;border-radius:20px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer}
+.tk-chip i{font-style:normal;opacity:.65;margin-left:2px}
+.tk-chip.on{background:linear-gradient(135deg,#1747b8,#3b82f6);border-color:transparent;color:#fff}
+.tk-sum{border-radius:12px;padding:8px 10px;background:rgba(29,95,209,.06)}
+.tk-line{border-bottom:1px dashed rgba(29,95,209,.15)}.tk-line small{opacity:.7}
+.tk-ov{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
+.tk-md{width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;background:#fff;color:#10233f;border-radius:20px 20px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+.tk-md-h{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 8px;font-size:15px}
+.tk-x{border:0;background:rgba(29,95,209,.1);color:inherit;border-radius:50%;width:30px;height:30px;font-size:13px;cursor:pointer}
+.tk-md-b{padding:4px 16px 8px;overflow-y:auto;font-size:13px}
+.tk-md-f{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:10px 16px calc(14px + env(safe-area-inset-bottom,0px))}
+.tk-md label{display:block;font-size:12px;font-weight:600}
+.tk-md input,.tk-md textarea{width:100%;box-sizing:border-box;border:1px solid rgba(29,95,209,.25);border-radius:10px;padding:10px;font-size:14px;margin:4px 0 8px;background:#fff;color:#10233f}
+.tk-md .tk-row{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:5px 0}
+.tk-md .tk-note{font-size:11.5px;line-height:1.6;color:#5b6f8c}
+.tk-md h4{font-size:14px}
+.tk-md .tk-btn{border:0;border-radius:12px;padding:11px 14px;font-weight:700;font-size:13px;cursor:pointer;background:linear-gradient(135deg,#1747b8,#3b82f6);color:#fff}
+.tk-md .tk-btn.sec{background:rgba(29,95,209,.1);color:#1c4fb8}
+.tk-md .tk-btn.bad{background:rgba(230,57,70,.12);color:#c1121f}
+html.renco-dark .tk-md{background:#0c1a36;color:#e6eeff}
+html.renco-dark .tk-md input,html.renco-dark .tk-md textarea{background:#071226;color:#e6eeff;border-color:rgba(255,255,255,.18)}
+html.renco-dark .tk-md .tk-note{color:#9db8e6}
+html.renco-dark .tk-md .tk-btn.sec,html.renco-dark .tk-x{background:rgba(255,255,255,.09);color:#cfe0ff}
+html.renco-dark .tk-chip{background:#0c1a36;color:#cfe0ff;border-color:rgba(255,255,255,.14)}
+html.renco-dark .tk-chip.on{color:#fff}
+html.renco-dark .tk-sum{background:rgba(255,255,255,.06)}
+html.renco-dark .tk-due{background:rgba(255,255,255,.08);color:#cfe0ff}
+html.renco-dark .tk-due.bad{background:rgba(230,57,70,.2);color:#ffb3b9}
+html.renco-dark .tk-sim{background:rgba(244,169,34,.15);color:#f4cf7a}
+html.renco-dark .tk-st.dibatalkan{background:#2a2f2c;color:#b9c4bd}
+.tkp-head{display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:12px 14px;border-radius:16px;color:#fff;background:linear-gradient(135deg,#0a2a6b,#1d5fd1);box-shadow:0 4px 14px rgba(12,38,92,.2)}
+.tkp-head b{display:block;font-size:16px}.tkp-head small{font-size:11px;opacity:.8}
+.tkp-back{flex:0 0 auto;border:0;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-size:18px;cursor:pointer}
+.tk-tabs{margin:0 0 6px}
+.tk-g2{background:rgba(29,95,209,.07) !important;border-radius:12px;padding:8px 6px;text-align:center;color:inherit}
+.tk-g2 span{opacity:.7 !important}
+.tk-sel{width:100%;box-sizing:border-box;border:1px solid rgba(29,95,209,.25);border-radius:10px;padding:10px;font-size:14px;margin:4px 0 8px;background:#fff;color:#10233f}
+.tk-kas{display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px 12px}
+.tk-kas-i{flex:0 0 auto;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(29,95,209,.08);font-size:17px}
+.tk-kas-m{flex:1;min-width:0;font-size:13px}.tk-kas-a{flex:0 0 auto;text-align:right;font-size:13px}
+.tk-md select{width:100%;box-sizing:border-box;border:1px solid rgba(29,95,209,.25);border-radius:10px;padding:10px;font-size:14px;margin:4px 0 8px;background:#fff;color:#10233f}
+html.renco-dark .tk-sel,html.renco-dark .tk-md select{background:#071226;color:#e6eeff;border-color:rgba(255,255,255,.18)}
+html.renco-dark .tk-g2{background:rgba(255,255,255,.07) !important}
+html.renco-dark .tk-kas-i{background:rgba(255,255,255,.09)}
+html.renco-dark .tkp-head{background:linear-gradient(135deg,#0a1a3d,#16408f)}
+
+/* ═══ Tema biru elegan Renco Takaful ═══ */
+.tk{--tk-navy:#0a2a6b;--tk-blue:#1d5fd1;--tk-sky:#60a5fa;--tk-ink:#10233f;--tk-soft:#5b6f8c;color:var(--tk-ink);font-feature-settings:"tnum" 1}
+.tkp-head{position:relative;overflow:hidden;padding:14px 16px;border-radius:20px;box-shadow:0 10px 26px rgba(10,42,107,.28),inset 0 1px 0 rgba(255,255,255,.18)}
+.tkp-head::before{content:"";position:absolute;right:-30px;top:-46px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.22),rgba(255,255,255,0) 70%);pointer-events:none}
+.tkp-head>div{position:relative;z-index:1;flex:1;min-width:0}
+.tkp-head b{font-size:17px;letter-spacing:.2px;font-weight:800}
+.tkp-head small{display:block;margin-top:2px;opacity:.82;letter-spacing:.2px}
+.tkp-back{position:relative;z-index:1;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);backdrop-filter:blur(4px)}
+.tkp-ar{position:relative;z-index:1;flex:0 0 auto;font-family:'Amiri','Scheherazade New','Noto Naskh Arabic',serif;font-size:24px;font-weight:700;line-height:1;direction:rtl;color:#fff;padding:6px 12px 8px;border-radius:14px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);text-shadow:0 1px 8px rgba(0,0,0,.25)}
+.tk-tabs{background:rgba(29,95,209,.08);border-radius:16px;padding:5px;gap:4px;margin:0 0 4px}
+.tk-tabs .tk-chip{border:0;background:transparent;color:#3d5a8f;padding:8px 13px;border-radius:12px;font-size:12px;box-shadow:none}
+.tk-tabs .tk-chip.on{background:linear-gradient(135deg,#1747b8,#3b82f6);color:#fff;box-shadow:0 4px 12px rgba(29,95,209,.38)}
+.tk-hero{position:relative;overflow:hidden;border-radius:22px;padding:20px 18px;box-shadow:0 14px 30px rgba(10,42,107,.3),inset 0 1px 0 rgba(255,255,255,.16)}
+.tk-hero::before{content:"";position:absolute;right:-50px;top:-70px;width:210px;height:210px;border-radius:50%;background:radial-gradient(circle,rgba(147,197,253,.38),rgba(147,197,253,0) 68%);pointer-events:none}
+.tk-hero::after{content:"";position:absolute;left:-40px;bottom:-80px;width:190px;height:190px;border-radius:50%;border:26px solid rgba(255,255,255,.05);pointer-events:none}
+.tk-hero>*{position:relative;z-index:1}
+.tk-hero small{letter-spacing:1.1px;font-weight:600;opacity:.8}
+.tk-hero .big{font-size:31px;letter-spacing:-.3px;text-shadow:0 2px 14px rgba(0,0,0,.22)}
+.tk-hero .sub b{color:#bfdbfe}
+.tk-grid div{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(4px);border-radius:14px}
+.tk-card{border-radius:18px;border:1px solid rgba(29,95,209,.13);background:linear-gradient(180deg,#fff,#f8fbff);box-shadow:0 6px 18px rgba(12,38,92,.07)}
+.tk-card h4{color:#0a2a6b;font-weight:800;letter-spacing:.1px}
+.tk-line{border-bottom:1px dashed rgba(29,95,209,.2)}
+.tk-sum{background:rgba(29,95,209,.07)}
+.tk-btn{box-shadow:0 5px 14px rgba(29,95,209,.32);letter-spacing:.2px}
+.tk-btn.sec,.tk-btn.bad{box-shadow:none}
+.tk-btn.sec{background:rgba(29,95,209,.1);color:#1c4fb8}
+.tk-bar i{box-shadow:0 0 10px rgba(96,165,250,.55)}
+.tk-due{background:rgba(29,95,209,.09);color:#1c4fb8}
+.tk-due.bad{background:#fde0e3;color:#b4232f}
+.tk-kas-i,.tk-g2{background:rgba(29,95,209,.09) !important}
+.tk input:focus,.tk textarea:focus,.tk-sel:focus,.tk-md input:focus,.tk-md textarea:focus,.tk-md select:focus{outline:0;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.22)}
+.tk-md{border-radius:24px 24px 0 0}
+.tk-md-h{color:#0a2a6b}
+.tk-md .tk-btn.sec{background:rgba(29,95,209,.1);color:#1c4fb8}
+.tk-x{background:rgba(29,95,209,.1)}
+html.renco-dark .tk{color:#e6eeff}
+html.renco-dark .tk-card{background:linear-gradient(180deg,#0e2145,#0c1a36);border-color:rgba(147,197,253,.14);box-shadow:none}
+html.renco-dark .tk-card h4,html.renco-dark .tk-md-h{color:#bfdbfe}
+html.renco-dark .tk-tabs{background:rgba(147,197,253,.08)}
+html.renco-dark .tk-tabs .tk-chip{background:transparent;color:#9db8e6}
+html.renco-dark .tk-tabs .tk-chip.on{background:linear-gradient(135deg,#1747b8,#3b82f6);color:#fff}
+html.renco-dark .tk-btn.sec{background:rgba(147,197,253,.12);color:#cfe0ff}
+html.renco-dark .tk-due{background:rgba(147,197,253,.1);color:#cfe0ff}
+html.renco-dark .tk-due.bad{background:rgba(230,57,70,.2);color:#ffb3b9}
+html.renco-dark .tk-kas-i,html.renco-dark .tk-g2{background:rgba(147,197,253,.1) !important}
 </style>
 <script id="takaful-js">
-/* ══ RENCO TAKAFUL — program pinjaman dana darurat anggota (tanpa margin/bunga, qardhul hasan) ══
-   Sumber dana : alokasi SHU "Renco Takaful" yang sudah dikonfirmasi (DB.saldoDanaLembaga, jenis sosial-pendidikan)
-   Saldo       : alokasi + cicilan masuk − pencairan.   Data: DB.takaful[] , DB.takafulSetting */
+/* ══ RENCO TAKAFUL — UNIT OTONOM koperasi, dana darurat anggota (qardhul hasan, tanpa margin/bunga) ══
+   STATUS   : unit otonom (bukan badan hukum terpisah). KEPEMILIKAN dana/aset TETAP KOPERASI → dicatat di Aset Koperasi
+              "Dana Takaful" (dua pos: aset-takaful-kas = Dana Rupiah [kas + piutang rupiah]; aset-takaful-emas = Stok Emas [gram]). Bukan PHU, bukan kas operasional koperasi.
+   MANDIRI  : pengelolaan sesuai mandat (DB.takafulSetting.mandat), halaman sendiri (#page-takaful), PEMBUKUAN sendiri
+              (DB.takafulKas), pinjaman sendiri (DB.takaful), REKENING sendiri (DB.takafulSetting.rekening).
+   SATUAN   : pinjaman boleh dalam Rupiah ATAU Emas (gram, dikembalikan emas yang sama, tanpa konversi rupiah); stok emas di DB.takafulEmas.
+   SUMBER DANA: alokasi SHU "Renco Takaful" (DB.saldoDanaLembaga, jenis sosial-pendidikan). Alokasi dibaca saja dan
+              dipindahkan ke Takaful saat pengurus menekan "Terima" → kas masuk jenis "shu" di buku Takaful.
+   Jenis kas: masuk = shu, infaq, cicilan · keluar = pencairan, beliemas, operasional, santunan. */
 (function(){
-  var rp=function(n){ try{return fmt(n);}catch(e){return 'Rp'+(n||0);} };
-  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  var rp=function(n){ try{return fmt(n);}catch(e){return 'Rp '+(n||0);} };
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); };
+  function pad(n){ return n<10?'0'+n:''+n; }
+  function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function today(){ return ymd(new Date()); }
+  function parseD(s){ var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||''); return m?new Date(+m[1],+m[2]-1,+m[3]):null; }
+  function addMonths(s,n){ var d=parseD(s); if(!d) return null; var day=d.getDate(); d.setDate(1); d.setMonth(d.getMonth()+n);
+    d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate())); return ymd(d); }
+  function fTgl(s){ var d=parseD(s); return d?d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}):'-'; }
+  function fBln(ym){ var p=String(ym).split('-'); return ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][(+p[1]||1)-1]+' '+p[0]; }
+  function selisih(a,b){ var x=parseD(a),y=parseD(b); return (x&&y)?Math.round((x-y)/86400000):0; }
+
   function T(){ if(!Array.isArray(DB.takaful)) DB.takaful=[]; return DB.takaful; }
-  function CFG(){ if(!DB.takafulSetting) DB.takafulSetting={maxPinjam:2000000,maxTenor:10}; return DB.takafulSetting; }
-  function nama(id){ var n=(DB.nasabah||[]).find(function(x){return x.id===id;}); return n?(n.nama||n.name||id):id; }
+  function CFG(){ if(!DB.takafulSetting||typeof DB.takafulSetting!=='object') DB.takafulSetting={};
+    var c=DB.takafulSetting; if(!(c.maxPinjam>0)) c.maxPinjam=2000000; if(!(c.maxTenor>0)) c.maxTenor=10; if(!(c.tenggang>=0)) c.tenggang=7; if(!(c.biayaAdmin>=0)) c.biayaAdmin=0; return c; }
+  function nasabahOf(id){ return (DB.nasabah||[]).find(function(x){return x.id===id;}); }
+  function nama(id){ var n=nasabahOf(id); return n?(n.nama||n.name||id):id; }
   function myId(){ return window.AUTH&&AUTH.user?AUTH.user.nasabahId:null; }
   function isAdm(){ return typeof isAdmin==='function'&&isAdmin(); }
   function sum(a,f){ return a.reduce(function(s,x){return s+(f(x)||0);},0); }
-  function cicilanTotal(p){ return sum(p.cicilan||[],function(c){return c.jumlah;}); }
-  function sisaPinjam(p){ return Math.max(0,(p.jumlah||0)-cicilanTotal(p)); }
-  function stat(){
-    var alok=sum((DB.saldoDanaLembaga||[]).filter(function(d){return d.jenis==='sosial-pendidikan';}),function(d){return d.jumlah;});
-    var cair=T().filter(function(p){return p.status==='dicairkan'||p.status==='lunas';});
-    var disalur=sum(cair,function(p){return p.jumlah;});
-    var kembali=sum(cair,cicilanTotal);
-    return {alok:alok,disalur:disalur,kembali:kembali,saldo:alok-disalur+kembali,
-      penerima:cair.length,aktif:cair.filter(function(p){return p.status==='dicairkan';}).length};
-  }
-  function st(s){ return '<span class="tk-st '+s+'">'+({pengajuan:'Menunggu',disetujui:'Disetujui',dicairkan:'Berjalan',lunas:'Lunas',ditolak:'Ditolak'}[s]||s)+'</span>'; }
-  function today(){ return new Date().toISOString().slice(0,10); }
-  function save(){ try{saveDB();}catch(e){} refresh(); }
-  function refresh(){ var c=document.getElementById('keuanganContent'); if(c&&window._rencoActiveKeuanganTab==='takaful') c.innerHTML=window.renderTakafulHTML(); }
+  function find(id){ return T().find(function(p){return p.id===id;}); }
+  function audit(aksi,detail){ try{ if(typeof auditLog==='function') auditLog(aksi,detail,'takaful'); }catch(e){} }
+  function toast(m){ try{showToast(m);}catch(e){} }
 
-  function loanCard(p,adm){
-    var cic=cicilanTotal(p), pct=p.jumlah?Math.min(100,Math.round(cic/p.jumlah*100)):0;
-    var h='<div class="tk-card"><div class="tk-row"><b>'+(adm?esc(nama(p.kkId)):'Pinjaman '+rp(p.jumlah))+'</b>'+st(p.status)+'</div>'
-      +(adm?'<div class="tk-row"><span>Jumlah</span><b>'+rp(p.jumlah)+'</b></div>':'')
-      +'<div class="tk-row"><span>Tenor</span><span>'+p.tenor+' bulan · cicilan '+rp(Math.ceil(p.jumlah/p.tenor))+'/bln</span></div>'
-      +'<div class="tk-note">Keperluan: '+esc(p.tujuan)+' · diajukan '+esc(p.tglAjuan)+'</div>';
-    if(p.status==='dicairkan'||p.status==='lunas') h+='<div class="tk-bar"><i style="width:'+pct+'%"></i></div><div class="tk-row"><span>Terbayar '+rp(cic)+'</span><span>Sisa '+rp(sisaPinjam(p))+'</span></div>';
-    if(p.catatan) h+='<div class="tk-note">Catatan pengurus: '+esc(p.catatan)+'</div>';
+  /* ══ BUKU KAS TAKAFUL ══ */
+  var JN={shu:['🏛️','Dana dari Koperasi (SHU)',1],infaq:['🤲','Infaq / Hibah Masuk',1],cicilan:['↩️','Cicilan Pinjaman',1],
+          pencairan:['💸','Pencairan Pinjaman',-1],beliemas:['🪙','Pembelian Emas',-1],operasional:['🧾','Biaya Operasional',-1],santunan:['❤️','Santunan',-1],adm:['🧾','Biaya Administrasi',1],setor:['🏦','Setoran ke Koperasi',-1]};
+  var MANUAL={infaq:1,operasional:1,santunan:1};
+  /* Migrasi sekali: bentuk buku kas dari data lama (alokasi SHU + pencairan + cicilan). ID deterministik → aman bila
+     dijalankan di beberapa perangkat sekaligus (digabung per-id oleh sinkron cloud). */
+  function kas(){
+    if(!Array.isArray(DB.takafulKas)) DB.takafulKas=[];
+    if(!DB.takafulKasV2&&(DB.nasabah||[]).length>0){
+      var ada={}; DB.takafulKas.forEach(function(e){ ada[e.id]=1; });
+      var put=function(e){ if(!ada[e.id]){ ada[e.id]=1; DB.takafulKas.push(e); } };
+      var thn={}; (DB.saldoDanaLembaga||[]).forEach(function(d){ if(d.jenis==='sosial-pendidikan'){ var t=thn[d.tahun]||(thn[d.tahun]={j:0,tgl:''}); t.j+=(d.jumlah||0); t.tgl=(d.tanggal||d.createdAt||'').slice(0,10)||t.tgl; } });
+      Object.keys(thn).forEach(function(y){ if(thn[y].j>0) put({id:'mig-shu-'+y,tgl:thn[y].tgl||today(),jenis:'shu',jumlah:thn[y].j,tahun:+y,ket:'Alokasi SHU '+y}); });
+      T().forEach(function(p){
+        if(p.status!=='dicairkan'&&p.status!=='lunas') return;
+        put({id:'mig-cair-'+p.id,tgl:p.tglCair||p.tglSetuju||p.tglAjuan||today(),jenis:'pencairan',jumlah:p.jumlah,ket:'Pencairan – '+nama(p.kkId),ref:p.id});
+        (p.cicilan||[]).forEach(function(c,i){ put({id:'mig-cic-'+p.id+'-'+i,tgl:c.tgl||today(),jenis:'cicilan',jumlah:c.jumlah,ket:'Cicilan – '+nama(p.kkId),ref:p.id}); });
+      });
+      /* Dana yang sudah pindah ke Takaful tidak lagi tercatat sebagai PHU koperasi → dicatat sebagai Aset Koperasi (syncAset) */
+      try{ var ty=Object.keys(thn).filter(function(y){return thn[y].j>0;});
+        if(ty.length&&Array.isArray(DB.phuPendapatan)) DB.phuPendapatan=DB.phuPendapatan.filter(function(x){ var r=x&&x._shuRef; if(!r) return true;
+          var m=/^(\d+)_sosial-pendidikan$/.exec(String(r)); return !(m&&ty.indexOf(m[1])>=0); }); }catch(e){}
+      DB.takafulKasV2=true;
+    }
+    return DB.takafulKas;
+  }
+  function addKas(jenis,jumlah,ket,x){ x=x||{}; var e={id:'tk'+uid(),tgl:x.tgl||today(),jenis:jenis,jumlah:jumlah,ket:ket||''};
+    if(x.ref) e.ref=x.ref; if(x.tahun) e.tahun=x.tahun; kas().push(e); return e; }
+  function saldoKas(){ return sum(kas(),function(e){ return (JN[e.jenis]?JN[e.jenis][2]:0)*e.jumlah; }); }
+  function kasUrut(){ return kas().map(function(e,i){ return {e:e,i:i}; }).sort(function(a,b){ return a.e.tgl<b.e.tgl?-1:a.e.tgl>b.e.tgl?1:a.i-b.i; }); }
+
+  /* ── Alokasi SHU koperasi (hanya dibaca) ── */
+  function shuAlokasi(){ var m={}; (DB.saldoDanaLembaga||[]).forEach(function(d){ if(d.jenis==='sosial-pendidikan') m[d.tahun]=(m[d.tahun]||0)+(d.jumlah||0); }); return m; }
+  function shuTerima(y){ return sum(kas().filter(function(e){return String(e.tahun)===String(y)&&(e.jenis==='shu'||(e.jenis==='setor'&&e.tujuan==='sosial'));}),function(e){return e.jenis==='shu'?e.jumlah:-e.jumlah;}); }
+  function shuBaris(){ var a=shuAlokasi(); return Object.keys(a).sort().reverse().map(function(y){ var t=shuTerima(y); return {tahun:y,alok:a[y],terima:t,selisih:a[y]-t}; }); }
+
+  /* ── Pinjaman ── */
+  /* ── Emas sebagai satuan pinjaman: p.satuan='emas', p.gram = pokok (gram), dikembalikan dalam EMAS FISIK.
+        Stok emas Takaful dicatat di DB.takafulEmas (gram). TANPA konversi rupiah: tidak ada harga emas / nilai rupiah emas. ── */
+  function r3(x){ return Math.round((+x||0)*1000)/1000; }
+  function gr(n){ return r3(n).toLocaleString('id-ID',{maximumFractionDigits:3})+' g'; }
+  function isEmas(p){ return !!p&&p.satuan==='emas'; }
+  function tot(p){ return isEmas(p)?(p.gram||0):(p.jumlah||0); }
+  function U(p,v){ return isEmas(p)?gr(v):rp(v); }
+  function dec(id){ return r3(parseFloat(String(val(id)).replace(',','.'))||0); }
+  function mg(){ var g=+CFG().maxGram; return g>0?g:2; }
+  function emasLog(){ if(!Array.isArray(DB.takafulEmas)) DB.takafulEmas=[]; return DB.takafulEmas; }
+  var EJ={beli:['🛒','Pembelian Emas dari Dana',1],infaq:['🤲','Infaq Emas Masuk',1],cicilan:['↩️','Cicilan Pinjaman Emas',1],pencairan:['💸','Pencairan Pinjaman Emas',-1]};
+  function addEmas(jenis,gram,ket,x){ x=x||{}; var e={id:'te'+uid(),tgl:x.tgl||today(),jenis:jenis,gram:gram,ket:ket||''}; if(x.ref) e.ref=x.ref; emasLog().push(e); return e; }
+  /* ── Riwayat harga emas: HANYA UNTUK PANTAUAN nilai aset emas dari waktu ke waktu.
+        Tidak dipakai untuk pinjaman, pencairan, pengembalian, kas, maupun total nilai Aset Koperasi. ── */
+  function hLog(){ var c=CFG(); if(!Array.isArray(c.emasHarga)) c.emasHarga=[]; return c.emasHarga; }
+  function hUrut(){ return hLog().map(function(r,i){return {r:r,i:i};}).sort(function(a,b){ return a.r.tgl<b.r.tgl?-1:a.r.tgl>b.r.tgl?1:a.i-b.i; }).map(function(o){return o.r;}); }
+  function hTerakhir(){ var l=hUrut(); return l.length?l[l.length-1]:null; }
+  function stokGram(){ return r3(sum(emasLog(),function(e){ return (EJ[e.jenis]?EJ[e.jenis][2]:0)*e.gram; })); }
+  function angsuran(p){ return isEmas(p)?(p.gram||0):Math.ceil((p.jumlah||0)/(p.tenor||1)); }
+  function terbayar(p){ var t=sum(p.cicilan||[],function(c){return c.jumlah;}); return isEmas(p)?r3(t):t; }
+  function sisa(p){ return Math.max(0,isEmas(p)?r3((p.gram||0)-terbayar(p)):(p.jumlah||0)-terbayar(p)); }
+  function jadwal(p){
+    if(p.status!=='dicairkan'||!p.tglCair) return null;
+    var a=angsuran(p), ke=isEmas(p)?1:Math.min(p.tenor,Math.floor(terbayar(p)/a)+1), due=addMonths(p.tglCair,isEmas(p)?p.tenor:ke), due0=due, tg=CFG().tenggang, tgh=!!(p.tangguh&&p.tangguh.ke===ke&&p.tangguh.sampai>due); if(tgh) due=p.tangguh.sampai; var hari=selisih(today(),due);
+    return {ke:ke,due:due,due0:due0,tangguh:tgh,telat:hari>tg,tenggang:hari>0&&hari<=tg,hari:hari,akhir:addMonths(p.tglCair,p.tenor)};
+  }
+  function stat(){
+    var cair=T().filter(function(p){return p.status==='dicairkan'||p.status==='lunas';});
+    var jalan=cair.filter(function(p){return p.status==='dicairkan';});
+    var saldo=saldoKas(), cadang=sum(T().filter(function(p){return p.status==='disetujui'&&!isEmas(p);}),function(p){return p.jumlah;});
+    var bln=today().slice(0,7), kb=kas().filter(function(e){return (e.tgl||'').slice(0,7)===bln;});
+    return {saldo:saldo,cadang:cadang,tersedia:saldo-cadang,disalur:sum(cair.filter(function(p){return !isEmas(p);}),function(p){return p.jumlah;}),disalurGram:r3(sum(cair.filter(isEmas),function(p){return p.gram;})),
+      penerima:cair.length,aktif:jalan.length,piutang:sum(jalan.filter(function(p){return !isEmas(p);}),sisa),piutangGram:r3(sum(jalan.filter(isEmas),sisa)),stokGram:stokGram(),
+      telat:jalan.filter(function(p){var j=jadwal(p);return j&&j.telat;}).length,
+      menunggu:T().filter(function(p){return p.status==='pengajuan';}).length,
+      masukBln:sum(kb.filter(function(e){return JN[e.jenis]&&JN[e.jenis][2]>0;}),function(e){return e.jumlah;}),
+      keluarBln:sum(kb.filter(function(e){return JN[e.jenis]&&JN[e.jenis][2]<0;}),function(e){return e.jumlah;})};
+  }
+  var LBL={pengajuan:'Menunggu',disetujui:'Disetujui',dicairkan:'Berjalan',lunas:'Lunas',ditolak:'Ditolak',dibatalkan:'Dibatalkan'};
+  function st(s){ return '<span class="tk-st '+s+'">'+(LBL[s]||esc(s))+'</span>'; }
+
+  /* ── Render & penyimpanan ── */
+  var _tab='ringkasan', _filter='semua', _q='', _bln='semua', _jk='semua';
+  /* Aset Koperasi "Dana Takaful": total dana yang berada di Takaful (kas + piutang pinjaman berjalan), dikelola otomatis */
+  function syncAset(){
+    if(!Array.isArray(DB.aset)) DB.aset=[];
+    if(!kas().length) return false;
+    var ks=saldoKas(), pt=sum(T().filter(function(p){return p.status==='dicairkan'&&!isEmas(p);}),sisa), r=(DB.takafulSetting&&DB.takafulSetting.rekening)||{};
+    var rk=(r.bank||r.nama||r.no)?(' Rekening: '+(r.bank||'-')+(r.nama?' a.n. '+r.nama:'')+(r.no?' ('+String(r.no).slice(-4).padStart(String(r.no).length>4?8:String(r.no).length,'•')+')':'')+'.'):'';
+    var tail=' Milik koperasi; dikelola mandiri oleh unit Renco Takaful (pembukuan & rekening sendiri); nilai diperbarui otomatis.';
+    var hT=hTerakhir(), sg=stokGram(), pg=r3(sum(T().filter(function(p){return p.status==='dicairkan'&&isEmas(p);}),sisa)), total=r3(sg+pg);
+    var defs=[{id:'aset-takaful-kas',nama:'Dana Rupiah Takaful (Renco Takaful)',nilai:ks+pt,ket:'Kas '+rp(ks)+' + piutang pinjaman rupiah '+rp(pt)+'.'+rk+tail}];
+    if(total>0||DB.aset.some(function(x){return x.id==='aset-takaful-emas';}))
+      defs.push({id:'aset-takaful-emas',nama:'Stok Emas Takaful: '+gr(total)+' (Renco Takaful)',nilai:0,ket:'Stok emas '+gr(total)+' (di tangan '+gr(sg)+' + dipinjamkan ke anggota '+gr(pg)+'). Dibeli dari dana Takaful; dicatat dalam gram, tidak dikonversi ke rupiah.'+(hT?' Nilai pantauan (informasi saja, tidak masuk total aset, tidak dipakai di pinjaman): '+rp(Math.round(total*hT.harga))+' @ '+rp(hT.harga)+'/gram per '+fTgl(hT.tgl)+'.':'')+tail});
+    var ch=false;
+    ['aset-takaful','aset-takaful-piutang','aset-takaful-piutang-emas'].forEach(function(id){ var i=DB.aset.findIndex(function(x){return x.id===id;}); if(i>=0){ DB.aset.splice(i,1); ch=true; } });
+    defs.forEach(function(d){
+      var a=DB.aset.find(function(x){return x.id===d.id;});
+      if(!a){ DB.aset.push({id:d.id,nama:d.nama,kategori:'Aset Lancar',nilai:d.nilai,keterangan:d.ket,dokumen:[],tanggal:new Date().toISOString(),_takaful:true}); ch=true; }
+      else if(a.nilai!==d.nilai||a.keterangan!==d.ket||a.nama!==d.nama){ a.nilai=d.nilai; a.keterangan=d.ket; a.nama=d.nama; ch=true; }
+    });
+    return ch;
+  }
+  function save(){ try{syncAset();}catch(e){} try{saveDB();}catch(e){} refresh(); }
+  function refresh(){
+    var c=document.getElementById('takafulContent'), pg=document.getElementById('page-takaful');
+    if(c&&pg&&pg.classList.contains('active')){ c.innerHTML=pageHTML(); return; }
+    var k=document.getElementById('keuanganContent');
+    if(k&&window._rencoActiveKeuanganTab==='takaful'&&k.querySelector('.tk')) k.innerHTML=pageHTML();
+  }
+
+  /* ── Dialog dalam aplikasi ── */
+  function closeM(){ var o=document.getElementById('tkModal'); if(o) o.remove(); }
+  function modal(judul,body,aksi){
+    closeM();
+    var o=document.createElement('div'); o.id='tkModal'; o.className='tk-ov';
+    o.innerHTML='<div class="tk-md" role="dialog"><div class="tk-md-h"><b>'+judul+'</b><button type="button" class="tk-x" aria-label="Tutup">✕</button></div><div class="tk-md-b">'+body+'</div><div class="tk-md-f"></div></div>';
+    var f=o.querySelector('.tk-md-f');
+    (aksi||[]).forEach(function(a){
+      var b=document.createElement('button'); b.type='button'; b.className='tk-btn '+(a.cls||''); b.textContent=a.label;
+      b.addEventListener('click',function(){ if(a.fn){ if(a.fn()===false) return; } closeM(); }); f.appendChild(b);
+    });
+    o.querySelector('.tk-x').addEventListener('click',closeM);
+    o.addEventListener('click',function(e){ if(e.target===o) closeM(); });
+    document.body.appendChild(o);
+    var first=o.querySelector('input,textarea'); if(first&&first.type!=='date') setTimeout(function(){ try{first.focus();}catch(e){} },60);
+  }
+  function val(id){ var e=document.getElementById(id); return e?e.value:''; }
+  function angka(id){ return parseInt(String(val(id)).replace(/\D/g,''),10)||0; }
+  function ringkas(p){
+    return '<div class="tk-sum"><div class="tk-row"><span>Anggota</span><b>'+esc(nama(p.kkId))+'</b></div>'
+      +'<div class="tk-row"><span>Jumlah</span><b>'+U(p,tot(p))+'</b></div>'
+      +'<div class="tk-row"><span>Tenor</span><span>'+(isEmas(p)?'Jatuh tempo '+p.tenor+' bulan · sekali bayar '+gr(p.gram):p.tenor+' bulan · '+rp(angsuran(p))+'/bln')+'</span></div>'
+      +'<div class="tk-row"><span>Keperluan</span><span style="text-align:right;max-width:62%">'+esc(p.tujuan)+'</span></div></div>';
+  }
+
+  /* ══ TAMPILAN ══ */
+  function head(){
+    return '<div class="tkp-head"><button class="tkp-back" onclick="navTo(\'keuangan\')" aria-label="Kembali">←</button>'
+      +'<div><b>Renco Takaful</b><small>Unit otonom koperasi · dana darurat anggota</small></div><span class="tkp-ar" lang="ar" dir="rtl">تكافل</span></div>';
+  }
+  function tabs(){
+    var T0=[['ringkasan','Ringkasan'],['pinjaman','Pinjaman']]; if(isAdm()) T0.push(['kas','Buku Kas']); if(isAdm()||stokGram()>0||T().some(isEmas)) T0.push(['emas','Emas 🪙']); if(isAdm()) T0.push(['pengaturan','Pengaturan']);
+    var n=isAdm()?stat().menunggu:0;
+    return '<div class="tk-chips tk-tabs">'+T0.map(function(t){ return '<button class="tk-chip'+(_tab===t[0]?' on':'')+'" onclick="takafulTab(\''+t[0]+'\')">'+t[1]+(t[0]==='pinjaman'&&n?' <i>'+n+'</i>':'')+'</button>'; }).join('')+'</div>';
+  }
+  function pageHTML(){
+    if((_tab==='pengaturan'||_tab==='kas')&&!isAdm()) _tab='ringkasan';
+    var body=_tab==='pinjaman'?tabPinjaman():_tab==='kas'?tabKas():_tab==='emas'?tabEmas():_tab==='pengaturan'?tabPengaturan():tabRingkasan();
+    return '<div class="tk">'+head()+tabs()+body+'</div>';
+  }
+  window.renderTakafulHTML=pageHTML;
+  window.takafulTab=function(t){ _tab=t; refresh(); try{ var c=document.getElementById('content'); if(c) c.scrollTop=0; }catch(e){} };
+
+
+  /* ── Mandat & rekening (pengaturan unit) ── */
+  var MANDAT_DEF='Menyalurkan dana darurat anggota berupa pinjaman tanpa margin (qardhul hasan) dan melaporkannya kepada pengurus & rapat anggota.';
+  function mandat(){ var c=CFG(); return (c.mandat&&String(c.mandat).trim())?String(c.mandat).trim():MANDAT_DEF; }
+  function rek(){ var c=CFG(); if(!c.rekening||typeof c.rekening!=='object') c.rekening={}; return c.rekening; }
+  function maskRek(n){ n=String(n||''); return n.length>4?('••••'+n.slice(-4)):n; }
+  function asetTakaful(){ var l=(DB.aset||[]).filter(function(x){return x&&x._takaful;}); return l.length?{nilai:sum(l,function(x){return x.nilai;})}:null; }
+  function rekonsiliasi(){
+    var s=stat(), nilai=s.saldo+s.piutang, a=asetTakaful(), r=rek(), sr=(r.saldo===''||r.saldo==null)?null:+r.saldo;
+    var alok=sum(shuBaris(),function(b){return b.alok;}), terima=sum(shuBaris(),function(b){return b.terima;});
+    return {alok:alok,terima:terima,belum:alok-terima,kas:s.saldo,piutang:s.piutang,stokGram:s.stokGram,piutangGram:s.piutangGram,nilai:nilai,
+      asetNilai:a?a.nilai:null,asetSinkron:!!a&&a.nilai===nilai,
+      saldoRek:isNaN(sr)?null:sr,tglRek:r.tgl||'',selRek:(sr==null||isNaN(sr))?null:(sr-s.saldo)};
+  }
+  /* Kartu "Status & Pencatatan Dana" — menjelaskan posisi Takaful terhadap koperasi */
+  function kartuStatus(){
+    var adm=isAdm(), r=rek(), k=rekonsiliasi();
+    var rekTxt=(r.bank||r.nama||r.no)
+      ? esc(r.bank||'Bank')+(r.nama?' · a.n. '+esc(r.nama):'')+(adm&&r.no?'<br><small>No. rek '+esc(r.no)+'</small>':(r.no?'<br><small>No. rek '+esc(maskRek(r.no))+'</small>':''))
+      : (adm?'<span style="color:#c1121f">Belum diisi — lengkapi di tab Pengaturan</span>':'Rekening khusus Takaful (terpisah dari rekening koperasi)');
+    var h='<div class="tk-card"><h4>🧭 Status & Pencatatan Dana</h4>'
+      +'<div class="tk-row tk-line"><span>Status</span><b style="text-align:right">Unit otonom Koperasi RENCO</b></div>'
+      +'<div class="tk-row tk-line"><span>Kepemilikan aset</span><span style="text-align:right;max-width:62%"><b>Tetap milik koperasi</b></span></div>'
+      +'<div class="tk-row tk-line"><span>Pengelolaan</span><span style="text-align:right;max-width:62%"><b>Mandiri sesuai mandat</b><br><small>'+esc(mandat())+'</small></span></div>'
+      +(adm?'<div class="tk-row tk-line"><span>Pembukuan</span><span style="text-align:right;max-width:62%"><b>Buku Kas Takaful sendiri</b><br><small>terpisah dari kas koperasi</small></span></div>':'')
+      +'<div class="tk-row tk-line"><span>Keterlambatan</span><span style="text-align:right;max-width:62%"><b>Tanpa denda</b><br><small>kesulitan diberi tempo</small></span></div>'
+      +'<div class="tk-row"><span>Rekening</span><span style="text-align:right;max-width:62%">'+rekTxt+'</span></div></div>';
+    if(!adm) return h; /* Alur Pencatatan Dana (buku kas) hanya untuk pengurus */
+    h+='<div class="tk-card"><h4>📒 Alur Pencatatan Dana</h4>'
+      +'<div class="tk-note" style="margin-bottom:6px">Dana yang dipindahkan dicatat sebagai <b>aset koperasi</b> (bukan PHU). Mutasi harian hanya masuk Buku Kas Takaful.</div>'
+      +'<div class="tk-row tk-line"><span>① Alokasi SHU dikonfirmasi koperasi</span><b>'+rp(k.alok)+'</b></div>'
+      +'<div class="tk-row tk-line"><span>② Sudah dipindahkan ke Takaful</span><b>'+rp(k.terima)+'</b></div>'
+      +(k.belum!==0?'<div class="tk-row tk-line"><span>'+(k.belum>0?'Belum dipindahkan (①−②)':'Kelebihan diterima (②−①)')+'</span><b style="color:'+(k.belum>0?'#c2570f':'#c1121f')+'">'+rp(Math.abs(k.belum))+'</b></div>':'')
+      +'<div class="tk-row tk-line"><span>③ Kas Takaful (buku kas)</span><b>'+rp(k.kas)+'</b></div>'
+      +'<div class="tk-row tk-line"><span>④ Piutang pinjaman rupiah</span><b>'+rp(k.piutang)+'</b></div>'
+      +'<div class="tk-row"><span>Dana Rupiah Takaful (③+④)</span><b>'+rp(k.nilai)+'</b></div>'
+      +((k.stokGram>0||k.piutangGram>0)?'<div class="tk-row tk-line" style="margin-top:6px"><span>🪙 Stok Emas Takaful (total)</span><b>'+gr(k.stokGram+k.piutangGram)+'</b></div><div class="tk-note">Di tangan '+gr(k.stokGram)+' · dipinjamkan '+gr(k.piutangGram)+'.'+(hTerakhir()?' Nilai pantauan ≈ '+rp(Math.round((k.stokGram+k.piutangGram)*hTerakhir().harga))+' (info saja).':'')+'</div>':'');
     if(adm){
-      h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
-      if(p.status==='pengajuan') h+='<button class="tk-btn sm" onclick="takafulSetuju(\''+p.id+'\')">Setujui</button><button class="tk-btn bad sm" onclick="takafulTolak(\''+p.id+'\')">Tolak</button>';
-      if(p.status==='disetujui') h+='<button class="tk-btn sm" onclick="takafulCairkan(\''+p.id+'\')">Cairkan Dana</button>';
-      if(p.status==='dicairkan') h+='<button class="tk-btn sm" onclick="takafulCicilan(\''+p.id+'\')">Catat Cicilan</button>';
-      h+='</div>';
-    } else if(p.status==='pengajuan'){
-      h+='<div style="margin-top:8px"><button class="tk-btn bad sm" onclick="takafulBatal(\''+p.id+'\')">Batalkan Pengajuan</button></div>';
+      h+='<div class="tk-note" style="margin-top:6px">'+(k.asetNilai==null?'⚠️ Aset “Dana Takaful” belum tercatat di Aset Koperasi (muncul otomatis setelah ada kas Takaful).'
+        :(k.asetSinkron?'✅ Sinkron dengan Aset Koperasi ('+rp(k.asetNilai)+').':'⚠️ Nilai di Aset Koperasi ('+rp(k.asetNilai)+') berbeda; akan diperbarui otomatis pada pencatatan berikutnya.'))+'</div>';
+      if(k.saldoRek!=null) h+='<div class="tk-note" style="margin-top:4px">'+(k.selRek===0?'✅ Saldo rekening Takaful cocok dengan buku kas':'⚠️ Saldo rekening '+rp(k.saldoRek)+(k.tglRek?' ('+fTgl(k.tglRek)+')':'')+' berbeda '+rp(Math.abs(k.selRek))+' dari buku kas ('+(k.selRek>0?'rekening lebih besar':'rekening lebih kecil')+')')+'</div>';
     }
     return h+'</div>';
   }
 
-  window.renderTakafulHTML=function(){
-    var s=stat(), adm=isAdm(), me=myId(), cfg=CFG();
-    var h='<div class="tk"><div class="tk-hero"><small>🛡️ Renco Takaful · Dana Darurat Anggota</small>'
-      +'<div class="big">'+rp(Math.max(0,s.saldo))+'</div><div class="sub">Saldo tersedia untuk pinjaman darurat anggota, tanpa margin. Bersumber dari alokasi SHU dan dikembalikan melalui cicilan.</div>'
-      +'<div class="tk-grid"><div><b>'+rp(s.disalur)+'</b><span>Tersalurkan</span></div><div><b>'+s.penerima+'</b><span>Penerima</span></div><div><b>'+s.aktif+'</b><span>Berjalan</span></div></div></div>';
-    if(s.saldo<0) h+='<div class="tk-card tk-note" style="color:#c1121f">⚠️ Saldo Takaful minus. Periksa alokasi SHU yang dikonfirmasi di tab Dana Lembaga.</div>';
+  /* ── Tab Ringkasan ── */
+  function tabRingkasan(){
+    var s=stat(), adm=isAdm();
+    var h='<div class="tk-hero"><small>Saldo Kas Takaful</small><div class="big">'+rp(s.saldo)+'</div>'
+      +'<div class="sub">Tersedia untuk dipinjamkan <b>'+rp(Math.max(0,s.tersedia))+'</b>'+(s.cadang>0?' · '+rp(s.cadang)+' sudah disetujui, menunggu pencairan':'')+'. Pinjaman tanpa margin.'+((s.stokGram>0||s.piutangGram>0)?'<br>🪙 Stok emas <b>'+gr(s.stokGram+s.piutangGram)+'</b>'+(s.piutangGram>0?' (di tangan '+gr(s.stokGram)+' · dipinjamkan '+gr(s.piutangGram)+')':''):'')+'</div>'
+      +'<div class="tk-grid"><div><b>'+rp(s.disalur)+'</b><span>Tersalurkan</span></div><div><b>'+s.penerima+'</b><span>Penerima</span></div><div><b>'+s.aktif+'</b><span>Berjalan</span></div></div>'
+      +(adm?'<div class="tk-grid"><div><b>'+s.menunggu+'</b><span>Menunggu</span></div><div><b>'+rp(s.piutang)+'</b><span>Piutang</span></div><div><b'+(s.telat?' style="color:#ffd0d0"':'')+'>'+s.telat+'</b><span>Telat bayar</span></div></div>':'')
+      +'</div>';
+    if(s.tersedia<0) h+='<div class="tk-card tk-note" style="color:#c1121f">⚠️ Saldo kas Takaful kurang dari dana yang sudah disetujui. Tambah dana atau batalkan persetujuan.</div>';
+    h+=kartuStatus();
+    /* Sumber dana dari koperasi */
+    var baris=shuBaris(), pend=baris.filter(function(b){return b.selisih>0;}), lebih=baris.filter(function(b){return b.selisih<0;});
+    h+='<div class="tk-card"><h4>🏛️ Sumber Dana: SHU Koperasi</h4>'
+      +'<div class="tk-note">Dana bersumber dari alokasi SHU “Renco Takaful”. Kepemilikan tetap koperasi.</div>';
+    if(adm){
+      if(pend.length) h+=pend.map(function(b){ return '<div class="tk-row tk-line"><span>SHU '+esc(b.tahun)+'<br><small>Alokasi '+rp(b.alok)+(b.terima?' · sudah diterima '+rp(b.terima):'')+'</small></span><span style="display:flex;align-items:center;gap:8px"><b>'+rp(b.selisih)+'</b><button class="tk-btn sm" onclick="takafulTerimaSHU(\''+esc(b.tahun)+'\')">Terima</button></span></div>'; }).join('');
+      else h+='<div class="tk-note" style="margin-top:6px">✅ Semua alokasi SHU yang sudah dikonfirmasi koperasi telah diterima kas Takaful.</div>';
+      if(lebih.length) h+='<div class="tk-note" style="color:#c1121f;margin-top:6px">⚠️ Alokasi SHU '+lebih.map(function(b){return esc(b.tahun);}).join(', ')+' di koperasi lebih kecil dari yang sudah diterima Takaful. Periksa di tab Dana Lembaga (SHU).</div>';
+    } else h+='<div class="tk-row"><span>Total dana dari koperasi (SHU) diterima</span><b>'+rp(sum(kas().filter(function(e){return e.jenis==='shu';}),function(e){return e.jumlah;}))+'</b></div>';
+    h+='</div>';
+    var sts=kas().filter(function(e){return e.jenis==='setor';});
+    if(adm&&sts.length) h+='<div class="tk-card"><h4>🏦 Setoran ke Koperasi</h4><div class="tk-row tk-line"><span>Total disetor</span><b>'+rp(sum(sts,function(e){return e.jumlah;}))+'</b></div>'
+      +sts.slice().reverse().slice(0,4).map(function(e){ return '<div class="tk-row tk-line"><span>'+fTgl(e.tgl)+'<br><small>'+(e.tujuan==='sosial'?'Pos SHU Sosial '+esc(e.tahun||''):'Kas Koperasi (Saldo PHU)')+'</small></span><b>'+rp(e.jumlah)+'</b></div>'; }).join('')+'</div>';
+    h+='<div class="tk-card"><h4>Bulan ini</h4><div class="tk-row"><span>Kas masuk</span><b style="color:#17653a">+ '+rp(s.masukBln)+'</b></div><div class="tk-row"><span>Kas keluar</span><b style="color:#b4232f">− '+rp(s.keluarBln)+'</b></div></div>';
+    if(adm) h+='<div class="tk-act" style="margin-top:12px"><button class="tk-btn" onclick="takafulKasBaru()">+ Catat Kas</button><button class="tk-btn sec" onclick="takafulSetor()">🏦 Setor ke Koperasi</button>'+(s.menunggu?'<button class="tk-btn sec" onclick="takafulTab(\'pinjaman\')">Lihat '+s.menunggu+' pengajuan</button>':'')+'</div>';
+    else h+='<div class="tk-act" style="margin-top:12px"><button class="tk-btn" onclick="takafulTab(\'pinjaman\')">Ajukan / Lihat Pinjaman Saya</button></div>';
+    return h;
+  }
+
+  /* ── Tab Pinjaman ── */
+  function loanCard(p,adm){
+    var cic=terbayar(p), pct=tot(p)?Math.min(100,Math.round(cic/tot(p)*100)):0, j=jadwal(p);
+    var h='<div class="tk-card"><div class="tk-row"><b>'+(adm?esc(nama(p.kkId)):'Pinjaman '+U(p,tot(p)))+'</b>'+st(p.status)+'</div>'
+      +(adm?'<div class="tk-row"><span>Jumlah</span><b>'+U(p,tot(p))+'</b></div>':'')
+      +'<div class="tk-row"><span>Tenor</span><span>'+(isEmas(p)?'Jatuh tempo '+p.tenor+' bulan · dikembalikan sekaligus '+gr(p.gram):p.tenor+' bulan · cicilan '+rp(angsuran(p))+'/bln')+'</span></div>'
+      +(isEmas(p)?'<div class="tk-note">🪙 Pinjaman emas · dikembalikan dalam emas yang sama, tanpa konversi rupiah.</div>':'')
+      +'<div class="tk-note">Keperluan: '+esc(p.tujuan)+' · diajukan '+fTgl(p.tglAjuan)+'</div>';
+    if(p.status==='dicairkan'||p.status==='lunas') h+='<div class="tk-bar"><i style="width:'+pct+'%"></i></div><div class="tk-row"><span>Terbayar '+U(p,cic)+' ('+pct+'%)</span><span>Sisa '+U(p,sisa(p))+'</span></div>';
+    if(j) h+='<div class="tk-due'+(j.telat?' bad':'')+'">'+(j.telat?'⚠️ Terlambat '+j.hari+' hari · ':j.tenggang?'⏳ Masa tenggang · ':j.tangguh?'🤝 Ditangguhkan · ':'📅 ')+(isEmas(p)?'Pengembalian emas '+gr(sisa(p))+' jatuh tempo ':'Cicilan ke-'+j.ke+' jatuh tempo ')+fTgl(j.due)+'</div>';
+    if(j&&(j.telat||j.tenggang)&&!adm) h+='<div class=\"tk-note\">Tidak ada denda atau tambahan biaya. Bila sedang kesulitan, hubungi pengurus untuk keringanan.</div>';
+    if(adm&&(p.peringatan||[]).length&&p.status==='dicairkan') h+='<div class=\"tk-note\">📝 '+p.peringatan.length+' peringatan tercatat</div>';
+    if(p.status==='lunas'&&p.tglLunas) h+='<div class="tk-note">✅ Lunas pada '+fTgl(p.tglLunas)+'</div>';
+    if(p.catatan) h+='<div class="tk-note">'+(p.status==='ditolak'?'Alasan penolakan':'Catatan pengurus')+': '+esc(p.catatan)+'</div>';
+    h+='<div class="tk-act">';
+    if((p.status!=='pengajuan'&&p.status!=='ditolak'&&p.status!=='dibatalkan')||(p.cicilan||[]).length) h+='<button class="tk-btn sec sm" onclick="takafulDetail(\''+p.id+'\')">Detail</button>';
+    if(adm){
+      if(p.status==='pengajuan') h+='<button class="tk-btn sm" onclick="takafulSetuju(\''+p.id+'\')">Setujui</button><button class="tk-btn bad sm" onclick="takafulTolak(\''+p.id+'\')">Tolak</button>';
+      if(p.status==='disetujui') h+='<button class="tk-btn sm" onclick="takafulCairkan(\''+p.id+'\')">Cairkan Dana</button><button class="tk-btn bad sm" onclick="takafulTolak(\''+p.id+'\')">Batalkan</button>';
+      if(p.status==='dicairkan'){
+        h+='<button class="tk-btn sm" onclick="takafulCicilan(\''+p.id+'\')\">'+(isEmas(p)?'Catat Pengembalian Emas':'Catat Cicilan')+'</button>';
+        if(j&&j.telat) h+='<button class="tk-btn wa sm" onclick="takafulIngatkan(\''+p.id+'\')">Ingatkan WA</button>';
+        if(j&&j.hari>0) h+='<button class="tk-btn sec sm" onclick="takafulTelat(\''+p.id+'\')">Tindak Lanjut</button>';
+      }
+    } else if(p.status==='pengajuan') h+='<button class="tk-btn bad sm" onclick="takafulBatal(\''+p.id+'\')">Batalkan Pengajuan</button>';
+    return h+'</div></div>';
+  }
+  var FILTERS=[['semua','Semua'],['pengajuan','Menunggu'],['disetujui','Disetujui'],['dicairkan','Berjalan'],['lunas','Lunas'],['selesai','Ditolak/Batal']];
+  function cocok(p,f){ return f==='semua'?true:f==='selesai'?(p.status==='ditolak'||p.status==='dibatalkan'):p.status===f; }
+  function adminList(){
+    var o={pengajuan:0,disetujui:1,dicairkan:2,lunas:3,ditolak:4,dibatalkan:5}, q=_q.toLowerCase();
+    var all=T().slice().sort(function(a,b){ return ((o[a.status]||0)-(o[b.status]||0))||(a.tglAjuan<b.tglAjuan?1:-1); });
+    var rows=all.filter(function(p){ return cocok(p,_filter)&&(!q||nama(p.kkId).toLowerCase().indexOf(q)>=0||String(p.tujuan||'').toLowerCase().indexOf(q)>=0); });
+    return rows.length?rows.map(function(p){return loanCard(p,true);}).join(''):'<div class="tk-card tk-note">'+(all.length?'Tidak ada data yang cocok dengan filter.':'Belum ada pengajuan.')+'</div>';
+  }
+  function chips(){ return FILTERS.map(function(f){ var n=T().filter(function(p){return cocok(p,f[0]);}).length;
+    return '<button class="tk-chip'+(_filter===f[0]?' on':'')+'" onclick="takafulFilter(\''+f[0]+'\')">'+f[1]+' <i>'+n+'</i></button>'; }).join(''); }
+  window.takafulFilter=function(f){ _filter=f; var c=document.getElementById('tkChips'),l=document.getElementById('tkList'); if(c) c.innerHTML=chips(); if(l) l.innerHTML=adminList(); };
+  window.takafulCari=function(v){ _q=v||''; var l=document.getElementById('tkList'); if(l) l.innerHTML=adminList(); };
+  function tabPinjaman(){
+    var adm=isAdm(), me=myId(), cfg=CFG(), h='';
     if(!adm){
       var mine=T().filter(function(p){return p.kkId===me;}).sort(function(a,b){return b.tglAjuan<a.tglAjuan?-1:1;});
       var aktif=mine.some(function(p){return p.status==='pengajuan'||p.status==='disetujui'||p.status==='dicairkan';});
       h+='<div class="tk-card"><h4>Ajukan Pinjaman Darurat</h4>';
       if(!me) h+='<div class="tk-note">Akun Anda belum terhubung ke data anggota.</div>';
       else if(aktif) h+='<div class="tk-note">Anda masih memiliki pengajuan atau pinjaman Takaful yang berjalan. Pengajuan baru bisa dibuat setelah lunas.</div>';
-      else h+='<div class="tk-note">Maksimal '+rp(cfg.maxPinjam)+' dan tenor sampai '+cfg.maxTenor+' bulan. Untuk kebutuhan mendesak seperti sakit, musibah, atau biaya mendadak.</div>'
-        +'<label>Jumlah (Rp)</label><input id="tkJml" type="number" inputmode="numeric" min="1" placeholder="500000">'
-        +'<label>Tenor (bulan)</label><input id="tkTen" type="number" inputmode="numeric" min="1" max="'+cfg.maxTenor+'" placeholder="3">'
+      else h+='<div class="tk-note">Maks. '+rp(cfg.maxPinjam)+', tenor sampai '+cfg.maxTenor+' bulan, tanpa margin & denda'+(cfg.biayaAdmin>0?' (biaya administrasi '+rp(cfg.biayaAdmin)+' sekali, saat pencairan)':'')+'. Untuk kebutuhan mendesak.'+' Bisa juga dalam <b>emas</b> (maks. '+gr(mg())+'), dikembalikan sekaligus dalam emas yang sama.'+'</div>'
+        +('<label>Satuan pinjaman</label><select id="tkSat" class="tk-sel" onchange="takafulSatuan()"><option value="idr">Rupiah (Rp)</option><option value="emas">Emas (gram), dikembalikan dalam emas</option></select>')
+        +'<label id="tkJmlLbl">Jumlah (Rp)</label><input id="tkJml" type="number" inputmode="decimal" step="1" min="0" max="'+cfg.maxPinjam+'" placeholder="500000" oninput="takafulSim()">'
+        +'<label id="tkTenLbl">Tenor (bulan)</label><input id="tkTen" type="number" inputmode="numeric" min="1" max="'+cfg.maxTenor+'" placeholder="3" oninput="takafulSim()">'
+        +'<div id="tkSim" class="tk-sim" style="display:none"></div>'
         +'<label>Keperluan darurat</label><textarea id="tkTuj" rows="2" placeholder="Jelaskan kebutuhan Anda"></textarea>'
         +'<button class="tk-btn" style="width:100%" onclick="takafulAjukan()">Kirim Pengajuan</button>';
       h+='</div><h4 style="margin:16px 4px 0">Pinjaman Saya</h4>';
       h+=mine.length?mine.map(function(p){return loanCard(p,false);}).join(''):'<div class="tk-card tk-note">Belum ada pengajuan.</div>';
     } else {
-      var all=T().slice().sort(function(a,b){var o={pengajuan:0,disetujui:1,dicairkan:2,lunas:3,ditolak:4};return (o[a.status]-o[b.status])||(b.tglAjuan<a.tglAjuan?-1:1);});
-      h+='<div class="tk-card"><div class="tk-row"><h4 style="margin:0">Pengaturan</h4><button class="tk-btn sec sm" onclick="takafulSetting()">Ubah</button></div>'
-        +'<div class="tk-row"><span>Maks. per anggota</span><b>'+rp(cfg.maxPinjam)+'</b></div><div class="tk-row"><span>Maks. tenor</span><b>'+cfg.maxTenor+' bulan</b></div></div>';
-      h+='<h4 style="margin:16px 4px 0">Pengajuan &amp; Pinjaman ('+all.length+')</h4>';
-      h+=all.length?all.map(function(p){return loanCard(p,true);}).join(''):'<div class="tk-card tk-note">Belum ada pengajuan.</div>';
+      h+='<h4 style="margin:6px 4px 6px">Pengajuan &amp; Pinjaman ('+T().length+')</h4>'
+        +'<input class="tk-search" type="search" placeholder="Cari nama anggota atau keperluan…" value="'+esc(_q)+'" oninput="takafulCari(this.value)">'
+        +'<div class="tk-chips" id="tkChips">'+chips()+'</div><div id="tkList">'+adminList()+'</div>';
     }
+    return h;
+  }
+
+
+  /* ── Tab Emas (gram saja, tanpa konversi rupiah) ── */
+  function spark(vals){
+    if(vals.length<2) return '';
+    var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), rg=(mx-mn)||1, w=220, h=48, pad=4;
+    var pts=vals.map(function(v,i){ return (pad+i*(w-2*pad)/(vals.length-1)).toFixed(1)+','+(h-pad-(v-mn)/rg*(h-2*pad)).toFixed(1); }).join(' ');
+    return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" role="img" aria-label="Grafik harga emas" style="display:block;margin:8px 0"><polyline fill="none" stroke="#c2570f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="'+pts+'"/></svg>';
+  }
+  function kartuPantau(adm,gramTotal){
+    var u=hUrut(), t=u.length?u[u.length-1]:null, h='<div class="tk-card"><h4>📈 Pantauan Nilai Aset Emas</h4>'
+      +'<div class="tk-note" style="margin-bottom:6px">Hanya pantauan nilai emas, <b>tidak dipakai</b> untuk pinjaman, kas, maupun total aset.</div>';
+    if(!t) return h+'<div class="tk-note">Belum ada riwayat harga.'+(adm?' Catat harga emas per gram secara berkala untuk mulai memantau.':'')+'</div>'+(adm?'<div class="tk-act" style="margin-top:8px"><button class="tk-btn sm" onclick="takafulHargaEmas()">+ Catat Harga Emas</button></div>':'')+'</div>';
+    var nilai=Math.round(gramTotal*t.harga), beli=sum(emasLog().filter(function(e){return e.jenis==='beli';}),function(e){return e.biaya||0;});
+    h+='<div class="tk-row tk-line"><span>Harga terakhir</span><b>'+rp(t.harga)+'/gram<br><small>per '+fTgl(t.tgl)+'</small></b></div>'
+      +'<div class="tk-row tk-line"><span>Nilai pantauan stok emas ('+gr(gramTotal)+')</span><b>'+rp(nilai)+'</b></div>';
+    if(beli>0) h+='<div class="tk-row tk-line"><span>Dana Rupiah yang dipakai membeli emas</span><b>'+rp(beli)+'</b></div>'
+      +'<div class="tk-row"><span>Selisih nilai pantauan</span><b style="color:'+(nilai-beli>=0?'#17653a':'#b4232f')+'">'+(nilai-beli>=0?'+ ':'− ')+rp(Math.abs(nilai-beli))+'</b></div>';
+    h+=spark(u.map(function(r){return r.harga;}));
+    h+='<h4 style="margin:10px 0 4px;font-size:13px">Riwayat</h4>'+u.slice().reverse().slice(0,24).map(function(r,i,arr){
+      var prev=arr[i+1], d=prev?((r.harga-prev.harga)/prev.harga*100):null;
+      return '<div class="tk-row tk-line"><span>'+fTgl(r.tgl)+'<br><small>'+rp(r.harga)+'/gram'+(r.gram!=null?' · '+gr(r.gram):'')+(r.ket?' · '+esc(r.ket):'')+'</small></span>'
+        +'<span style="text-align:right"><b>'+rp(Math.round((r.gram!=null?r.gram:gramTotal)*r.harga))+'</b>'+(d==null?'':'<br><small style="color:'+(d>=0?'#17653a':'#b4232f')+'">'+(d>=0?'▲ ':'▼ ')+Math.abs(d).toFixed(1)+'%</small>')
+        +(adm?'<br><button class="tk-btn bad sm" style="margin-top:4px" onclick="takafulHapusHarga(\''+r.id+'\')">Hapus</button>':'')+'</span></div>'; }).join('');
+    if(adm) h+='<div class="tk-act" style="margin-top:8px"><button class="tk-btn sm" onclick="takafulHargaEmas()">+ Catat Harga Emas</button></div>';
     return h+'</div>';
+  }
+  function tabEmas(){
+    var adm=isAdm(), sg=stokGram(), s=stat(), tot2=r3(sg+s.piutangGram);
+    var x='<div class="tk-hero" style="padding:14px"><small>Stok Emas Takaful</small><div class="big" style="font-size:24px">'+gr(tot2)+'</div><div class="sub">'
+      +'Di tangan '+gr(sg)+' · dipinjamkan ke anggota '+gr(s.piutangGram)+'. Dicatat dalam gram.</div></div>'
+      +'<div class="tk-card tk-note">Stok emas dibeli dari Dana Rupiah Takaful. Pinjaman emas dicatat dan dikembalikan dalam emas yang sama (gram), <b>sekaligus saat jatuh tempo</b>, tanpa dihitung nilai rupiahnya. Emas yang dikembalikan masuk lagi ke stok.</div>';
+    x+=kartuPantau(adm,tot2);
+    if(adm) x+='<div class="tk-act" style="margin:10px 0 4px"><button class="tk-btn sm" onclick="takafulEmasBaru()">+ Beli Emas dari Dana</button></div>';
+    var rows=emasLog().map(function(r,i){return {r:r,i:i};}).sort(function(a,b){ return a.r.tgl<b.r.tgl?1:a.r.tgl>b.r.tgl?-1:b.i-a.i; });
+    x+=rows.length?rows.map(function(o){ var r=o.r, j=EJ[r.jenis]||['•',r.jenis,1], plus=j[2]>0;
+      var ket=(!adm&&(r.jenis==='pencairan'||r.jenis==='cicilan'))?'Pinjaman anggota':r.ket;
+      return '<div class="tk-card tk-kas"><div class="tk-kas-i">'+j[0]+'</div><div class="tk-kas-m"><b>'+j[1]+'</b><div class="tk-note">'+fTgl(r.tgl)+(ket?' · '+esc(ket):'')+(adm&&r.biaya?'<br>Dana Rupiah dipakai '+rp(r.biaya):'')+'</div></div>'
+        +'<div class="tk-kas-a"><b style="color:'+(plus?'#17653a':'#b4232f')+'">'+(plus?'+':'−')+' '+gr(r.gram)+'</b>'
+        +(adm&&(r.jenis==='beli'||r.jenis==='infaq')?'<br><button class="tk-btn bad sm" style="margin-top:6px" onclick="takafulHapusEmas(\''+r.id+'\')">Hapus</button>':'')+'</div></div>'; }).join('')
+      :'<div class="tk-card tk-note">Belum ada catatan emas.</div>';
+    return x;
+  }
+  window.takafulHargaEmas=function(){
+    if(!isAdm()) return; var t=hTerakhir();
+    modal('Catat harga emas','<div class="tk-note" style="margin-bottom:6px">Hanya untuk pantauan, tidak dipakai di pinjaman, kas, atau total aset.</div>'
+      +'<label>Harga emas per gram (Rp)</label><input id="tkHrg" type="number" inputmode="numeric" min="1" value="'+(t?t.harga:'')+'">'
+      +'<label>Tanggal harga</label><input id="tkHrgTgl" type="date" value="'+today()+'" max="'+today()+'">'
+      +'<label>Sumber / keterangan (opsional)</label><input id="tkHrgKet" type="text" placeholder="mis. harga acuan pengurus">',
+      [{label:'Batal',cls:'sec'},{label:'Simpan',fn:function(){
+        var v=angka('tkHrg'), d=val('tkHrgTgl')||today(), k=(val('tkHrgKet')||'').trim();
+        if(!(v>0)){ toast('⚠️ Harga tidak valid'); return false; }
+        if(d>today()){ toast('⚠️ Tanggal tidak boleh di masa depan'); return false; }
+        var gt=r3(stokGram()+stat().piutangGram), c=CFG();
+        c.emasHarga=hLog().filter(function(r){return r.tgl!==d;});
+        var row={id:'th'+uid(),tgl:d,harga:v,gram:gt}; if(k) row.ket=k; c.emasHarga.push(row);
+        audit('Takaful – Harga Emas (pantauan)', rp(v)+'/gram per '+d); save(); toast('✅ Harga emas tercatat'); }}]);
+  };
+  window.takafulHapusHarga=function(id){
+    if(!isAdm()) return; var r=hLog().find(function(x){return x.id===id;}); if(!r) return;
+    modal('Hapus catatan harga?','<div class="tk-note">Harga '+rp(r.harga)+'/gram tanggal '+fTgl(r.tgl)+' akan dihapus dari riwayat pantauan.</div>',
+      [{label:'Kembali',cls:'sec'},{label:'Ya, Hapus',cls:'bad',fn:function(){ var c=CFG(); c.emasHarga=hLog().filter(function(x){return x.id!==id;}); audit('Takaful – Hapus Harga Emas', rp(r.harga)); save(); toast('Catatan harga dihapus'); }}]);
+  };
+  window.takafulEmasBaru=function(){
+    if(!isAdm()) return;
+    modal('Beli emas dari dana Takaful','<div class="tk-note" style="margin-bottom:6px">Kas keluar “Pembelian Emas”, stok emas bertambah. Tersedia: <b>'+rp(Math.max(0,stat().tersedia))+'</b>.</div>'
+      +'<label>Jumlah emas dibeli (gram)</label><input id="tkEG" type="number" inputmode="decimal" step="0.001" min="0">'
+      +'<label>Dana Rupiah yang dibayarkan (Rp)</label><input id="tkEB" type="number" inputmode="numeric" min="1">'
+      +'<label>Tanggal</label><input id="tkET" type="date" value="'+today()+'" max="'+today()+'">'
+      +'<label>Keterangan</label><input id="tkEK" type="text" placeholder="mis. toko / kadar / emas batangan">',
+      [{label:'Batal',cls:'sec'},{label:'Simpan',fn:function(){
+        var g=dec('tkEG'), b=angka('tkEB'), t=val('tkET')||today(), k=(val('tkEK')||'').trim();
+        if(!(g>0)){ toast('⚠️ Jumlah emas tidak valid'); return false; }
+        if(!(b>0)){ toast('⚠️ Isi dana rupiah yang dibayarkan'); return false; }
+        if(t>today()){ toast('⚠️ Tanggal tidak boleh di masa depan'); return false; }
+        if(b>stat().tersedia){ toast('⚠️ Dana Rupiah Takaful tidak cukup ('+rp(Math.max(0,stat().tersedia))+')'); return false; }
+        var ke=addKas('beliemas',b,'Pembelian emas '+gr(g)+(k?' · '+k:''),{tgl:t}), e=addEmas('beli',g,k,{tgl:t}); e.biaya=b; e.kasId=ke.id;
+        audit('Takaful – Beli Emas', gr(g)+' dari dana '+rp(b)+(k?' · '+k:'')); save(); toast('✅ Emas dibeli dari dana Takaful'); }}]);
+  };
+  window.takafulHapusEmas=function(id){
+    if(!isAdm()) return; var e=emasLog().find(function(x){return x.id===id;}); if(!e||(e.jenis!=='beli'&&e.jenis!=='infaq')) return;
+    if(stokGram()-e.gram<0){ return toast('⚠️ Stok emas di tangan tidak cukup untuk membatalkan catatan ini'); }
+    modal('Hapus catatan emas?','<div class="tk-note">'+(e.jenis==='beli'?'Pembelian emas ':'Infaq emas ')+gr(e.gram)+' tanggal '+fTgl(e.tgl)+' akan dihapus'+(e.kasId?', dan pengeluaran kas pembeliannya dikembalikan ke Dana Rupiah':'')+'. Gunakan bila salah input.</div>',
+      [{label:'Kembali',cls:'sec'},{label:'Ya, Hapus',cls:'bad',fn:function(){
+        DB.takafulEmas=emasLog().filter(function(x){return x.id!==id;});
+        if(e.kasId) DB.takafulKas=kas().filter(function(x){return x.id!==e.kasId;});
+        audit('Takaful – Hapus Emas', gr(e.gram)); save(); toast('Catatan emas dihapus'); }}]);
   };
 
+  /* ── Tab Buku Kas ── */
+  function kasData(){
+    var run=0, rows=kasUrut().map(function(x){ var e=x.e; run+=(JN[e.jenis]?JN[e.jenis][2]:0)*e.jumlah; return {e:e,saldo:run}; });
+    return rows;
+  }
+  function kasRows(){
+    var adm=isAdm(), rows=kasData().filter(function(r){
+      return (_bln==='semua'||(r.e.tgl||'').slice(0,7)===_bln)&&(_jk==='semua'||r.e.jenis===_jk); }).reverse();
+    var masuk=sum(rows,function(r){return JN[r.e.jenis]&&JN[r.e.jenis][2]>0?r.e.jumlah:0;}), keluar=sum(rows,function(r){return JN[r.e.jenis]&&JN[r.e.jenis][2]<0?r.e.jumlah:0;});
+    var h='<div class="tk-grid" style="margin:8px 0"><div class="tk-g2"><b style="color:#17653a">+ '+rp(masuk)+'</b><span>Masuk</span></div><div class="tk-g2"><b style="color:#b4232f">− '+rp(keluar)+'</b><span>Keluar</span></div><div class="tk-g2"><b>'+rp(masuk-keluar)+'</b><span>Selisih</span></div></div>';
+    if(!rows.length) return h+'<div class="tk-card tk-note">Belum ada catatan kas pada filter ini.</div>';
+    return h+rows.map(function(r){
+      var e=r.e, j=JN[e.jenis]||['•',e.jenis,1], plus=j[2]>0;
+      var ket=(!adm&&(e.jenis==='pencairan'||e.jenis==='cicilan'))?'Pinjaman anggota':e.ket;
+      return '<div class="tk-card tk-kas"><div class="tk-kas-i">'+j[0]+'</div><div class="tk-kas-m"><b>'+j[1]+'</b><div class="tk-note">'+fTgl(e.tgl)+(ket?' · '+esc(ket):'')+'</div>'
+        +(adm?'<div class="tk-note">Saldo setelahnya '+rp(r.saldo)+'</div>':'')+'</div>'
+        +'<div class="tk-kas-a"><b style="color:'+(plus?'#17653a':'#b4232f')+'">'+(plus?'+':'−')+' '+rp(e.jumlah)+'</b>'
+        +(adm&&(MANUAL[e.jenis]||e.jenis==='setor')?'<br><button class="tk-btn bad sm" style="margin-top:6px" onclick="takafulHapusKas(\''+e.id+'\')">Hapus</button>':'')+'</div></div>';
+    }).join('');
+  }
+  function tabKas(){
+    var adm=isAdm(), bl={}; kas().forEach(function(e){ if(e.tgl) bl[e.tgl.slice(0,7)]=1; });
+    var opt='<option value="semua">Semua bulan</option>'+Object.keys(bl).sort().reverse().map(function(b){ return '<option value="'+b+'"'+(_bln===b?' selected':'')+'>'+fBln(b)+'</option>'; }).join('');
+    var jc=['semua'].concat(Object.keys(JN)).map(function(k){ return '<button class="tk-chip'+(_jk===k?' on':'')+'" onclick="takafulKasFilter(\''+k+'\')">'+(k==='semua'?'Semua':JN[k][1])+'</button>'; }).join('');
+    return '<div class="tk-hero" style="padding:14px"><small>Saldo Kas</small><div class="big" style="font-size:24px">'+rp(saldoKas())+'</div></div>'
+      +'<div class="tk-act" style="margin:10px 0 4px">'+(adm?'<button class="tk-btn sm" onclick="takafulKasBaru()">+ Catat Kas</button><button class="tk-btn sec sm" onclick="takafulSetor()">🏦 Setor</button><button class="tk-btn sec sm" onclick="takafulUnduhCSV()">⬇️ Unduh CSV</button>':'')+'</div>'
+      +'<select class="tk-sel" onchange="takafulBulan(this.value)">'+opt+'</select><div class="tk-chips" id="tkJk">'+jc+'</div><div id="tkKasList">'+kasRows()+'</div>';
+  }
+  window.takafulBulan=function(v){ _bln=v; var l=document.getElementById('tkKasList'); if(l) l.innerHTML=kasRows(); };
+  window.takafulKasFilter=function(k){ _jk=k; refresh(); };
+  window.takafulKasBaru=function(){
+    if(!isAdm()) return;
+    modal('Catat kas Takaful','<div class="tk-note" style="margin-bottom:6px">Untuk pemasukan atau pengeluaran di luar pinjaman. Pencairan, cicilan, dan alokasi SHU tercatat otomatis.</div>'
+      +'<label>Jenis</label><select id="tkKJ" class="tk-sel"><option value="infaq">🤲 Infaq / Hibah masuk</option><option value="operasional">🧾 Biaya operasional</option><option value="santunan">❤️ Santunan (hibah keluar)</option></select>'
+      +'<label>Jumlah (Rp)</label><input id="tkKJml" type="number" inputmode="numeric" min="1">'
+      +'<label>Tanggal</label><input id="tkKTgl" type="date" value="'+today()+'" max="'+today()+'">'
+      +'<label>Keterangan</label><input id="tkKKet" type="text" placeholder="mis. infaq dari … / biaya cetak formulir">',
+      [{label:'Batal',cls:'sec'},{label:'Simpan',fn:function(){
+        var j=val('tkKJ'), v=angka('tkKJml'), t=val('tkKTgl')||today(), k=(val('tkKKet')||'').trim();
+        if(!(v>0)){ toast('⚠️ Jumlah tidak valid'); return false; }
+        if(t>today()){ toast('⚠️ Tanggal tidak boleh di masa depan'); return false; }
+        if(j!=='infaq'&&k.length<3){ toast('⚠️ Isi keterangan pengeluaran'); return false; }
+        if(JN[j][2]<0&&v>saldoKas()){ toast('⚠️ Saldo kas tidak cukup ('+rp(Math.max(0,saldoKas()))+')'); return false; }
+        addKas(j,v,k,{tgl:t}); audit('Takaful – Kas '+JN[j][1], rp(v)+(k?' · '+k:'')); save(); toast('✅ Kas tercatat'); }}]);
+  };
+  window.takafulSetor=function(){
+    if(!isAdm()) return; var s=stat(), mx=Math.max(0,s.tersedia), thn=shuBaris().filter(function(b){return b.terima>0;});
+    modal('Setor dana ke koperasi',
+      '<div class="tk-sum"><div class="tk-row"><span>Saldo kas Takaful</span><span>'+rp(s.saldo)+'</span></div><div class="tk-row"><span>Disetujui, menunggu cair</span><span>'+rp(s.cadang)+'</span></div><div class="tk-row"><span>Maksimal bisa disetor</span><b>'+rp(mx)+'</b></div></div>'
+      +'<label>Jumlah (Rp)</label><div style="display:flex;gap:8px"><input id="tkSetorJml" type="number" inputmode="numeric" min="0" max="'+mx+'" placeholder="0"><button class="tk-btn sec sm" style="flex:0 0 auto" onclick="document.getElementById(\'tkSetorJml\').value='+mx+'">Maks</button></div>'
+      +'<label>Tujuan di koperasi</label><select id="tkSetorTuj" onchange="document.getElementById(\'tkSetorT\').style.display=this.value===\'sosial\'?\'\':\'none\'"><option value="phu">Kas Koperasi (Saldo PHU)</option>'+(thn.length?'<option value="sosial">Kembali ke pos SHU Sosial</option>':'')+'</select>'
+      +'<div id="tkSetorT" style="display:none"><label>Tahun SHU</label><select id="tkSetorThn">'+thn.map(function(b){ return '<option value="'+esc(b.tahun)+'">SHU '+esc(b.tahun)+' (diterima '+rp(b.terima)+')</option>'; }).join('')+'</select></div>'
+      +'<label>Tanggal</label><input id="tkSetorTgl" type="date" value="'+today()+'" max="'+today()+'">'
+      +'<label>Catatan / no. bukti</label><input id="tkSetorCat" type="text" placeholder="mis. transfer ke rekening koperasi">'
+      +'<label style="display:flex;align-items:center;margin-top:10px"><input id="tkSetorOk" type="checkbox" style="width:auto;margin:0 8px 0 0">Dana sudah diserahkan ke koperasi</label>'
+      +'<div class="tk-note" style="margin-top:8px">Kas Takaful dan Aset “Dana Rupiah Takaful” berkurang. Dana yang sudah disetujui untuk pinjaman tidak bisa disetor.</div>',
+      [{label:'Batal',cls:'sec'},{label:'Setor',fn:function(){
+        var s2=stat(), mx2=Math.max(0,s2.tersedia), v=angka('tkSetorJml'), tuj=val('tkSetorTuj'), th=val('tkSetorThn'), t=val('tkSetorTgl')||today(), c=(val('tkSetorCat')||'').trim(), ok=document.getElementById('tkSetorOk');
+        if(!(v>0)){ toast('⚠️ Isi jumlah setoran'); return false; }
+        if(v>mx2){ toast('⚠️ Melebihi dana yang tersedia ('+rp(mx2)+')'); return false; }
+        if(t>today()){ toast('⚠️ Tanggal tidak boleh di masa depan'); return false; }
+        if(tuj==='sosial'){ var b=shuBaris().find(function(x){return String(x.tahun)===String(th);}); if(!b||v>b.terima){ toast('⚠️ Melebihi dana SHU '+th+' yang diterima ('+rp(b?b.terima:0)+')'); return false; } }
+        if(!c){ toast('⚠️ Isi catatan / no. bukti'); return false; }
+        if(!ok||!ok.checked){ toast('⚠️ Centang konfirmasi penyerahan dana'); return false; }
+        var lbl=tuj==='sosial'?'pos SHU Sosial '+th:'Kas Koperasi (Saldo PHU)';
+        var e=addKas('setor',v,'Setoran ke '+lbl+': '+c,tuj==='sosial'?{tgl:t,tahun:+th}:{tgl:t}); e.tujuan=tuj;
+        if(tuj==='phu'){ if(!Array.isArray(DB.phuPendapatan)) DB.phuPendapatan=[]; DB.phuPendapatan.push({id:uid(),jumlah:v,kategori:'lain-lain',keterangan:'[Setoran Renco Takaful] '+c,tanggal:t,createdAt:new Date().toISOString(),_takafulSetor:e.id}); }
+        audit('Takaful – Setor ke Koperasi', rp(v)+' → '+lbl); save(); toast('✅ '+rp(v)+' disetor ke koperasi'); }}]);
+  };
+  window.takafulHapusKas=function(id){
+    if(!isAdm()) return; var e=kas().find(function(x){return x.id===id;}); if(!e||(!MANUAL[e.jenis]&&e.jenis!=='setor')) return;
+    modal('Hapus catatan kas?','<div class="tk-note">'+JN[e.jenis][1]+' '+rp(e.jumlah)+' tanggal '+fTgl(e.tgl)+' akan dihapus dan saldo kas dihitung ulang.</div>',
+      [{label:'Kembali',cls:'sec'},{label:'Ya, Hapus',cls:'bad',fn:function(){
+        if(JN[e.jenis][2]>0&&saldoKas()-e.jumlah<0){ toast('⚠️ Penghapusan membuat saldo kas minus'); return false; }
+        DB.takafulKas=kas().filter(function(x){return x.id!==id;}); if(e.jenis==='setor'&&Array.isArray(DB.phuPendapatan)) DB.phuPendapatan=DB.phuPendapatan.filter(function(x){return !(x&&x._takafulSetor===id);}); audit('Takaful – Hapus Kas', JN[e.jenis][1]+' '+rp(e.jumlah)); save(); toast('Catatan kas dihapus'); }}]);
+  };
+  window.takafulUnduhCSV=function(){
+    if(!isAdm()) return;
+    var q=function(s){ return '"'+String(s==null?'':s).replace(/"/g,'""')+'"'; };
+    var out=['Tanggal,Jenis,Keterangan,Masuk,Keluar,Saldo'];
+    kasData().forEach(function(r){ var e=r.e,j=JN[e.jenis]||['','',1];
+      out.push([q(e.tgl),q(j[1]),q(e.ket),j[2]>0?e.jumlah:'',j[2]<0?e.jumlah:'',r.saldo].join(',')); });
+    try{ var b=new Blob(['\ufeff'+out.join('\n')],{type:'text/csv;charset=utf-8'}), a=document.createElement('a');
+      a.href=URL.createObjectURL(b); a.download='buku-kas-takaful-'+today()+'.csv'; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },500); }catch(e){ toast('⚠️ Gagal membuat berkas'); }
+  };
+
+  /* ── Tab Pengaturan ── */
+  function tabPengaturan(){
+    var cfg=CFG(), baris=shuBaris(), r=rek(), k=rekonsiliasi();
+    var h='<div class="tk-card"><div class="tk-row"><h4 style="margin:0">Mandat & Rekening Unit</h4><button class="tk-btn sec sm" onclick="takafulRekening()">Ubah</button></div>'
+      +'<div class="tk-note" style="margin-bottom:6px">Unit otonom: aset milik koperasi, pembukuan dan rekening sendiri.</div>'
+      +'<div class="tk-row tk-line"><span>Mandat</span><span style="text-align:right;max-width:66%">'+esc(mandat())+'</span></div>'
+      +'<div class="tk-row tk-line"><span>Bank</span><b>'+esc(r.bank||'-')+'</b></div>'
+      +'<div class="tk-row tk-line"><span>Atas nama</span><b>'+esc(r.nama||'-')+'</b></div>'
+      +'<div class="tk-row tk-line"><span>No. rekening</span><b>'+esc(r.no||'-')+'</b></div>'
+      +'<div class="tk-row tk-line"><span>Saldo buku kas Takaful</span><b>'+rp(k.kas)+'</b></div>'
+      +'<div class="tk-row"><span>Saldo rekening (dicek manual)</span><b>'+(k.saldoRek==null?'-':rp(k.saldoRek)+(k.tglRek?' · '+fTgl(k.tglRek):''))+'</b></div>'
+      +(k.saldoRek!=null?'<div class="tk-note" style="margin-top:4px">'+(k.selRek===0?'✅ Cocok dengan buku kas.':'⚠️ Selisih '+rp(Math.abs(k.selRek))+' — periksa catatan kas atau mutasi rekening.')+'</div>':'')+'</div>';
+    h+='<div class="tk-card"><div class="tk-row"><h4 style="margin:0">Aturan Pinjaman</h4><button class="tk-btn sec sm" onclick="takafulSetting()">Ubah</button></div>'
+      +'<div class="tk-row"><span>Maks. per anggota</span><b>'+rp(cfg.maxPinjam)+'</b></div><div class="tk-row"><span>Maks. tenor</span><b>'+cfg.maxTenor+' bulan</b></div>'
+      +'<div class="tk-row"><span>Maks. pinjaman emas</span><b>'+gr(mg())+'</b></div>'
+      +'<div class="tk-row"><span>Margin / bunga</span><b>0% (qardhul hasan)</b></div>'
+      +'<div class="tk-row"><span>Masa tenggang</span><b>'+cfg.tenggang+' hari</b></div><div class="tk-row"><span>Biaya administrasi</span><b>'+(cfg.biayaAdmin>0?rp(cfg.biayaAdmin)+' / pencairan':'Tidak ada')+'</b></div><div class="tk-row"><span>Denda keterlambatan</span><b>Tidak ada</b></div></div>';
+    h+='<div class="tk-card"><h4>Pemindahan Dana dari Koperasi (SHU)</h4><div class="tk-note">Alokasi dibaca dari konfirmasi SHU koperasi. Dana tetap aset koperasi.</div>';
+    h+=baris.length?baris.map(function(b){ return '<div class="tk-row tk-line"><span>SHU '+esc(b.tahun)+'<br><small>Alokasi '+rp(b.alok)+' · diterima '+rp(b.terima)+'</small></span>'
+      +(b.selisih>0?'<button class="tk-btn sm" onclick="takafulTerimaSHU(\''+esc(b.tahun)+'\')">Terima '+rp(b.selisih)+'</button>':(b.selisih<0?'<b style="color:#c1121f">Lebih '+rp(-b.selisih)+'</b>':'<span class="tk-st lunas">Lengkap</span>'))+'</div>'; }).join('')
+      :'<div class="tk-note" style="margin-top:6px">Belum ada alokasi SHU “Renco Takaful” yang dikonfirmasi koperasi.</div>';
+    return h+'</div>';
+  }
+  window.takafulRekening=function(){
+    if(!isAdm()) return; var c=CFG(), r=rek();
+    modal('Mandat & rekening Takaful','<label>Mandat pengelolaan</label><textarea id="tkMandat" rows="4">'+esc(mandat())+'</textarea>'
+      +'<label>Bank</label><input id="tkRBank" type="text" value="'+esc(r.bank||'')+'" placeholder="mis. BSI / BRI">'
+      +'<label>Atas nama rekening</label><input id="tkRNama" type="text" value="'+esc(r.nama||'')+'" placeholder="mis. Koperasi RENCO – Unit Takaful">'
+      +'<label>Nomor rekening</label><input id="tkRNo" type="text" inputmode="numeric" value="'+esc(r.no||'')+'">'
+      +'<label>Saldo rekening saat ini (opsional, untuk pencocokan)</label><input id="tkRSaldo" type="number" inputmode="numeric" min="0" value="'+(r.saldo===''||r.saldo==null?'':r.saldo)+'">'
+      +'<div class="tk-note">Rekening terpisah dari koperasi. Nomor lengkap hanya tampil bagi pengurus.</div>',
+      [{label:'Batal',cls:'sec'},{label:'Simpan',fn:function(){
+        var m=(val('tkMandat')||'').trim(), sv=String(val('tkRSaldo')).replace(/\D/g,'');
+        c.mandat=(m&&m!==MANDAT_DEF)?m:''; c.rekening={bank:(val('tkRBank')||'').trim(),nama:(val('tkRNama')||'').trim(),no:(val('tkRNo')||'').trim(),saldo:sv===''?'':parseInt(sv,10),tgl:sv===''?'':today()};
+        audit('Takaful – Mandat & Rekening','Bank '+(c.rekening.bank||'-')+' · a.n. '+(c.rekening.nama||'-')); save(); toast('✅ Mandat & rekening disimpan'); }}]);
+  };
+  window.takafulSetting=function(){
+    if(!isAdm()) return; var c=CFG();
+    modal('Aturan pinjaman Takaful','<label>Maksimal pinjaman per anggota (Rp)</label><input id="tkSetMax" type="number" inputmode="numeric" min="1" value="'+c.maxPinjam+'">'
+      +'<label>Maksimal tenor (bulan)</label><input id="tkSetTen" type="number" inputmode="numeric" min="1" value="'+c.maxTenor+'">'
+      +'<label>Maksimal pinjaman emas (gram)</label><input id="tkSetGram" type="number" inputmode="decimal" step="0.1" min="0" value="'+mg()+'">'
+      +'<label>Masa tenggang keterlambatan (hari)</label><input id="tkSetTgl" type="number" inputmode="numeric" min="0" value="'+c.tenggang+'">'
+      +'<label>Biaya administrasi tetap per pencairan (Rp, 0 = tanpa biaya; sebatas biaya riil)</label><input id="tkSetAdm" type="number" inputmode="numeric" min="0" value="'+c.biayaAdmin+'">',
+      [{label:'Batal',cls:'sec'},{label:'Simpan',fn:function(){
+        var m=angka('tkSetMax'), t=angka('tkSetTen'); if(!(m>0)||!(t>0)){ toast('⚠️ Nilai tidak valid'); return false; }
+        c.maxPinjam=m; c.maxTenor=t; var gg=dec('tkSetGram'); if(gg>0) c.maxGram=gg; var tgn=parseInt(val('tkSetTgl'),10); if(tgn>=0) c.tenggang=tgn; c.biayaAdmin=angka('tkSetAdm'); audit('Takaful – Pengaturan','Maks '+rp(m)+', emas '+gr(mg())+', tenor '+t+' bln'); save(); toast('✅ Pengaturan disimpan'); }}]);
+  };
+  window.takafulTerimaSHU=function(tahun){
+    if(!isAdm()) return; var b=shuBaris().find(function(x){return String(x.tahun)===String(tahun);}); if(!b||b.selisih<=0) return;
+    modal('Terima alokasi SHU',  '<div class="tk-sum"><div class="tk-row"><span>Tahun SHU</span><b>'+esc(b.tahun)+'</b></div><div class="tk-row"><span>Alokasi koperasi</span><span>'+rp(b.alok)+'</span></div>'
+      +'<div class="tk-row"><span>Sudah diterima</span><span>'+rp(b.terima)+'</span></div><div class="tk-row"><span>Diterima sekarang</span><b>'+rp(b.selisih)+'</b></div></div>'
+      +'<div class="tk-note" style="margin-top:8px">Dana dipindahkan dari pos SHU ke buku kas & rekening Takaful. Tetap aset koperasi (bukan PHU).</div>',
+      [{label:'Batal',cls:'sec'},{label:'Terima Dana',fn:function(){
+        var c=shuBaris().find(function(x){return String(x.tahun)===String(tahun);}); if(!c||c.selisih<=0) return;
+        try{ if(Array.isArray(DB.phuPendapatan)) DB.phuPendapatan=DB.phuPendapatan.filter(function(x){ return !(x&&x._shuRef===c.tahun+'_sosial-pendidikan'); }); }catch(e){}
+        addKas('shu',c.selisih,'Alokasi SHU '+c.tahun,{tahun:+c.tahun}); audit('Takaful – Terima SHU', 'SHU '+c.tahun+' '+rp(c.selisih)+' dipindahkan ke unit Takaful · aset tetap milik koperasi (Aset “Dana Takaful”)'); save(); toast('✅ Dana dipindahkan ke Takaful & dicatat sebagai Aset Koperasi'); }}]);
+  };
+
+  /* ══ AKSI ANGGOTA ══ */
+  window.takafulSatuan=function(){
+    var g=val('tkSat')==='emas', i=document.getElementById('tkJml'), l=document.getElementById('tkJmlLbl'); if(!i) return;
+    i.value=''; if(l) l.textContent=g?'Jumlah emas (gram)':'Jumlah (Rp)'; var tl=document.getElementById('tkTenLbl'); if(tl) tl.textContent=g?'Jatuh tempo pengembalian (bulan)':'Tenor (bulan)'; i.placeholder=g?'1':'500000'; i.max=g?mg():CFG().maxPinjam; i.step=g?'0.1':'1'; window.takafulSim();
+  };
+  window.takafulSim=function(){
+    var g=val('tkSat')==='emas', j=g?dec('tkJml'):parseInt(val('tkJml'),10), t=parseInt(val('tkTen'),10), e=document.getElementById('tkSim'); if(!e) return;
+    if(!(j>0)||!(t>0)){ e.style.display='none'; return; }
+    e.style.display='block';
+    if(g) e.innerHTML='Pinjaman emas <b>'+gr(j)+'</b> dikembalikan <b>sekaligus</b> dalam emas yang sama setelah '+t+' bulan (tanpa cicilan, tanpa konversi rupiah)';
+    else e.innerHTML='Perkiraan cicilan <b>'+rp(Math.ceil(j/t))+'</b> per bulan selama '+t+' bulan · total '+rp(j)+' (tanpa margin)';
+  };
   window.takafulAjukan=function(){
     var me=myId(), cfg=CFG(); if(!me) return;
-    var j=parseInt(document.getElementById('tkJml').value,10), t=parseInt(document.getElementById('tkTen').value,10), u=(document.getElementById('tkTuj').value||'').trim();
-    if(!(j>0)||!(t>0)||!u) return showToast('⚠️ Lengkapi jumlah, tenor, dan keperluan');
-    if(j>cfg.maxPinjam) return showToast('⚠️ Maksimal '+rp(cfg.maxPinjam));
-    if(t>cfg.maxTenor) return showToast('⚠️ Tenor maksimal '+cfg.maxTenor+' bulan');
-    if(T().some(function(p){return p.kkId===me&&['pengajuan','disetujui','dicairkan'].indexOf(p.status)>=0;})) return showToast('⚠️ Masih ada pengajuan/pinjaman berjalan');
-    T().push({id:'tkf'+uid(),kkId:me,jumlah:j,tenor:t,tujuan:u,status:'pengajuan',tglAjuan:today(),cicilan:[]});
-    save(); showToast('✅ Pengajuan terkirim, menunggu persetujuan pengurus');
+    var em=(val('tkSat')==='emas'), j=em?dec('tkJml'):parseInt(val('tkJml'),10), t=parseInt(val('tkTen'),10), u=(val('tkTuj')||'').trim();
+    if(!(j>0)||!(t>0)||!u) return toast('⚠️ Lengkapi jumlah, tenor, dan keperluan');
+    if(u.length<5) return toast('⚠️ Jelaskan keperluan dengan lebih rinci');
+    if(em){ if(j>mg()) return toast('⚠️ Maksimal '+gr(mg())); } else if(j>cfg.maxPinjam) return toast('⚠️ Maksimal '+rp(cfg.maxPinjam));
+    if(t>cfg.maxTenor) return toast('⚠️ Tenor maksimal '+cfg.maxTenor+' bulan');
+    if(T().some(function(p){return p.kkId===me&&['pengajuan','disetujui','dicairkan'].indexOf(p.status)>=0;})) return toast('⚠️ Masih ada pengajuan/pinjaman berjalan');
+    var rec={id:'tkf'+uid(),kkId:me,tenor:t,tujuan:u,status:'pengajuan',tglAjuan:today(),cicilan:[]};
+    if(em){ rec.satuan='emas'; rec.gram=j; rec.jumlah=0; } else rec.jumlah=j;
+    T().push(rec);
+    audit('Takaful – Pengajuan', nama(me)+' mengajukan '+(em?gr(j):rp(j))+' / '+t+' bln');
+    save(); toast('✅ Pengajuan terkirim, menunggu persetujuan pengurus');
   };
-  function find(id){ return T().find(function(p){return p.id===id;}); }
-  window.takafulBatal=function(id){ var p=find(id); if(!p||p.status!=='pengajuan'||p.kkId!==myId()) return; if(!confirm('Batalkan pengajuan?')) return; DB.takaful=T().filter(function(x){return x.id!==id;}); save(); };
-  window.takafulSetuju=function(id){ if(!isAdm()) return; var p=find(id); if(!p||p.status!=='pengajuan') return;
-    if(p.jumlah>stat().saldo) return showToast('⚠️ Saldo Takaful tidak cukup ('+rp(stat().saldo)+')');
-    p.status='disetujui'; p.tglSetuju=today(); save(); showToast('✅ Pengajuan disetujui'); };
-  window.takafulTolak=function(id){ if(!isAdm()) return; var p=find(id); if(!p||p.status!=='pengajuan') return;
-    var c=prompt('Alasan penolakan (boleh kosong):'); if(c===null) return; p.status='ditolak'; p.catatan=c; save(); };
-  window.takafulCairkan=function(id){ if(!isAdm()) return; var p=find(id); if(!p||p.status!=='disetujui') return;
-    if(p.jumlah>stat().saldo) return showToast('⚠️ Saldo Takaful tidak cukup ('+rp(stat().saldo)+')');
-    if(!confirm('Cairkan '+rp(p.jumlah)+' untuk '+nama(p.kkId)+'? Serahkan dana ke anggota lalu konfirmasi.')) return;
-    p.status='dicairkan'; p.tglCair=today(); save(); showToast('✅ Dana dicairkan, saldo Takaful berkurang'); };
-  window.takafulCicilan=function(id){ if(!isAdm()) return; var p=find(id); if(!p||p.status!=='dicairkan') return;
-    var def=Math.min(sisaPinjam(p),Math.ceil(p.jumlah/p.tenor));
-    var v=prompt('Jumlah cicilan diterima (Rp). Sisa '+rp(sisaPinjam(p))+':',def); if(v===null) return;
-    v=parseInt(String(v).replace(/\D/g,''),10); if(!(v>0)) return showToast('⚠️ Jumlah tidak valid');
-    if(v>sisaPinjam(p)) return showToast('⚠️ Melebihi sisa pinjaman');
-    p.cicilan.push({tgl:today(),jumlah:v}); if(sisaPinjam(p)<=0) p.status='lunas'; save(); showToast(p.status==='lunas'?'✅ Pinjaman lunas':'✅ Cicilan tercatat'); };
-  window.takafulSetting=function(){ if(!isAdm()) return; var c=CFG();
-    var m=prompt('Maksimal pinjaman per anggota (Rp):',c.maxPinjam); if(m===null) return;
-    var t=prompt('Maksimal tenor (bulan):',c.maxTenor); if(t===null) return;
-    m=parseInt(String(m).replace(/\D/g,''),10); t=parseInt(t,10);
-    if(!(m>0)||!(t>0)) return showToast('⚠️ Nilai tidak valid'); c.maxPinjam=m; c.maxTenor=t; save(); };
+  window.takafulBatal=function(id){
+    var p=find(id); if(!p||p.status!=='pengajuan'||p.kkId!==myId()) return;
+    modal('Batalkan pengajuan?','<div class="tk-note">Pengajuan '+U(p,tot(p))+' akan dibatalkan. Anda bisa mengajukan lagi kapan saja.</div>',
+      [{label:'Kembali',cls:'sec'},{label:'Ya, Batalkan',cls:'bad',fn:function(){
+        var q=find(id); if(!q||q.status!=='pengajuan') return;
+        q.status='dibatalkan'; q.tglBatal=today(); audit('Takaful – Pembatalan', nama(q.kkId)+' membatalkan '+U(q,tot(q))); save(); toast('Pengajuan dibatalkan'); }}]);
+  };
+
+  /* ══ AKSI PENGURUS ══ */
+  window.takafulSetuju=function(id){
+    if(!isAdm()) return; var p=find(id); if(!p||p.status!=='pengajuan') return; var s=stat(), em=isEmas(p), ok=em?stokGram()>=p.gram:p.jumlah<=s.tersedia;
+    modal('Setujui pengajuan',ringkas(p)
+      +'<div class="tk-note" style="margin:8px 0">'+(em?'Stok emas Takaful: <b>'+gr(stokGram())+'</b>':'Saldo tersedia: <b>'+rp(Math.max(0,s.tersedia))+'</b>')+(ok?'':' — <span style="color:#c1121f">tidak mencukupi</span>')+'</div>'
+      +'<label>Catatan untuk anggota (opsional)</label><textarea id="tkCat" rows="2"></textarea>',
+      [{label:'Batal',cls:'sec'},{label:'Setujui',fn:function(){
+        var q=find(id); if(!q||q.status!=='pengajuan') return;
+        if(isEmas(q)){ if(stokGram()<q.gram){ toast('⚠️ Stok emas Takaful tidak cukup ('+gr(stokGram())+')'); return false; } }
+        else if(q.jumlah>stat().tersedia){ toast('⚠️ Saldo Takaful tidak cukup ('+rp(Math.max(0,stat().tersedia))+')'); return false; }
+        var c=(val('tkCat')||'').trim(); q.status='disetujui'; q.tglSetuju=today(); if(c) q.catatan=c;
+        audit('Takaful – Setujui', nama(q.kkId)+' '+U(q,tot(q))); save(); toast('✅ Pengajuan disetujui'); }}]);
+  };
+  window.takafulTolak=function(id){
+    if(!isAdm()) return; var p=find(id); if(!p||(p.status!=='pengajuan'&&p.status!=='disetujui')) return; var bs=p.status==='disetujui';
+    modal(bs?'Batalkan persetujuan':'Tolak pengajuan',ringkas(p)
+      +'<label>Alasan'+(bs?' pembatalan':' penolakan')+'</label><textarea id="tkAlasan" rows="2" placeholder="Tuliskan alasan agar anggota paham"></textarea>',
+      [{label:'Kembali',cls:'sec'},{label:bs?'Batalkan Persetujuan':'Tolak',cls:'bad',fn:function(){
+        var a=(val('tkAlasan')||'').trim(); if(a.length<3){ toast('⚠️ Isi alasan terlebih dahulu'); return false; }
+        var q=find(id); if(!q||(q.status!=='pengajuan'&&q.status!=='disetujui')) return;
+        q.status='ditolak'; q.catatan=a; q.tglTolak=today(); audit('Takaful – Tolak', nama(q.kkId)+' '+U(q,tot(q))+' · '+a); save(); toast('Pengajuan ditolak'); }}]);
+  };
+  window.takafulCairkan=function(id){
+    if(!isAdm()) return; var p=find(id); if(!p||p.status!=='disetujui') return; var em=isEmas(p);
+    var info=em?'<div class="tk-note" style="margin:8px 0">Pinjaman emas <b>'+gr(p.gram)+'</b>, diserahkan dari stok emas Takaful (<b>'+gr(stokGram())+'</b>) dan dikembalikan dalam emas yang sama, tanpa konversi rupiah.</div>'
+      :'<div class="tk-note" style="margin:8px 0">Saldo kas Takaful: <b>'+rp(saldoKas())+'</b>. Serahkan dana ke anggota lalu konfirmasi di sini; pencairan otomatis tercatat sebagai kas keluar.</div>';
+    var fa=CFG().biayaAdmin, admInfo=fa>0?'<div class="tk-note" style="margin:8px 0">Biaya administrasi tetap <b>'+rp(fa)+'</b> dibayar anggota saat pencairan (kas masuk, tidak menambah pinjaman).</div><label style="display:flex;align-items:center"><input id="tkAdmOk" type="checkbox" checked style="width:auto;margin:0 8px 0 0">Biaya administrasi sudah diterima</label>':'';
+    modal('Cairkan dana',ringkas(p)+info+admInfo+'<label>Tanggal pencairan</label><input id="tkTglCair" type="date" value="'+today()+'" max="'+today()+'">',
+      [{label:'Batal',cls:'sec'},{label:'Cairkan',fn:function(){
+        var q=find(id); if(!q||q.status!=='disetujui') return;
+        var t=val('tkTglCair')||today(); if(t>today()){ toast('⚠️ Tanggal tidak boleh di masa depan'); return false; }
+        var bayarAdm=function(){ var f=CFG().biayaAdmin, cb=document.getElementById('tkAdmOk'); if(f>0&&cb&&cb.checked){ addKas('adm',f,'Biaya administrasi – '+nama(q.kkId),{tgl:t,ref:q.id}); q.biayaAdmin=f; } };
+        if(isEmas(q)){
+          if(q.gram>stokGram()){ toast('⚠️ Stok emas Takaful tidak cukup ('+gr(stokGram())+')'); return false; }
+          addEmas('pencairan',q.gram,'Pencairan – '+nama(q.kkId),{tgl:t,ref:q.id});
+          q.status='dicairkan'; q.tglCair=t;
+          bayarAdm(); audit('Takaful – Pencairan Emas', nama(q.kkId)+' '+gr(q.gram)); save(); toast('✅ Emas '+gr(q.gram)+' dicairkan, stok emas berkurang'); return;
+        }
+        if(q.jumlah>saldoKas()){ toast('⚠️ Saldo kas Takaful tidak cukup ('+rp(Math.max(0,saldoKas()))+')'); return false; }
+        q.status='dicairkan'; q.tglCair=t; addKas('pencairan',q.jumlah,'Pencairan – '+nama(q.kkId),{tgl:t,ref:q.id});
+        bayarAdm(); audit('Takaful – Pencairan', nama(q.kkId)+' '+rp(q.jumlah)); save(); toast('✅ Dana dicairkan, kas Takaful berkurang'); }}]);
+  };
+  window.takafulCicilan=function(id){
+    if(!isAdm()) return; var p=find(id); if(!p||p.status!=='dicairkan') return; var em=isEmas(p);
+    var def=Math.min(sisa(p),angsuran(p)), j=jadwal(p);
+    modal(em?'Catat pengembalian emas':'Catat cicilan',ringkas(p)
+      +'<div class="tk-note" style="margin:8px 0">Terbayar '+U(p,terbayar(p))+' · Sisa <b>'+U(p,sisa(p))+'</b>'+(j?(em?' · jatuh tempo: ':' · jatuh tempo ke-'+j.ke+': ')+fTgl(j.due):'')+(em?'<br>Dikembalikan sekaligus dalam emas sebesar pokok.':'')+'</div>'
+      +'<label>'+(em?'Emas diterima (gram)':'Jumlah diterima (Rp)')+'</label><input id="tkCicJml" type="number" inputmode="decimal" step="'+(em?'0.001':'1')+'" min="0" value="'+(em?sisa(p):def)+'"'+(em?' readonly':'')+'>'
+      +(em?'':'<div class="tk-quick"><button type="button" class="tk-chip" onclick="document.getElementById(\'tkCicJml\').value='+def+'">Sesuai cicilan</button>'
+      +'<button type="button" class="tk-chip" onclick="document.getElementById(\'tkCicJml\').value='+sisa(p)+'">Lunasi sisa</button></div>')
+      +'<label>Tanggal diterima</label><input id="tkCicTgl" type="date" value="'+today()+'" max="'+today()+'">'
+      +'<label>Catatan (opsional)</label><input id="tkCicCat" type="text" placeholder="'+(em?'mis. emas batangan / perhiasan, kadar':'mis. via transfer / tunai')+'">',
+      [{label:'Batal',cls:'sec'},{label:'Simpan',fn:function(){
+        var q=find(id); if(!q||q.status!=='dicairkan') return; var e2=isEmas(q);
+        var v=e2?sisa(q):angka('tkCicJml'); if(!(v>0)){ toast('⚠️ Jumlah tidak valid'); return false; }
+        if(v>sisa(q)){ toast('⚠️ Melebihi sisa pinjaman ('+U(q,sisa(q))+')'); return false; }
+        var t=val('tkCicTgl')||today(); if(t>today()){ toast('⚠️ Tanggal tidak boleh di masa depan'); return false; }
+        if(q.tglCair&&t<q.tglCair){ toast('⚠️ Tanggal sebelum tanggal pencairan'); return false; }
+        if(!Array.isArray(q.cicilan)) q.cicilan=[];
+        var c=(val('tkCicCat')||'').trim(), k=e2?addEmas('cicilan',v,'Cicilan emas – '+nama(q.kkId),{tgl:t,ref:q.id}):addKas('cicilan',v,'Cicilan – '+nama(q.kkId),{tgl:t,ref:q.id}), row={tgl:t,jumlah:v,kasId:k.id}; if(c) row.catatan=c; q.cicilan.push(row);
+        if(sisa(q)<=0){ q.status='lunas'; q.tglLunas=t; }
+        audit('Takaful – Cicilan', nama(q.kkId)+' '+U(q,v)+(q.status==='lunas'?' (lunas)':''));
+        save(); toast(q.status==='lunas'?'✅ Pinjaman lunas':'✅ Cicilan tercatat'); }}]);
+  };
+  window.takafulHapusCicilan=function(id){
+    if(!isAdm()) return; var p=find(id); if(!p||!(p.cicilan||[]).length||(p.status!=='dicairkan'&&p.status!=='lunas')) return;
+    var last=p.cicilan[p.cicilan.length-1];
+    modal('Batalkan cicilan terakhir?','<div class="tk-note">Cicilan <b>'+U(p,last.jumlah)+'</b> tanggal '+fTgl(last.tgl)+' akan dihapus dari catatan pinjaman dan '+(isEmas(p)?'stok emas':'buku kas')+''+(p.status==='lunas'?', dan status pinjaman kembali menjadi Berjalan':'')+'. Gunakan bila salah input.</div>',
+      [{label:'Kembali',cls:'sec'},{label:'Ya, Hapus',cls:'bad',fn:function(){
+        var q=find(id); if(!q||!(q.cicilan||[]).length) return; var idx=q.cicilan.length-1, r=q.cicilan.pop();
+        if(r.ibra){ if(q.status==='lunas'){ q.status='dicairkan'; delete q.tglLunas; } audit('Takaful – Batal Pembebasan', nama(q.kkId)+' '+U(q,r.jumlah)); save(); toast('Pembebasan dibatalkan'); return; }
+        var kid=r.kasId||('mig-cic-'+q.id+'-'+idx), hit=false;
+        if(isEmas(q)){ DB.takafulEmas=emasLog().filter(function(e){ return e.id!==r.kasId; }); hit=true; } else DB.takafulKas=kas().filter(function(e){ if(!hit&&e.id===kid){ hit=true; return false; } return true; });
+        if(!hit){ var f=-1; kas().forEach(function(e,i){ if(e.ref===q.id&&e.jenis==='cicilan'&&e.jumlah===r.jumlah&&e.tgl===r.tgl) f=i; }); if(f>=0) kas().splice(f,1); }
+        if(q.status==='lunas'){ q.status='dicairkan'; delete q.tglLunas; }
+        audit('Takaful – Hapus Cicilan', nama(q.kkId)+' '+U(q,r.jumlah)); save(); toast('Cicilan terakhir dibatalkan'); }}]);
+  };
+  window.takafulDetail=function(id){
+    var p=find(id); if(!p) return; var adm=isAdm(); if(!adm&&p.kkId!==myId()) return;
+    var j=jadwal(p), cic=p.cicilan||[];
+    var tl=[['Diajukan',p.tglAjuan],['Disetujui',p.tglSetuju],['Dicairkan',p.tglCair],['Lunas',p.tglLunas],['Ditolak',p.tglTolak],['Dibatalkan',p.tglBatal]].filter(function(x){return x[1];});
+    var b=ringkas(p)+'<div class="tk-sum" style="margin-top:8px">'+tl.map(function(x){return '<div class="tk-row"><span>'+x[0]+'</span><span>'+fTgl(x[1])+'</span></div>';}).join('')
+      +(p.biayaAdmin?'<div class="tk-row"><span>Biaya administrasi</span><b>'+rp(p.biayaAdmin)+'</b></div>':'')+(j?'<div class="tk-row"><span>'+(isEmas(p)?'Jatuh tempo pengembalian':'Jatuh tempo berikutnya')+'</span><b'+(j.telat?' style="color:#c1121f"':'')+'>'+(isEmas(p)?'':'ke-'+j.ke+' · ')+fTgl(j.due)+'</b></div><div class="tk-row"><span>Target lunas</span><span>'+fTgl(j.akhir)+'</span></div>':'')+'</div>'
+      +'<h4 style="margin:12px 0 4px">'+(isEmas(p)?'Pengembalian Emas (':'Riwayat Cicilan (')+cic.length+')</h4>'
+      +(cic.length?cic.map(function(c,i){ return '<div class="tk-row tk-line"><span>'+(c.ibra?'🤲 Dibebaskan · ':'#'+(i+1)+' · ')+fTgl(c.tgl)+(c.catatan?'<br><small>'+esc(c.catatan)+'</small>':'')+'</span><b>'+U(p,c.jumlah)+'</b></div>'; }).join('')
+        +'<div class="tk-row"><span>Total terbayar</span><b>'+U(p,terbayar(p))+'</b></div><div class="tk-row"><span>Sisa</span><b>'+U(p,sisa(p))+'</b></div>'
+        :'<div class="tk-note">Belum ada cicilan.</div>');
+    var aksi=[{label:'Tutup',cls:'sec'}];
+    if(adm&&cic.length&&(p.status==='dicairkan'||p.status==='lunas')) aksi.unshift({label:'Batalkan Cicilan Terakhir',cls:'bad',fn:function(){ setTimeout(function(){takafulHapusCicilan(id);},0); }});
+    modal('Detail pinjaman',b,aksi);
+  };
+  window.takafulTelat=function(id){
+    if(!isAdm()) return; var p=find(id); if(!p||p.status!=='dicairkan') return; var j=jadwal(p); if(!j) return; var em=isEmas(p), rw=(p.peringatan||[]).length;
+    modal('Tindak lanjut keterlambatan',ringkas(p)
+      +'<div class=\"tk-note\" style=\"margin:8px 0\">'+(j.hari>0?'Lewat <b>'+j.hari+' hari</b> dari jatuh tempo '+fTgl(j.due)+(j.telat?'':' (masih masa tenggang '+CFG().tenggang+' hari)'):'Belum lewat jatuh tempo')+(rw?' · '+rw+' peringatan tercatat':'')+'</div>'
+      +'<div class=\"tk-sim\">Pinjaman ini qardhul hasan: <b>tidak ada denda, margin, atau tambahan apa pun</b> atas keterlambatan. Anggota yang sedang kesulitan <b>wajib diberi tempo</b> (QS Al-Baqarah: 280).</div>'
+      +'<label>Kondisi anggota</label><select id=\"tkTlAksi\" onchange=\"var v=this.value;document.getElementById(\'tkTlT\').style.display=v===\'tangguh\'?\'\':\'none\';document.getElementById(\'tkTlI\').style.display=v===\'ibra\'?\'\':\'none\'\">'
+      +'<option value=\"peringatan\">Mampu tetapi menunda: catat peringatan</option><option value=\"tangguh\">Sedang kesulitan: beri tempo</option><option value=\"ibra\">Tidak mampu: bebaskan sebagian/seluruh sisa (ibra’)</option></select>'
+      +'<div id=\"tkTlT\" style=\"display:none\"><label>Ditangguhkan sampai</label><input id=\"tkTlTgl\" type=\"date\" min=\"'+today()+'\" value=\"'+(addMonths(today(),1)||today())+'\"></div>'
+      +'<div id=\"tkTlI\" style=\"display:none\"><label>'+(em?'Emas dibebaskan (gram)':'Jumlah dibebaskan (Rp)')+'</label><input id=\"tkTlJml\" type=\"number\" inputmode=\"decimal\" step=\"'+(em?'0.001':'1')+'\" min=\"0\" value=\"'+sisa(p)+'\"></div>'
+      +'<label>Catatan</label><input id=\"tkTlCat\" type=\"text\" placeholder=\"mis. sakit, usaha sepi, sudah dihubungi\">',
+      [{label:'Batal',cls:'sec'},{label:'Simpan',fn:function(){
+        var q=find(id); if(!q||q.status!=='dicairkan') return; var jj=jadwal(q), a=val('tkTlAksi'), c=(val('tkTlCat')||'').trim(), e2=isEmas(q);
+        if(a==='peringatan'){
+          if(!Array.isArray(q.peringatan)) q.peringatan=[]; q.peringatan.push({tgl:today(),hari:jj?jj.hari:0,catatan:c});
+          audit('Takaful – Peringatan', nama(q.kkId)+' · '+(jj?jj.hari:0)+' hari'); save(); toast('✅ Peringatan dicatat'); return;
+        }
+        if(a==='tangguh'){
+          var t=val('tkTlTgl'); if(!t||!jj||t<=jj.due){ toast('⚠️ Tanggal harus setelah jatuh tempo ('+(jj?fTgl(jj.due):'-')+')'); return false; }
+          q.tangguh={ke:jj.ke,sampai:t,tgl:today(),catatan:c};
+          audit('Takaful – Tangguh', nama(q.kkId)+' sampai '+fTgl(t)); save(); toast('✅ Jatuh tempo ditangguhkan'); return;
+        }
+        var v=e2?r3(parseFloat(String(val('tkTlJml')).replace(',','.'))||0):angka('tkTlJml');
+        if(!(v>0)){ toast('⚠️ Jumlah tidak valid'); return false; }
+        if(v>sisa(q)){ toast('⚠️ Melebihi sisa pinjaman ('+U(q,sisa(q))+')'); return false; }
+        if(!c){ toast('⚠️ Isi catatan alasan pembebasan'); return false; }
+        if(!Array.isArray(q.cicilan)) q.cicilan=[];
+        q.cicilan.push({tgl:today(),jumlah:v,ibra:true,catatan:'Ibra’: '+c});
+        if(sisa(q)<=0){ q.status='lunas'; q.tglLunas=today(); }
+        audit('Takaful – Ibra’', nama(q.kkId)+' '+U(q,v)+(q.status==='lunas'?' (lunas)':'')); save(); toast('✅ Pembebasan tercatat'); }}]);
+  };
+  window.takafulIngatkan=function(id){
+    if(!isAdm()) return; var p=find(id); if(!p) return; var n=nasabahOf(p.kkId), j=jadwal(p);
+    var hp=((n&&n.hp)||'').replace(/[^0-9]/g,''); if(hp.indexOf('0')===0) hp='62'+hp.slice(1);
+    if(!hp) return toast('⚠️ Nomor HP anggota belum terisi');
+    var pesan='Assalamu\'alaikum '+nama(p.kkId)+', kami dari Renco Takaful. '+(isEmas(p)?'Mengingatkan pengembalian pinjaman emas sebesar '+gr(sisa(p)):'Mengingatkan cicilan ke-'+(j?j.ke:'')+' sebesar '+rp(Math.min(sisa(p),angsuran(p))))
+      +(j?' yang jatuh tempo '+fTgl(j.due):'')+'. Sisa pinjaman Anda '+U(p,sisa(p))+'. Tidak ada denda atas keterlambatan; bila sedang kesulitan, silakan hubungi pengurus untuk keringanan. Jazakumullahu khairan.';
+    window.open('https://wa.me/'+hp+'?text='+encodeURIComponent(pesan),'_blank');
+  };
+
+  /* ══ PENGAITAN KE APLIKASI ══ */
+  /* Halaman mandiri: navTo('takaful') → renderPage('takaful') */
+  try{
+    var _rp=window.renderPage;
+    if(typeof _rp==='function'&&!_rp._tkW){
+      window.renderPage=function(p){
+        if(p==='takaful'){ var c=document.getElementById('takafulContent'); if(c){ _tab='ringkasan'; c.innerHTML=pageHTML(); }
+          try{ if(isAdm()&&syncAset()) saveDB(); }catch(e){} return; }
+        return _rp.apply(this,arguments);
+      };
+      window.renderPage._tkW=true;
+    }
+  }catch(e){}
+  /* Aset "Dana Takaful" dikelola otomatis → tidak bisa diedit/dihapus manual dari halaman Aset */
+  ['editAset','hapusAset'].forEach(function(n){ var o=window[n];
+    if(typeof o==='function'&&!o._tkW){ window[n]=function(id){ var a=(DB.aset||[]).find(function(x){return x.id===id;});
+      if(a&&a._takaful){ toast('ℹ️ Aset ini dikelola otomatis oleh Renco Takaful'); return; } return o.apply(this,arguments); }; window[n]._tkW=true; } });
+  /* Tetap izinkan akses lama via tab Keuangan untuk Nasabah (cadangan) */
+  function izinkan(){ if(!Array.isArray(window._nasabahKeuanganTabAllowed)) window._nasabahKeuanganTabAllowed=[];
+    if(window._nasabahKeuanganTabAllowed.indexOf('takaful')===-1) window._nasabahKeuanganTabAllowed.push('takaful'); }
+  try{ var _iso=window._applyNasabahDataIsolation;
+    if(typeof _iso==='function'&&!_iso._tkW){ window._applyNasabahDataIsolation=function(){ var r=_iso.apply(this,arguments); izinkan(); return r; }; window._applyNasabahDataIsolation._tkW=true; } }catch(e){}
+  izinkan();
+
+  /* Master Device: terima pengajuan Takaful baru dari Nasabah & pembatalannya */
+  window._takafulMergeMaster=function(cloudArr){
+    if(!Array.isArray(cloudArr)||!window.DB) return false;
+    var loc=T(), by={}, ch=false; loc.forEach(function(p){ if(p&&p.id) by[p.id]=p; });
+    cloudArr.forEach(function(c){
+      if(!c||!c.id) return; var l=by[c.id];
+      if(!l){ if(c.status==='pengajuan'||c.status==='dibatalkan'){ loc.push(c); by[c.id]=c; ch=true; } }
+      else if(l.status==='pengajuan'&&c.status==='dibatalkan'){ l.status='dibatalkan'; l.tglBatal=c.tglBatal; ch=true; }
+    });
+    if(ch){ try{saveDB();}catch(e){} setTimeout(refresh,150); }
+    return ch;
+  };
   window.takafulStat=stat;
 })();
 </script>
+<!-- ═══ SPLASH MENU VISION 2045 (dari file splash-vision-2045.html) — tampil saat menu Vision 2045 dibuka; tombol "JELAJAHI VISION 2045" masuk ke halaman 4 Pilar ═══ -->
+<style id="v45SplashCSS">#v45Splash{
+    --forest:#0A2A1E;
+    --forest-2:#0F3B2A;
+    --gold:#E2B54E;
+    --gold-soft:#E8C877;
+    --gold-deep:#C99A2E;
+    --cream:#FBF6EA;
+    --cream-2:#F1E8D0;
+    --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+    --sans:'Inter','Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }#v45Splash *{box-sizing:border-box;margin:0;padding:0}#v45Splash .app{position:relative;width:min(100vw,480px);height:100vh;height:100dvh;overflow:hidden;background:var(--forest)}#v45Splash .track{display:flex;height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x}#v45Splash .track::-webkit-scrollbar{display:none}#v45Splash .track.drag{cursor:grabbing;user-select:none}#v45Splash .slide{position:relative;flex:0 0 100%;width:100%;height:100%;scroll-snap-align:start;scroll-snap-stop:always;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;padding:28px 26px calc(72px + env(safe-area-inset-bottom));scrollbar-width:none}#v45Splash .slide::-webkit-scrollbar{display:none}#v45Splash .inner{margin:auto 0;width:100%}#v45Splash .rv{opacity:0;transform:translateY(14px);transition:opacity .7s ease,transform .7s ease;transition-delay:calc(var(--i,0) * .12s)}#v45Splash .slide.on .rv{opacity:1;transform:none}#v45Splash .s-hero{padding:0;background:var(--forest);overflow:hidden}#v45Splash .s-hero svg{position:absolute;inset:0;width:100%;height:100%;display:block}#v45Splash .hero-text{position:absolute;top:clamp(48px,9vh,92px);top:clamp(48px,9dvh,92px);left:0;right:0;padding:0 20px;text-align:center}#v45Splash .eyebrow{font-weight:600;font-size:13px;letter-spacing:.38em;padding-left:.38em;color:var(--gold-soft)}#v45Splash .hero-text h1{margin-top:10px;font-family:var(--serif);font-weight:700;font-size:clamp(36px,11.4vw,46px);line-height:1.1;letter-spacing:.03em;color:var(--cream);white-space:nowrap}#v45Splash .rule-gold{width:56px;height:2px;background:var(--gold);margin:18px auto 16px}#v45Splash .tagline{margin:0 auto;max-width:300px;font-family:var(--serif);font-style:italic;font-weight:600;font-size:clamp(18px,5.3vw,21px);line-height:1.4;color:var(--cream)}#v45Splash .hint{position:absolute;left:0;right:0;bottom:calc(54px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:11px;letter-spacing:.3em;color:var(--gold-soft)}#v45Splash .hint svg{position:static;width:22px;height:12px;animation:v45nudge 1.6s ease-in-out infinite}@keyframes v45nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}#v45Splash .s-quote{background:var(--forest);text-align:center;padding-left:34px;padding-right:34px;
+    background-image:radial-gradient(ellipse at 50% 100%,rgba(226,181,78,.16),rgba(226,181,78,0) 60%)}#v45Splash .rule-sm{width:40px;height:2px;background:var(--gold);margin:0 auto}#v45Splash .quote{margin:28px 0;font-family:var(--serif);font-style:italic;font-weight:500;font-size:clamp(20px,5.8vw,25px);line-height:1.55;color:var(--cream)}#v45Splash .s-story{background:var(--cream)}#v45Splash .story-1{font-size:clamp(15.5px,4.3vw,17px);line-height:1.7;color:#23402F}#v45Splash .story-1 strong{font-weight:700;color:var(--forest-2)}#v45Splash .rule-dk{width:40px;height:2px;background:var(--gold-deep);margin:26px 0}#v45Splash .story-2{font-family:var(--serif);font-style:italic;font-weight:500;font-size:clamp(17px,4.8vw,19px);line-height:1.6;color:var(--forest-2)}#v45Splash .s-pillars{background:var(--cream-2);padding-left:20px;padding-right:20px}#v45Splash .p-head{text-align:center;margin-bottom:24px}#v45Splash .p-head .t{font-weight:700;font-size:12px;letter-spacing:.3em;padding-left:.3em;color:var(--forest-2)}#v45Splash .p-head .rule-dk{margin:14px auto 0}#v45Splash .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}#v45Splash .card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;background:#FFFDF7;border:1px solid #E0CD94;border-radius:16px;padding:22px 14px}#v45Splash .ico{width:48px;height:48px;border-radius:50%;background:var(--forest-2);display:flex;align-items:center;justify-content:center}#v45Splash .ico svg{width:25px;height:25px;fill:none;stroke:var(--gold-soft);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}#v45Splash .card h3{font-weight:700;font-size:13px;line-height:1.3;letter-spacing:.1em;color:var(--forest-2)}#v45Splash .card .bar{width:22px;height:2px;background:var(--gold-deep)}#v45Splash .card p{font-size:13px;line-height:1.5;color:#4A5A4F}#v45Splash .s-end{background:radial-gradient(ellipse at 50% 0%,rgba(226,181,78,.22),rgba(226,181,78,0) 62%),var(--forest);text-align:center;align-items:center}#v45Splash .slogan-a{font-family:var(--serif);font-weight:700;font-size:clamp(26px,7.8vw,31px);line-height:1.25;letter-spacing:.04em;color:var(--cream)}#v45Splash .slogan-b{margin-top:14px;font-family:var(--serif);font-weight:600;font-size:clamp(16px,4.6vw,18px);letter-spacing:.12em;color:var(--gold-soft)}#v45Splash .cta{margin-top:36px;display:flex;align-items:center;justify-content:center;width:100%;max-width:342px;margin-left:auto;margin-right:auto;min-height:58px;border-radius:14px;background:var(--gold);color:var(--forest);font-weight:700;font-size:14px;letter-spacing:.12em;text-decoration:none;box-shadow:0 10px 24px rgba(0,0,0,.35);transition:transform .15s ease,background .15s ease}#v45Splash .cta:hover{background:#EBC25F}#v45Splash .cta:active{transform:scale(.98)}#v45Splash .cta:focus-visible,#v45Splash .dot:focus-visible{outline:3px solid var(--cream);outline-offset:3px}#v45Splash .foot{margin-top:44px;width:100%;max-width:342px;margin-left:auto;margin-right:auto}#v45Splash .foot .line{height:1px;background:rgba(232,200,119,.35);margin-bottom:20px}#v45Splash .foot .n{font-weight:600;font-size:12px;letter-spacing:.34em;padding-left:.34em;color:var(--gold-soft)}#v45Splash .foot .s{margin-top:6px;font-family:var(--serif);font-style:italic;font-size:15px;color:#E6E0CC}#v45Splash .dots{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;padding:2px 8px;background:rgba(10,42,30,.72);border-radius:20px;z-index:5}#v45Splash .dot{position:relative;width:22px;height:28px;border:0;background:transparent;cursor:pointer}#v45Splash .dot::before{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:4px;background:rgba(251,246,234,.5);transition:width .3s ease,margin .3s ease,background .3s ease}#v45Splash .dot[aria-current="true"]::before{width:22px;margin-left:-11px;background:var(--gold)}@media (prefers-reduced-motion:reduce){#v45Splash .rv{opacity:1;transform:none;transition:none}#v45Splash .hint svg{animation:none}#v45Splash .dot::before{transition:none}}#v45Splash{position:fixed;inset:0;z-index:9000;display:flex;justify-content:center;background:#061A13;font-family:var(--sans);animation:v45In .6s ease both}@keyframes v45In{from{opacity:0}to{opacity:1}}#v45Splash.out{pointer-events:none;animation:v45Out 1s ease forwards}@keyframes v45Out{to{opacity:0}}#v45Splash .skip{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);right:14px;z-index:6;border:1px solid rgba(232,200,119,.55);background:rgba(10,42,30,.6);color:var(--gold-soft);font:600 11px var(--sans);letter-spacing:.14em;padding:7px 13px;border-radius:99px;cursor:pointer}#page-vision2045.v45-lit #vision2045Content{animation:v45Lit 1.2s ease both}@keyframes v45Lit{from{filter:brightness(.4)}to{filter:none}}@media (prefers-reduced-motion:reduce){#v45Splash,#v45Splash.out,#page-vision2045.v45-lit #vision2045Content{animation:none!important}}</style>
+<script id="v45SplashJS">window._v45SplashHTML="<main class=\"app\" aria-label=\"Splash AREN COMMUNITY – VISION 2045\">\n  <div class=\"track\" id=\"v45Track\">\n\n    <!-- 1. HERO -->\n    <section class=\"slide s-hero on\" aria-label=\"Pembuka\">\n      <svg viewBox=\"0 0 390 610\" preserveAspectRatio=\"xMidYMax slice\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-label=\"Matahari terbit di atas persawahan dan perbukitan Lombok; sekelompok warga lintas usia berdiri bersama menghadap cahaya fajar\">\n        <defs>\n          <linearGradient id=\"v45sky\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n            <stop offset=\"0\" stop-color=\"#0A2A1E\"/>\n            <stop offset=\"0.42\" stop-color=\"#1B5238\"/>\n            <stop offset=\"0.56\" stop-color=\"#4F8A55\"/>\n            <stop offset=\"0.64\" stop-color=\"#D9B65E\"/>\n            <stop offset=\"0.71\" stop-color=\"#F3DFA6\"/>\n            <stop offset=\"1\" stop-color=\"#F8EED0\"/>\n          <\/linearGradient>\n          <radialGradient id=\"v45glow\" cx=\"195\" cy=\"385\" r=\"240\" gradientUnits=\"userSpaceOnUse\">\n            <stop offset=\"0\" stop-color=\"#FFF1C2\" stop-opacity=\"0.95\"/>\n            <stop offset=\"0.25\" stop-color=\"#F6D77F\" stop-opacity=\"0.55\"/>\n            <stop offset=\"1\" stop-color=\"#F6D77F\" stop-opacity=\"0\"/>\n          <\/radialGradient>\n          <g id=\"v45man\">\n            <circle cx=\"0\" cy=\"-66\" r=\"7.2\"/>\n            <path d=\"M-7.6 -69 L-7 -77 L7 -77 L7.6 -69 Z\"/>\n            <path d=\"M-15 4 L-13.5 -48 Q-13 -58 -5 -59 L5 -59 Q13 -58 13.5 -48 L15 4 Z\"/>\n          <\/g>\n          <g id=\"v45manUp\">\n            <circle cx=\"0\" cy=\"-66\" r=\"7.2\"/>\n            <path d=\"M-7.6 -69 L-7 -77 L7 -77 L7.6 -69 Z\"/>\n            <path d=\"M-15 4 L-13.5 -48 Q-13 -58 -5 -59 L5 -59 Q13 -58 13.5 -48 L15 4 Z\"/>\n            <path d=\"M10 -52 L24 -90\" fill=\"none\" stroke=\"#0A2A1E\" stroke-width=\"5.5\" stroke-linecap=\"round\"/>\n          <\/g>\n          <g id=\"v45woman\">\n            <path d=\"M-9 -63 Q-9 -76 0 -76 Q9 -76 9 -63 Q10 -55 14.5 -50 L15.5 4 L-15.5 4 L-14.5 -50 Q-10 -55 -9 -63 Z\"/>\n          <\/g>\n          <g id=\"v45elder\">\n            <circle cx=\"-1\" cy=\"-61\" r=\"7\"/>\n            <path d=\"M-8.5 -64 Q-1 -75 6.5 -64 Z\"/>\n            <path d=\"M-14 4 L-12 -44 Q-11 -54 -2 -55 L5 -55 Q12 -52 12 -44 L14 4 Z\"/>\n            <path d=\"M18 -42 L20 4\" fill=\"none\" stroke=\"#0A2A1E\" stroke-width=\"2.6\" stroke-linecap=\"round\"/>\n          <\/g>\n        <\/defs>\n\n        <rect x=\"0\" y=\"0\" width=\"390\" height=\"610\" fill=\"url(#v45sky)\"/>\n        <circle cx=\"195\" cy=\"385\" r=\"240\" fill=\"url(#v45glow)\"/>\n        <circle cx=\"195\" cy=\"385\" r=\"44\" fill=\"#FFF6D6\"/>\n\n        <path d=\"M-10 440 L-10 412 Q50 398 100 410 Q140 420 190 418 Q240 416 262 372 Q275 346 292 338 L303 346 L312 336 Q330 352 346 380 Q370 404 400 400 L400 440 Z\" fill=\"#86A98A\" opacity=\"0.85\"/>\n        <path d=\"M0 455 Q60 425 130 440 Q200 452 260 430 Q330 410 390 440 L390 610 L0 610 Z\" fill=\"#5C9565\"/>\n        <path d=\"M0 490 Q70 450 150 470 Q210 485 260 470 Q330 452 390 480 L390 610 L0 610 Z\" fill=\"#3C7A4E\"/>\n        <g fill=\"none\" stroke-linecap=\"round\">\n          <path d=\"M0 503 Q80 476 160 493 Q230 506 300 488 Q350 478 390 493\" stroke=\"#A9CF7A\" stroke-opacity=\"0.5\" stroke-width=\"1.4\"/>\n          <path d=\"M0 515 Q80 490 160 506 Q230 518 300 502 Q350 492 390 506\" stroke=\"#E1C066\" stroke-opacity=\"0.4\" stroke-width=\"1.4\"/>\n          <path d=\"M0 527 Q80 503 160 518 Q230 530 300 515 Q350 506 390 519\" stroke=\"#A9CF7A\" stroke-opacity=\"0.45\" stroke-width=\"1.4\"/>\n          <path d=\"M0 539 Q80 516 160 530 Q230 541 300 528 Q350 520 390 532\" stroke=\"#E1C066\" stroke-opacity=\"0.35\" stroke-width=\"1.4\"/>\n        <\/g>\n        <g fill=\"#2B6743\">\n          <circle cx=\"26\" cy=\"486\" r=\"11\"/><circle cx=\"42\" cy=\"482\" r=\"13\"/><circle cx=\"58\" cy=\"488\" r=\"10\"/>\n          <circle cx=\"338\" cy=\"476\" r=\"11\"/><circle cx=\"354\" cy=\"472\" r=\"13\"/><circle cx=\"372\" cy=\"478\" r=\"10\"/>\n        <\/g>\n        <g fill=\"none\" stroke=\"#0A2A1E\" stroke-linecap=\"round\">\n          <path d=\"M46 566 Q52 500 42 440\" stroke-width=\"5\"/>\n          <path d=\"M42 440 Q20 428 2 442\" stroke-width=\"3\"/>\n          <path d=\"M42 440 Q26 416 6 418\" stroke-width=\"3\"/>\n          <path d=\"M42 440 Q44 414 34 400\" stroke-width=\"3\"/>\n          <path d=\"M42 440 Q62 424 84 434\" stroke-width=\"3\"/>\n          <path d=\"M42 440 Q64 414 82 410\" stroke-width=\"3\"/>\n        <\/g>\n        <g fill=\"none\" stroke=\"#0A2A1E\" stroke-linecap=\"round\">\n          <path d=\"M352 566 Q346 510 358 452\" stroke-width=\"5\"/>\n          <path d=\"M358 452 Q380 440 396 452\" stroke-width=\"3\"/>\n          <path d=\"M358 452 Q374 428 392 430\" stroke-width=\"3\"/>\n          <path d=\"M358 452 Q356 426 366 412\" stroke-width=\"3\"/>\n          <path d=\"M358 452 Q338 436 316 446\" stroke-width=\"3\"/>\n          <path d=\"M358 452 Q336 426 318 422\" stroke-width=\"3\"/>\n        <\/g>\n        <g fill=\"#0A2A1E\">\n          <use href=\"#v45man\" transform=\"translate(84 566) scale(0.9)\"/>\n          <use href=\"#v45elder\" transform=\"translate(114 565) scale(0.96)\"/>\n          <use href=\"#v45woman\" transform=\"translate(142 564) scale(0.95)\"/>\n          <use href=\"#v45manUp\" transform=\"translate(176 563) scale(1.05)\"/>\n          <use href=\"#v45man\" transform=\"translate(199 564) scale(0.58)\"/>\n          <use href=\"#v45woman\" transform=\"translate(221 563) scale(1)\"/>\n          <use href=\"#v45man\" transform=\"translate(250 564)\"/>\n          <use href=\"#v45manUp\" transform=\"translate(278 565) scale(-0.97 0.97)\"/>\n          <use href=\"#v45woman\" transform=\"translate(299 566) scale(0.6)\"/>\n          <use href=\"#v45woman\" transform=\"translate(324 567) scale(0.92)\"/>\n        <\/g>\n        <path d=\"M0 566 Q70 548 130 556 Q190 562 250 556 Q320 548 390 560 L390 610 L0 610 Z\" fill=\"#0A2A1E\"/>\n      <\/svg>\n\n      <div class=\"hero-text\">\n        <div class=\"eyebrow rv\" style=\"--i:1\">AREN COMMUNITY<\/div>\n        <h1 class=\"rv\" style=\"--i:2\">VISION 2045<\/h1>\n        <div class=\"rule-gold rv\" style=\"--i:3\"><\/div>\n        <p class=\"tagline rv\" style=\"--i:4\">Membangun Hari Ini, Mewariskan Masa Depan.<\/p>\n      <\/div>\n\n      <div class=\"hint rv\" style=\"--i:6\" aria-hidden=\"true\">GESER\n        <svg viewBox=\"0 0 22 12\" fill=\"none\" stroke=\"#E8C877\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 6 H20 M15 1.5 L20 6 L15 10.5\"/><\/svg>\n      <\/div>\n    <\/section>\n\n    <!-- 2. KUTIPAN -->\n    <section class=\"slide s-quote\" aria-label=\"Kalimat inspiratif\">\n      <div class=\"inner\">\n        <div class=\"rule-sm rv\" style=\"--i:0\"><\/div>\n        <p class=\"quote rv\" style=\"--i:1\">“Kita mungkin bukan generasi yang akan menikmati seluruh hasilnya. Tetapi kita bisa menjadi generasi yang meletakkan fondasinya.”<\/p>\n        <div class=\"rule-sm rv\" style=\"--i:2\"><\/div>\n      <\/div>\n    <\/section>\n\n    <!-- 3. NARASI -->\n    <section class=\"slide s-story\" aria-label=\"Narasi pengantar\">\n      <div class=\"inner\">\n        <p class=\"story-1 rv\" style=\"--i:0\"><strong>Vision 2045<\/strong> adalah ikhtiar bersama untuk membangun masyarakat Renco yang mandiri secara ekonomi, kuat dalam solidaritas, peduli terhadap lingkungan, serta maju dalam pendidikan, agama, dan budaya.<\/p>\n        <div class=\"rule-dk rv\" style=\"--i:1\"><\/div>\n        <p class=\"story-2 rv\" style=\"--i:2\">Sebab masa depan tidak hadir dengan sendirinya. Masa depan dibangun dari keberanian untuk memulai, kepedulian untuk bergerak bersama, dan keyakinan bahwa perubahan besar dapat lahir dari langkah-langkah kecil.<\/p>\n      <\/div>\n    <\/section>\n\n    <!-- 4. EMPAT PILAR -->\n    <section class=\"slide s-pillars\" aria-label=\"Empat pilar Vision 2045\">\n      <div class=\"inner\">\n        <div class=\"p-head rv\" style=\"--i:0\">\n          <div class=\"t\">EMPAT PILAR VISION 2045<\/div>\n          <div class=\"rule-dk\"><\/div>\n        <\/div>\n        <div class=\"grid\">\n          <div class=\"card rv\" style=\"--i:1\">\n            <div class=\"ico\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 21 V11\"/><path d=\"M12 13 C12 8 8 6 4 7 C4 11 7 13 12 13 Z\"/><path d=\"M12 11 C12 6 15 4 20 4 C20 8 17 11 12 11 Z\"/><\/svg><\/div>\n            <h3>AREN JARIYAH<\/h3><div class=\"bar\"><\/div>\n            <p>Keberlanjutan Aset dan Lingkungan.<\/p>\n          <\/div>\n          <div class=\"card rv\" style=\"--i:2\">\n            <div class=\"ico\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"12\" r=\"6\"/><circle cx=\"15\" cy=\"12\" r=\"6\"/><\/svg><\/div>\n            <h3>KOPERASI RENCO<\/h3><div class=\"bar\"><\/div>\n            <p>Kemandirian Ekonomi.<\/p>\n          <\/div>\n          <div class=\"card rv\" style=\"--i:3\">\n            <div class=\"ico\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3 L20 6 V12 C20 17 16.5 20 12 21 C7.5 20 4 17 4 12 V6 Z\"/><path d=\"M12 15.5 C9 13.2 8.5 11 10 10 C11 9.3 12 10.2 12 10.2 C12 10.2 13 9.3 14 10 C15.5 11 15 13.2 12 15.5 Z\"/><\/svg><\/div>\n            <h3>RENCO TAKAFUL<\/h3><div class=\"bar\"><\/div>\n            <p>Perlindungan dan Solidaritas Sosial.<\/p>\n          <\/div>\n          <div class=\"card rv\" style=\"--i:4\">\n            <div class=\"ico\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6 C6 5 9 5.5 12 7.5 C15 5.5 18 5 21 6 V18 C18 17 15 17.5 12 19.5 C9 17.5 6 17 3 18 Z\"/><path d=\"M12 7.5 V19.5\"/><\/svg><\/div>\n            <h3>RENCO GAKURE<\/h3><div class=\"bar\"><\/div>\n            <p>Pendidikan, Agama, dan Budaya.<\/p>\n          <\/div>\n        <\/div>\n      <\/div>\n    <\/section>\n\n    <!-- 5. PENUTUP -->\n    <section class=\"slide s-end\" aria-label=\"Penutup\">\n      <div class=\"inner\" style=\"text-align:center\">\n        <div class=\"slogan-a rv\" style=\"--i:0\">EMPAT PILAR.<br>SATU GERAKAN.<\/div>\n        <div class=\"slogan-b rv\" style=\"--i:1\">SATU VISI MENUJU 2045.<\/div>\n        <a class=\"cta rv\" style=\"--i:2\" id=\"v45Cta\" href=\"#\">JELAJAHI VISION 2045 →<\/a>\n        <div class=\"foot rv\" style=\"--i:3\">\n          <div class=\"line\"><\/div>\n          <div class=\"n\">AREN COMMUNITY<\/div>\n          <div class=\"s\">Renco Maju Bersama.<\/div>\n        <\/div>\n      <\/div>\n    <\/section>\n\n  <\/div>\n\n  <div class=\"dots\" id=\"v45Dots\" role=\"tablist\" aria-label=\"Halaman splash\"><\/div>\n<\/main><button type=\"button\" class=\"skip\" id=\"v45Skip\">Lewati<\/button>";
+(function(){
+'use strict';
+var V45_SPLASH_AKTIF = true; /* false = matikan splash */
+var PG=null, SP=null, wasActive=false, outT=0;
+function wire(d){
+  var track=d.querySelector('#v45Track'), slides=[].slice.call(track.children), dotsEl=d.querySelector('#v45Dots'), labels=['Pembuka','Kalimat inspiratif','Narasi pengantar','Empat pilar','Penutup'], cur=-1, down=false, captured=false, moved=false, startX=0, startLeft=0, startIdx=0;
+  slides.forEach(function(s,i){ var b=document.createElement('button'); b.className='dot'; b.type='button'; b.setAttribute('role','tab'); b.setAttribute('aria-label','Halaman '+(i+1)+': '+labels[i]); b.addEventListener('click',function(){ go(i); }); dotsEl.appendChild(b); });
+  var dots=[].slice.call(dotsEl.children);
+  function go(i){ i=Math.max(0,Math.min(slides.length-1,i)); track.scrollTo({left:i*track.clientWidth,behavior:'smooth'}); }
+  function update(){ var i=Math.round(track.scrollLeft/track.clientWidth); if(i===cur&&slides[i].classList.contains('on')) return; cur=i; dots.forEach(function(x,k){ x.setAttribute('aria-current',k===i?'true':'false'); }); slides.forEach(function(s,k){ s.classList.toggle('on',k===i); }); }
+  track.addEventListener('scroll',function(){ requestAnimationFrame(update); },{passive:true}); update();
+  d.addEventListener('keydown',function(e){ if(e.key==='ArrowRight') go(cur+1); else if(e.key==='ArrowLeft') go(cur-1); else if(e.key==='Escape') dismiss(); });
+  track.addEventListener('pointerdown',function(e){ if(e.pointerType!=='mouse') return; down=true; captured=false; moved=false; startX=e.clientX; startLeft=track.scrollLeft; startIdx=cur; });
+  track.addEventListener('pointermove',function(e){ if(!down) return; var dx=e.clientX-startX; if(!captured&&Math.abs(dx)>6){ captured=true; moved=true; track.style.scrollSnapType='none'; track.classList.add('drag'); try{track.setPointerCapture(e.pointerId);}catch(_){} } if(captured) track.scrollLeft=startLeft-dx; });
+  function rel(e){ if(!down) return; down=false; if(!captured) return; var dx=e.clientX-startX, i=startIdx; if(dx<-60) i++; else if(dx>60) i--; track.classList.remove('drag'); track.style.scrollSnapType=''; go(i); }
+  track.addEventListener('pointerup',rel); track.addEventListener('pointercancel',rel);
+  track.addEventListener('click',function(e){ if(moved){ e.preventDefault(); e.stopPropagation(); moved=false; } },true);
+  d.querySelector('#v45Cta').addEventListener('click',function(e){ e.preventDefault(); dismiss(); });
+  d.querySelector('#v45Skip').addEventListener('click',dismiss);
+  d.tabIndex=-1; try{ d.focus({preventScroll:true}); }catch(_){}
+}
+function show(){ if(!V45_SPLASH_AKTIF||!PG||document.getElementById('v45Splash')) return; clearTimeout(outT); PG.classList.remove('v45-lit');
+  SP=document.createElement('div'); SP.id='v45Splash'; SP.setAttribute('role','dialog'); SP.setAttribute('aria-label','Pembuka Vision 2045'); SP.innerHTML=window._v45SplashHTML; document.body.appendChild(SP); wire(SP); }
+function remove(){ clearTimeout(outT); var s=document.getElementById('v45Splash'); if(s) s.remove(); SP=null; }
+function dismiss(){ var s=document.getElementById('v45Splash'); if(!s||s.classList.contains('out')) return; s.classList.add('out'); if(PG) PG.classList.add('v45-lit'); try{window.scrollTo(0,0);}catch(_){}
+  outT=setTimeout(function(){ remove(); if(PG) setTimeout(function(){ PG.classList.remove('v45-lit'); },1300); },1000); }
+window._v45SplashShow=show; window._v45SplashClose=dismiss;
+function check(){ var on=!!(PG&&PG.classList.contains('active')); if(on&&!wasActive) show(); else if(!on&&wasActive) remove(); wasActive=on; }
+function init(){ PG=document.getElementById('page-vision2045'); if(!PG) return; new MutationObserver(check).observe(PG,{attributes:true,attributeFilter:['class']}); check(); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+})();
+</script>
+
 </body></html>
