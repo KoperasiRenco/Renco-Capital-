@@ -46,7 +46,7 @@
 })();
 </script>
 <meta name="rc-build" content="20261103-janjitemu-tiket-v1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' data: blob: https://cwtoqrxakgaawqgyxhjz.supabase.co wss://cwtoqrxakgaawqgyxhjz.supabase.co https://api.rss2json.com https://api.allorigins.win https://corsproxy.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' data: blob: https://ipwho.is https://api.bigdatacloud.net https://cwtoqrxakgaawqgyxhjz.supabase.co wss://cwtoqrxakgaawqgyxhjz.supabase.co https://api.rss2json.com https://api.allorigins.win https://corsproxy.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a472a">
@@ -8778,6 +8778,7 @@ function _renderNasabahDashboard(kkId) {
     // ── Render pending items (semua jenis) ──
     var pendingHtml = myPendingAll.map(function(p) {
       var meta   = _pendingMeta[p.type] || {icon:'\ud83d\udccb',label:p.type,color:'#6b7280',bg:'rgba(0,0,0,0.04)',border:'rgba(0,0,0,0.15)',isKeluar:false};
+      if (typeof window._tarikJenis === 'function' && window._tarikJenis(p) === 'topup') meta = Object.assign({}, meta, { isKeluar: true });
       var jmlTxt = (meta.isKeluar ? '-' : '+') + fmtFn(p.jumlah);
       var jenisLabel = {
         simpanan:'Simpanan '+({pokok:' (Pokok)',wajib:' (Wajib)',sukarela:' (Sukarela)'}[p.jenis||'']||''),
@@ -8837,7 +8838,8 @@ function _renderNasabahDashboard(kkId) {
       // Sudut pandang ANGGOTA: masuk ke anggota = pinjaman cair, tarik-sukarela; keluar dari anggota = simpanan, cicilan, ujrah-perpanjang
       // Sudut pandang ANGGOTA: keluar = simpanan, cicilan, angsuran-rc, semua variant ujrah/perpanjang
       var _KELUAR_TYPES = ['simpanan','cicilan','angsuran-rc','ujrah-perpanjang','ujrah-langsung','ujrah-cicilan','ujrah-akumulasi','perpanjang','transfer-sukarela-keluar'];
-      var isKeluar = _KELUAR_TYPES.includes(t.type);
+      // Top Up RencoPay dari Simpanan Sukarela = saldo Sukarela berkurang → tanda "-"
+      var isKeluar = _KELUAR_TYPES.includes(t.type) || (typeof window._tarikJenis === 'function' && window._tarikJenis(t) === 'topup');
       var txnLabel   = t.keterangan || t.jenis || t.type || 'Transaksi';
 
       // Badge status transaksi pengajuan
@@ -11708,6 +11710,17 @@ html.renco-dark body #app #page-rencoPay #rpMenuGrid .rp-hint{position:absolute;
       Belum punya akun? <span>Daftar</span>
     </div>
     <button class="login-btn-secondary" id="daftarAkunBtn" onclick="_openDaftarAkunLogin()" style="display:none">Daftar Akun Baru</button>
+    <button type="button" class="login-help-admin" id="loginHelpAdminBtn" onclick="_openLoginInfo('bantuanAdmin')" aria-label="Bantuan Admin">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.6"/><rect x="17" y="14" width="4" height="6" rx="1.6"/><path d="M20 20c0 1.2-1.6 2-4 2h-2"/></svg>
+      <span>Bantuan Admin</span>
+    </button>
+    <style id="loginHelpAdminCSS">
+    #loginScreen .login-help-admin{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;height:38px;padding:0 10px;border-radius:12px;
+      background:rgba(244,200,66,.12);border:1.5px solid rgba(244,200,66,.55);color:#f4c842;font-family:inherit;font-size:12.5px;font-weight:700;letter-spacing:.2px;cursor:pointer;
+      -webkit-tap-highlight-color:transparent;transition:background .2s,transform .15s}
+    #loginScreen .login-help-admin:hover{background:rgba(244,200,66,.2)}
+    #loginScreen .login-help-admin:active{transform:scale(.97)}
+    </style>
     <div class="login-footer">
       RENCO &copy; 2026 &middot; Bersama Membangun Kesejahteraan<br>
       <span style="opacity:0.6">Hubungi admin jika lupa password</span>
@@ -11884,10 +11897,20 @@ var _LOGIN_INFO_CONTENT = {
             '</div>' +
             '<span style="font-size:14px;color:#2d6a4f">&rarr;</span>' +
           '</a>' +
+          '<a href="https://www.facebook.com/share/1FoxWn4nsu/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:11px;text-decoration:none;background:#1877F2;border-radius:12px;padding:12px 14px;box-shadow:0 4px 10px rgba(24,119,242,0.3)">' +
+            '<span style="width:24px;height:24px;border-radius:50%;background:#fff;color:#1877F2;font:900 17px Georgia,serif;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1">f</span>' +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-size:12px;font-weight:800;color:#fff">Facebook</div>' +
+              '<div style="font-size:12.5px;color:rgba(255,255,255,0.9);font-weight:600">Koperasi Renco</div>' +
+            '</div>' +
+            '<span style="font-size:14px;color:#fff">&rarr;</span>' +
+          '</a>' +
         '</div>' +
       '</div>'
   }
 };
+/* Tombol "Bantuan Admin" di halaman login memakai isi yang sama dengan menu Bantuan */
+_LOGIN_INFO_CONTENT.bantuanAdmin = { title: '&#x1F3A7; Bantuan Admin', body: _LOGIN_INFO_CONTENT.bantuan.body };
 function _liProduk(icon, judul, ket) {
   return '<div style="display:flex;gap:11px;align-items:flex-start;background:#f8faf9;border-radius:12px;padding:11px 13px;border:1.5px solid rgba(45,106,79,0.12)">' +
     '<span style="font-size:19px;line-height:1">' + icon + '</span>' +
@@ -38564,7 +38587,12 @@ function tfTtdClear() {
 function _tfTtdDataURL() {
   var c = document.getElementById('tfTtdCanvas');
   if (!c || !_tfTtdHasDrawn) return null;
-  return c.toDataURL('image/png');
+  // Diperkecil (160x70) supaya data transaksi & DB lebih ringan
+  try {
+    var s = document.createElement('canvas'); s.width = 160; s.height = 70;
+    s.getContext('2d').drawImage(c, 0, 0, 160, 70);
+    return s.toDataURL('image/png');
+  } catch (e) { return c.toDataURL('image/png'); }
 }
 
 // ── Eksekusi akhir: validasi ulang + catat transaksi + tampilkan bukti ──
@@ -74321,7 +74349,7 @@ function detailRows(n,scope){
 function detailHTML(n,scope){
   var rows=detailRows(n,scope).map(function(x){ return '<div class="rpx-r"><span>'+esc(x[0])+'</span><b>'+(x[2]?x[1]:esc(x[1]))+'</b></div>'; }).join('');
   return '<div class="rpx-det">'+rows
-    +'<div class="rpx-act"><button type="button" onclick="event.stopPropagation();rpxCopy(this)">Salin ID</button>'
+    +'<div class="rpx-act"><button type="button" class="rpx-bk" onclick="event.stopPropagation();rpxBukti(this)">Bukti</button><button type="button" onclick="event.stopPropagation();rpxCopy(this)">Salin ID</button>'
     +'<button type="button" onclick="event.stopPropagation();rpxShare(this)">Bagikan</button></div></div>';
 }
 function ico(kredit){ return ''; }  /* ikon panah atas/bawah dihapus */
@@ -74573,6 +74601,263 @@ document.addEventListener('DOMContentLoaded',function(){
     try{ var pg=$('page-rencoPay'), g=$('rpMenuGrid'); if(pg && pg.classList.contains('active') && g && g.style.display!=='none') renderHome(false); }catch(e){}
   },3000);
 });
+})();
+</script>
+<script id="rp-bukti-lite">
+/* ═══ RencoPay: Bukti Pembayaran (gambar) — versi RINGAN ═══
+   • Digambar langsung di <canvas> (tanpa html2canvas, tanpa DOM bayangan) → cepat & hemat memori
+   • Keluaran JPEG ±40–70 KB (sebelumnya PNG skala 2 yang jauh lebih besar)
+   • Langsung ditampilkan saat transaksi berhasil + bisa dibuka lagi dari Daftar Transaksi
+   • Gambar sudah siap sebelum tombol Bagikan ditekan → share file ke WhatsApp tidak gagal karena menunggu render */
+(function(){
+'use strict';
+var BLN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+var FONT="'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+var SERIF="'Playfair Display',Georgia,serif";
+function toast(m){ try{ if(typeof showToast==='function') showToast(m); }catch(e){} }
+function money(n){ try{ return fmt(n); }catch(e){ return 'Rp '+Number(n||0).toLocaleString('id-ID'); } }
+function nmOf(id){ try{ var n=(typeof getNasabah==='function')?getNasabah(id):null; return n?n.nama:''; }catch(e){ return ''; } }
+function meId(){ try{ return (window.AUTH&&AUTH.user&&AUTH.user.nasabahId)||null; }catch(e){ return null; } }
+function waktu(v){
+  try{
+    var w=rpWita(v);
+    if(w&&w.d){
+      var hasT=!(typeof v==='string'&&typeof rpHasTime==='function'&&!rpHasTime(v));
+      return w.d+' '+BLN[w.m]+' '+w.y+(hasT&&w.jam?', '+w.jam+' WITA':'');
+    }
+  }catch(e){}
+  var t=new Date(v||Date.now());
+  return t.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})+', '+t.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})+' WITA';
+}
+function kode(v){ var t=new Date(v||Date.now()).getTime(); if(isNaN(t)) t=Date.now(); return 'RC'+t.toString(36).toUpperCase(); }
+
+/* ── Spesifikasi struk dari data "transaksi berhasil" ── */
+function specFromTxn(d){
+  var meta={judul:'Transaksi',labelJumlah:'Jumlah',labelSaldo:'Saldo'};
+  try{ meta=window._txnSuksesMeta(d.jenisTxn)||meta; }catch(e){}
+  var ket=d.ket||'';
+  if(d.jenisTxn==='transfer' && ket.indexOf('Transfer ke ')===0){ var i=ket.indexOf(') — '); ket=i>=0?ket.slice(i+4):''; }
+  var rows=[['Pengirim',d.nama||'-']];
+  if(d.toNama) rows.push(['Penerima',d.toNama]);
+  if(d.toHp) rows.push(['No. HP Tujuan',d.toHp]);
+  rows.push(['Waktu',waktu(d.tanggal)]);
+  if(d.saldoSebelum!=null) rows.push([meta.labelSaldo+' Sebelum',money(d.saldoSebelum)]);
+  if(d.saldoSesudah!=null) rows.push([d.saldoSebelum!=null?meta.labelSaldo+' Sesudah':meta.labelSaldo+' Saat Ini',money(d.saldoSesudah)]);
+  if(ket) rows.push(['Keterangan',ket]);
+  return {judul:meta.judul,labelJumlah:meta.labelJumlah,jumlah:d.jumlah,sign:'',rows:rows,kode:kode(d.tanggal),tanggal:d.tanggal,nama:d.nama};
+}
+
+/* ── Spesifikasi struk dari satu baris Daftar Transaksi RencoPay ── */
+function specFromItem(n,scope,kkHint){
+  var t=n.raw||{}, kredit=!!n.kredit, rows=[];
+  var nama = scope==='admin'
+    ? (t.namaNasabah||(t.kkId?nmOf(t.kkId):'')||'Koperasi (Operasional)')
+    : (nmOf(kkHint||meId())||'Nasabah');
+  if(t.toKkId||t.toHp){
+    rows.push(['Pengirim',nama]);
+    rows.push(['Penerima',nmOf(t.toKkId)||t.toHp||'-']);
+    if(t.toHp && nmOf(t.toKkId)) rows.push(['No. HP Tujuan',t.toHp]);
+  } else if(t.fromKkId){
+    rows.push(['Pengirim',nmOf(t.fromKkId)||'-']);
+    rows.push(['Penerima',nama]);
+  } else {
+    rows.push(['Nasabah',nama]);
+  }
+  rows.push(['Jenis',kredit?'Uang Masuk':'Uang Keluar']);
+  if(n.kategori) rows.push(['Kategori',n.kategori]);
+  rows.push(['Waktu',waktu(t.tanggal||t.createdAt)]);
+  if(n.ket) rows.push(['Keterangan',n.ket]);
+  if(n.saldo!=null) rows.push(['Saldo Setelah',money(n.saldo)]);
+  rows.push(['ID Transaksi',String(n.id)]);
+  var judul = n.kategori==='Transfer' ? (kredit?'Transfer Masuk':'Transfer Keluar') : (n.kategori||'Transaksi');
+  return {judul:judul,labelJumlah:kredit?'Jumlah Masuk':'Jumlah Keluar',jumlah:n.jumlah,sign:kredit?'+':'−',rows:rows,kode:kode(t.tanggal||t.createdAt),tanggal:t.tanggal||t.createdAt,nama:nama};
+}
+
+/* ── Gambar struk ke canvas ── */
+function wrapLines(ctx,text,maxW){
+  var out=[], words=String(text==null?'':text).split(/\s+/).filter(Boolean), cur='';
+  function brk(s){
+    while(ctx.measureText(s).width>maxW && s.length>1){
+      var k=s.length; while(k>1 && ctx.measureText(s.slice(0,k)).width>maxW) k--;
+      out.push(s.slice(0,k)); s=s.slice(k);
+    }
+    return s;
+  }
+  words.forEach(function(w){
+    var t=cur?cur+' '+w:w;
+    if(ctx.measureText(t).width<=maxW){ cur=t; return; }
+    if(cur) out.push(cur);
+    cur=brk(w);
+  });
+  if(cur) out.push(cur);
+  return out.length?out:['-'];
+}
+function draw(spec){
+  var W=360, S=2, PAD=22, LW=104, GAP=10, VW=W-PAD*2-LW-GAP;
+  var cv=document.createElement('canvas'), ctx=cv.getContext('2d');
+  ctx.font='700 12.5px '+FONT;
+  var rows=(spec.rows||[]).filter(function(r){ return r && r[1]!=null && r[1]!==''; }).map(function(r){
+    var ls=wrapLines(ctx,r[1],VW); return {l:r[0],ls:ls,h:ls.length*17+16};
+  });
+  var HEAD=118, AMT=96, FOOT=76, rowsH=rows.reduce(function(s,r){ return s+r.h; },0), H=HEAD+AMT+rowsH+FOOT;
+  cv.width=W*S; cv.height=H*S; ctx=cv.getContext('2d'); ctx.scale(S,S);
+  ctx.fillStyle='#fefae0'; ctx.fillRect(0,0,W,H);
+  var g=ctx.createLinearGradient(0,0,W,HEAD); g.addColorStop(0,'#1a472a'); g.addColorStop(1,'#2d6a4f');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,HEAD);
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#fff'; ctx.font='800 18px '+SERIF; ctx.fillText('KOPERASI RENCO',W/2,32);
+  ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='600 11px '+FONT; ctx.fillText('Bukti '+spec.judul,W/2,50);
+  ctx.beginPath(); ctx.arc(W/2,84,20,0,Math.PI*2); ctx.fillStyle='rgba(232,201,126,.22)'; ctx.fill();
+  ctx.lineWidth=1.5; ctx.strokeStyle='rgba(232,201,126,.7)'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W/2-9,84); ctx.lineTo(W/2-2.5,90.5); ctx.lineTo(W/2+9,77.5);
+  ctx.lineWidth=3.2; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#e8c97e'; ctx.stroke();
+  // nominal
+  ctx.fillStyle='#6b7280'; ctx.font='600 11px '+FONT; ctx.fillText(spec.labelJumlah||'Jumlah',W/2,HEAD+26);
+  ctx.fillStyle='#1a472a'; ctx.font='800 28px '+FONT; ctx.fillText((spec.sign||'')+money(spec.jumlah),W/2,HEAD+58);
+  var px=W/2-42, py=HEAD+68, pw=84, ph=18, r=9;
+  ctx.beginPath(); ctx.moveTo(px+r,py); ctx.arcTo(px+pw,py,px+pw,py+ph,r); ctx.arcTo(px+pw,py+ph,px,py+ph,r); ctx.arcTo(px,py+ph,px,py,r); ctx.arcTo(px,py,px+pw,py,r); ctx.closePath();
+  ctx.fillStyle='rgba(22,163,74,.14)'; ctx.fill();
+  ctx.fillStyle='#15803d'; ctx.font='800 10px '+FONT; ctx.fillText('BERHASIL',W/2,py+12.5);
+  function dash(y){ ctx.save(); ctx.setLineDash([4,3]); ctx.strokeStyle='rgba(0,0,0,.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke(); ctx.restore(); }
+  var y=HEAD+AMT; dash(y);
+  rows.forEach(function(row){
+    ctx.textAlign='left'; ctx.fillStyle='#6b7280'; ctx.font='600 12px '+FONT; ctx.fillText(row.l,PAD,y+8+12);
+    ctx.textAlign='right'; ctx.fillStyle='#1c3025'; ctx.font='700 12.5px '+FONT;
+    row.ls.forEach(function(ln,i){ ctx.fillText(ln,W-PAD,y+8+12+i*17); });
+    y+=row.h; dash(y);
+  });
+  ctx.textAlign='center';
+  ctx.fillStyle='#a06800'; ctx.font='700 9.5px '+FONT; ctx.fillText('KODE VERIFIKASI: '+spec.kode,W/2,y+30);
+  ctx.fillStyle='#9ca3af'; ctx.font='500 9.5px '+FONT; ctx.fillText('Bukti dibuat otomatis oleh RencoPay · Koperasi Renco',W/2,y+48);
+  return cv;
+}
+
+/* ── Buat blob JPEG (fallback PNG) ── */
+function make(spec){
+  return new Promise(function(res){
+    function done(b,ext){ if(!b){ res(null); return; } res({blob:b,url:URL.createObjectURL(b),fname:'bukti-rencopay-'+String(spec.kode).toLowerCase()+'.'+ext}); }
+    function go(){
+      try{
+        var cv=draw(spec);
+        cv.toBlob(function(b){
+          if(b && b.type==='image/jpeg') done(b,'jpg');
+          else cv.toBlob(function(p){ done(p,'png'); },'image/png');
+        },'image/jpeg',0.86);
+      }catch(e){ console.error('[BuktiLite]',e); res(null); }
+    }
+    var fr=(document.fonts&&document.fonts.ready)?Promise.race([document.fonts.ready,new Promise(function(r){ setTimeout(r,500); })]):Promise.resolve();
+    fr.then(go,go);
+  });
+}
+function ensure(d){ if(!d._buktiP) d._buktiP=make(specFromTxn(d)); return d._buktiP; }
+
+/* ── Simpan / bagikan ── */
+function saveRes(r){
+  var a=document.createElement('a'); a.href=r.url; a.download=r.fname; document.body.appendChild(a); a.click(); a.remove();
+  toast('📥 Bukti tersimpan sebagai gambar');
+}
+function shareRes(r,title,text,hp){
+  var file=null; try{ file=new File([r.blob],r.fname,{type:r.blob.type}); }catch(e){}
+  var can=!!(file && navigator.share && (!navigator.canShare || navigator.canShare({files:[file]})));
+  function fallback(){
+    saveRes(r);
+    var h=String(hp||'').replace(/\D/g,'');
+    if(h){ if(h.indexOf('0')===0) h='62'+h.slice(1); else if(h.indexOf('62')!==0) h='62'+h;
+      window.open('https://wa.me/'+h+'?text='+encodeURIComponent(text||''),'_blank'); }
+  }
+  if(!can){ fallback(); return; }
+  navigator.share({files:[file],title:title,text:text||''})
+    .then(function(){ toast('✅ Bukti berhasil dibagikan!'); })
+    .catch(function(e){ if(e && e.name==='AbortError') return; fallback(); });
+}
+
+function ensureCSS(){
+  if(document.getElementById('rpBuktiCSS')) return;
+  var st=document.createElement('style'); st.id='rpBuktiCSS';
+  st.textContent=
+   '.rpb-img img{width:100%;height:auto;display:block;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.14)}'
+  +'.rpb-ph{height:240px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b7280;background:#f3f6f4;border-radius:12px}'
+  +'#rpBuktiOv{display:none;position:fixed;inset:0;z-index:99993;background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:14px}'
+  +'#rpBuktiOv .rpb-card{width:100%;max-width:340px;max-height:94vh;overflow-y:auto;background:#fff;border-radius:20px;padding:12px;box-shadow:0 18px 44px rgba(6,20,12,.35)}'
+  +'#rpBuktiOv .rpb-act{display:flex;gap:8px;margin-top:10px}'
+  +'#rpBuktiOv .rpb-act button{flex:1;border:none;border-radius:12px;padding:11px 4px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;background:#f3f6f4;color:#1a472a;-webkit-tap-highlight-color:transparent}'
+  +'#rpBuktiOv .rpb-act .rpb-share{flex:1.6;background:linear-gradient(135deg,#d4a017,#f4c842);color:#061409}'
+  +'.rpx-act .rpx-bk{background:linear-gradient(135deg,#d4a017,#f4c842)!important;color:#061409!important;border-color:transparent!important;font-weight:800}';
+  document.head.appendChild(st);
+}
+
+/* ── API publik ── */
+window._shareBuktiGambarWA=function(d){
+  if(!d) return;
+  ensure(d).then(function(r){
+    if(!r){ toast('❌ Gagal membuat gambar bukti'); return; }
+    var cap=''; try{ cap=_buildTxnSuksesWAMsg(d); }catch(e){}
+    shareRes(r,'Bukti Pembayaran RencoPay',cap,d.hp);
+  });
+};
+window._rpBuktiSave=function(d){
+  if(!d) return;
+  ensure(d).then(function(r){ if(r) saveRes(r); else toast('❌ Gagal membuat gambar bukti'); });
+};
+window._rpBuktiInline=function(d,el){
+  if(!d||!el) return; ensureCSS();
+  el.innerHTML='<div class="rpb-ph">Menyiapkan bukti…</div>';
+  ensure(d).then(function(r){
+    if(!r){ el.innerHTML='<div class="rpb-ph">Bukti gambar tidak dapat dibuat</div>'; return; }
+    el.innerHTML='<img alt="Bukti pembayaran RencoPay" src="'+r.url+'">';
+  });
+};
+window._rpBuktiRelease=function(d){
+  if(!d||!d._buktiP) return;
+  var p=d._buktiP; d._buktiP=null;
+  p.then(function(r){ if(r) setTimeout(function(){ URL.revokeObjectURL(r.url); },800); });
+};
+
+/* ── Daftar Transaksi: tombol "Bukti" → modal gambar + Bagikan/Simpan ── */
+var ov=null, cur=null, tok=0, curCaption='';
+function findRaw(id){
+  try{
+    var rp=(typeof getRPDB==='function')?getRPDB():null, i, t;
+    var ad=(rp&&rp.dompet)||[];
+    for(i=0;i<ad.length;i++){ if(String(ad[i].id)===id){ t=ad[i]; return {n:{raw:t,id:id,kredit:(t.tipe==='kredit'||t.tipe==='masuk'||t.tipe==='topup'),jumlah:+t.jumlah||0,ket:t.keterangan||t.judul||t.kategori||'Transaksi',kategori:t.kategori||'RencoPay',saldo:null},scope:'admin'}; } }
+    var dn=(window.DB&&DB.dompetNasabah)||{};
+    for(var k in dn){ var l=dn[k]||[]; for(i=0;i<l.length;i++){ if(String(l[i].id)===id){ t=l[i]; return {n:{raw:t,id:id,kredit:(t.tipe==='kredit'||t.tipe==='masuk'||t.tipe==='topup'),jumlah:+t.jumlah||0,ket:t.keterangan||t.judul||t.kategori||'Transaksi',kategori:t.kategori||'RencoPay',saldo:null},scope:'nasabah',kk:k}; } } }
+  }catch(e){}
+  return null;
+}
+function closeModal(){
+  tok++;
+  if(ov) ov.style.display='none';
+  if(cur){ var u=cur.url; cur=null; setTimeout(function(){ URL.revokeObjectURL(u); },800); }
+}
+window.rpxBuktiClose=closeModal;
+window.rpxBuktiShare=function(){ if(cur) shareRes(cur,'Bukti Pembayaran RencoPay',curCaption,''); };
+window.rpxBuktiSave=function(){ if(cur) saveRes(cur); };
+window.rpxBukti=function(btn){
+  var it=btn&&btn.closest?btn.closest('[data-id]'):null, id=it?it.getAttribute('data-id'):''; if(!id) return;
+  var B=window._rpxB, n=null, scope=(B&&B.scope)||'nasabah', kk=null;
+  if(B&&B.map&&B.map[id]) n=B.map[id];
+  else { var f=findRaw(id); if(f){ n=f.n; scope=f.scope; kk=f.kk; } }
+  if(!n){ toast('⚠️ Transaksi tidak ditemukan'); return; }
+  var spec=specFromItem(n,scope,kk);
+  curCaption='Bukti pembayaran RencoPay — '+spec.judul+' '+(spec.sign||'')+money(spec.jumlah)+'\n'+waktu(spec.tanggal)+'\nKode verifikasi: '+spec.kode;
+  ensureCSS();
+  if(!ov){
+    ov=document.createElement('div'); ov.id='rpBuktiOv'; ov.setAttribute('data-keep-light','');
+    ov.addEventListener('click',function(e){ if(e.target===ov) closeModal(); });
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML='<div class="rpb-card" onclick="event.stopPropagation()"><div class="rpb-img" id="rpbImg"><div class="rpb-ph">Menyiapkan bukti…</div></div>'
+    +'<div class="rpb-act"><button type="button" class="rpb-share" onclick="rpxBuktiShare()">📤 Bagikan</button><button type="button" onclick="rpxBuktiSave()">💾 Simpan</button><button type="button" onclick="rpxBuktiClose()">Tutup</button></div></div>';
+  ov.style.display='flex';
+  var my=++tok;
+  make(spec).then(function(r){
+    if(my!==tok){ if(r) URL.revokeObjectURL(r.url); return; }
+    var box=document.getElementById('rpbImg'); if(!box) return;
+    if(!r){ box.innerHTML='<div class="rpb-ph">Bukti gambar tidak dapat dibuat</div>'; return; }
+    cur=r; box.innerHTML='<img alt="Bukti pembayaran RencoPay" src="'+r.url+'">';
+  });
+};
 })();
 </script>
 <script id="login-quick-access">
@@ -75399,6 +75684,12 @@ html body #app #page-home .iklan-glass-card::after{ content:none !important; dis
 #tfOkOverlay .tfok-act .tfok-wa{background:rgba(37,211,102,.14);color:#128c4a}
 #tfOkOverlay .tfok-close{margin-top:10px;width:100%;border:none;border-radius:12px;padding:10px;background:linear-gradient(135deg,#1a472a,#2d6a4f);
   color:#fff;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+#tfOkOverlay .tfok-card{max-width:320px;max-height:94vh;overflow-y:auto;text-align:left;padding:14px 14px 12px}
+#tfOkOverlay .tfok-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+#tfOkOverlay .tfok-ico{width:38px;height:38px;margin:0;flex-shrink:0}
+#tfOkOverlay .tfok-top .tfok-to{font-size:11.5px}
+#tfOkOverlay .tfok-act{gap:6px}
+#tfOkOverlay .tfok-act .tfok-share{flex:1.5;background:linear-gradient(135deg,#d4a017,#f4c842);color:#061409}
 @keyframes tfOkFade{from{opacity:0}to{opacity:1}}
 @keyframes tfOkPop{from{opacity:0;transform:scale(.8) translateY(10px)}to{opacity:1;transform:none}}
 @keyframes tfOkDraw{to{stroke-dashoffset:0}}
@@ -75442,23 +75733,28 @@ html body #app #page-home .iklan-glass-card::after{ content:none !important; dis
     var ico = function(name, size){ try{ return window._ico ? window._ico(name, size) : ''; }catch(e){ return ''; } };
     ov.innerHTML =
       '<div class="tfok-card" onclick="event.stopPropagation()">' +
-        '<div class="tfok-ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
-        '<div class="tfok-t">Transfer Berhasil</div>' +
-        '<div class="tfok-amt">' + esc(money(d.jumlah)) + '</div>' +
-        '<div class="tfok-to">ke ' + esc(d.toNama || '-') + '</div>' +
-        (d.saldoSesudah != null ? '<div class="tfok-saldo"><span>Sisa saldo RencoPay</span><b>' + esc(money(d.saldoSesudah)) + '</b></div>' : '') +
+        '<div class="tfok-top">' +
+          '<div class="tfok-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
+          '<div style="min-width:0"><div class="tfok-t">Transfer Berhasil</div><div class="tfok-to">ke ' + esc(d.toNama || '-') + '</div></div>' +
+        '</div>' +
+        '<div class="rpb-img" id="tfokImg"></div>' +
         '<div class="tfok-act">' +
-          '<button type="button" onclick="_downloadTxnSuksesPDF(window._lastTxnSuksesData)">' + ico('download', 18) + 'PDF</button>' +
-          '<button type="button" class="tfok-wa" onclick="_kirimTxnSuksesWA(window._lastTxnSuksesData)">' + ico('whatsapp', 18) + 'WhatsApp</button>' +
-          '<button type="button" onclick="_shareBuktiGambarWA(window._lastTxnSuksesData)"><span style="font-size:17px;line-height:18px">🧾</span>Bukti</button>' +
+          '<button type="button" class="tfok-share" onclick="_shareBuktiGambarWA(window._lastTxnSuksesData)"><span style="font-size:15px;line-height:16px">&#x1F4E4;</span>Bagikan</button>' +
+          '<button type="button" onclick="_rpBuktiSave(window._lastTxnSuksesData)"><span style="font-size:15px;line-height:16px">&#x1F4BE;</span>Simpan</button>' +
+          '<button type="button" onclick="_downloadTxnSuksesPDF(window._lastTxnSuksesData)">' + ico('download', 16) + 'PDF</button>' +
+          '<button type="button" class="tfok-wa" onclick="_kirimTxnSuksesWA(window._lastTxnSuksesData)">' + ico('whatsapp', 16) + 'WA</button>' +
         '</div>' +
         '<button type="button" class="tfok-close" onclick="_closeTxnSuksesSheet()">Tutup</button>' +
       '</div>';
     window._lastTxnSuksesData = d;
     ov.style.display = 'flex';
     playSuccess();
+    try { if (window._rpBuktiInline) window._rpBuktiInline(d, document.getElementById('tfokImg')); } catch (e) {}
   }
-  function closeCompact(){ var ov = document.getElementById('tfOkOverlay'); if (ov) ov.style.display = 'none'; }
+  function closeCompact(){
+    var ov = document.getElementById('tfOkOverlay'); if (ov) ov.style.display = 'none';
+    try { if (window._rpBuktiRelease) window._rpBuktiRelease(window._lastTxnSuksesData); } catch (e) {}
+  }
 
   /* Pasang pembungkus begitu fungsi aslinya tersedia (dan pasang ulang bila ditimpa) */
   function install(){
@@ -76663,6 +76959,9 @@ function rpgNeed(){ return !!(window.AUTH && AUTH.loggedIn && AUTH.user && AUTH.
 function rpgOk(){ return !!(rpgNeed() && rpgLast && rpgUser===AUTH.user.username && (Date.now()-rpgLast)<RPG_IDLE_MS); }
 function rpgOnRp(){ return typeof currentPage!=='undefined' && currentPage==='rencoPay'; }
 function rpgShown(){ var ov=$('rpGateOv'); return !!(ov && ov.classList.contains('show')); }
+/* Dipakai modul keamanan: pemberitahuan keamanan RencoPay hanya boleh tampil bila menu RencoPay sedang
+   dibuka DAN sudah lolos PIN / biometrik (bukan saat aplikasi pertama dibuka). */
+window._rpGateUnlocked=function(){ try{ return rpgOk() && rpgOnRp() && !rpgShown(); }catch(e){ return false; } };
 function rpgReset(){ rpgLast=0; rpgUser=''; rpgPending=false; var ov=$('rpGateOv'); if(ov) ov.classList.remove('show'); }
 function rpgUI(){
   var ov=$('rpGateOv'); if(ov) return ov;
@@ -80793,9 +81092,12 @@ function reduceMotion(){ try { return window.matchMedia && window.matchMedia('(p
 function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
 function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
 
+/* Panel asisten tanpa ikon/emoji: hapus piktograf dari teks yang ditampilkan */
+var EMO_RE = /(?:[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}])+[ \t]?/gu;
+function noEmo(s){ return String(s == null ? '' : s).replace(EMO_RE, '').replace(/[ \t]+$/gm, ''); }
 function fmtMsg(t){
   var out = '', ul = false;
-  String(t).split('\n').forEach(function(l){
+  String(noEmo(t)).split('\n').forEach(function(l){
     var isLi = l.indexOf('• ') === 0 || l.indexOf('   – ') === 0;
     var e = esc(l).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(^|[\s(])_(.+?)_(?=[\s).,!?]|$)/g, '$1<em>$2</em>');
     if (isLi) { if (!ul) { out += '<ul>'; ul = true; } out += '<li' + (l.indexOf('   – ') === 0 ? ' class="sub"' : '') + '>' + e.replace(/^(•|\s+–)\s/, '') + '</li>'; }
@@ -80810,7 +81112,7 @@ function barsEl(viz){
     var w = Math.max(0, Math.min(100, Number(v.value) || 0));
     var row = document.createElement('div'); row.className = 'ra-bar';
     var h = document.createElement('div'); h.className = 'ra-bar-h';
-    var a = document.createElement('span'); a.textContent = v.label; var b = document.createElement('b'); b.textContent = v.text || '';
+    var a = document.createElement('span'); a.textContent = noEmo(v.label); var b = document.createElement('b'); b.textContent = noEmo(v.text || '');
     h.appendChild(a); h.appendChild(b);
     var tr = document.createElement('div'); tr.className = 'ra-bar-t'; var fi = document.createElement('i'); fi.className = v.tone || ''; fi.style.width = '0%';
     tr.appendChild(fi); row.appendChild(h); row.appendChild(tr); wrap.appendChild(row);
@@ -80916,7 +81218,26 @@ var CSS = '' +
 'html.renco-dark #raPanel{background:radial-gradient(120% 60% at 100% 0%,rgba(244,169,34,.07),transparent 60%),#12211a;color:#e6efe8}' +
 'html.renco-dark .ra-m.bot{background:#1c3226;border-color:rgba(255,255,255,.08);color:#e6efe8;box-shadow:none}html.renco-dark .ra-tile{background:linear-gradient(160deg,#1c3226,#172a1f);border-color:rgba(255,255,255,.1)}html.renco-dark .ra-tile.warn{background:linear-gradient(160deg,#2b2a18,#1f2a1c);border-color:rgba(244,169,34,.5)}' +
 'html.renco-dark .ra-chip{background:rgba(255,255,255,.07);color:#c9e4d3;border-color:rgba(255,255,255,.16)}html.renco-dark #raIn{background:#1c3226;color:#e6efe8;border-color:rgba(255,255,255,.16)}html.renco-dark .ra-bar-t{background:rgba(255,255,255,.1)}html.renco-dark .ra-viz{border-color:rgba(255,255,255,.15)}' +
-'html.renco-dark #raFab{box-shadow:0 6px 18px rgba(0,0,0,.6),0 0 0 4px rgba(255,209,102,.28),inset 0 1px 0 rgba(255,255,255,.2)}';
+'html.renco-dark #raFab{box-shadow:0 6px 18px rgba(0,0,0,.6),0 0 0 4px rgba(255,209,102,.28),inset 0 1px 0 rgba(255,255,255,.2)}' +
+/* ── ringkas & hemat: tanpa ikon, tanpa blur/animasi berat ── */
+'#raOverlay.open{background:rgba(13,32,22,.32);-webkit-backdrop-filter:none!important;backdrop-filter:none!important}' +
+'#raPanel{max-width:460px;height:min(68vh,540px);height:min(68dvh,540px);border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.3)}' +
+'#raHead{padding:14px 10px 8px 14px;gap:6px;animation:none;background:linear-gradient(120deg,#12351f,#1f5236)}#raHead:before{top:5px;width:30px;height:3px;margin-left:-15px}' +
+'#raHead .tt b{font-size:14px}#raHead .tt span{font-size:10.5px;opacity:.85}#raHead .tt span:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#52e08a;margin-right:5px;vertical-align:1px}' +
+'#raHead button{width:auto;min-width:0;height:26px;padding:0 11px;border-radius:99px;font:inherit;font-size:11.5px;font-weight:700}' +
+'#raLog{padding:10px 10px 4px;gap:7px}.ra-row{animation-duration:.18s}.ra-col{max-width:92%}' +
+'.ra-m{padding:7px 11px;border-radius:14px;font-size:13px;line-height:1.45}.ra-m.bot{border-bottom-left-radius:4px;box-shadow:none}.ra-m.me{border-bottom-right-radius:4px;box-shadow:none;cursor:pointer}' +
+'.ra-m p{margin:0 0 1px}.ra-m li{margin:2px 0}.ra-time{font-size:9.5px;margin:2px 4px 0}' +
+'.ra-cp{border:none;background:none;color:inherit;opacity:.8;font:inherit;font-size:9.5px;font-weight:700;padding:0;cursor:pointer;text-decoration:underline}.ra-cp:active{opacity:1}' +
+'.ra-tiles{gap:5px;margin-top:7px}.ra-tile{padding:6px 8px;border-radius:10px}.ra-tile .l{font-size:9.5px;margin:0}.ra-tile .v{font-size:11.5px}' +
+'.ra-act{padding:5px 11px;font-size:11.5px;box-shadow:none}.ra-viz{margin-top:7px;gap:6px;padding-top:7px}.ra-bar-t{height:6px}' +
+'#raQuick{padding:5px 10px 2px;gap:5px}.ra-chip{padding:5px 10px;font-size:11.5px}.ra-chip:hover,.ra-chip:focus-visible{background:#2d6a4f;color:#fff;border-color:#2d6a4f}' +
+'#raForm{padding:4px 10px calc(8px + env(safe-area-inset-bottom,0px));gap:6px}#raIn{padding:8px 13px;font-size:13.5px}' +
+'#raSend{width:auto;height:36px;padding:0 15px;border-radius:99px;font:inherit;font-size:12.5px;font-weight:800;box-shadow:none}#raSend.ready{box-shadow:none}#raSend:active{transform:scale(.94)}' +
+'#raModeBar{padding:6px 10px 0}.ra-live{padding:6px 10px;border-radius:10px}.ra-end{padding:7px 10px;font-size:11.5px;border-radius:10px}' +
+'#raDown{position:absolute;right:12px;bottom:92px;z-index:3;border:none;border-radius:99px;padding:5px 11px;font:inherit;font-size:11px;font-weight:800;background:#1f5236;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.28);cursor:pointer;opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .2s,transform .2s}#raDown.on{opacity:1;pointer-events:auto;transform:none}' +
+'html.renco-dark .ra-chip:hover,html.renco-dark .ra-chip:focus-visible{background:#40916c;color:#fff}' +
+'@media (min-width:700px){#raPanel{height:min(66vh,540px);border-radius:18px}}';
 
 var ICON = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#raG)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="raG" x1="4" y1="3" x2="20" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="#ffe9a8"/><stop offset=".55" stop-color="#ffd166"/><stop offset="1" stop-color="#f4a922"/></linearGradient></defs><path d=\"M4 13v-1a8 8 0 0 1 16 0v1\"/><rect x=\"3\" y=\"12\" width=\"4\" height=\"6\" rx=\"2\"/><rect x=\"17\" y=\"12\" width=\"4\" height=\"6\" rx=\"2\"/><path d=\"M20 18v1a3 3 0 0 1-3 3h-3\"/><rect x=\"11\" y=\"20.2\" width=\"3\" height=\"3\" rx=\"1.5\"/></svg>';
 var ICON_S = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4L12 3z" fill="currentColor"/><path d="M18 14l.9 2.1 2.1.9-2.1.9L18 20l-.9-2.1-2.1-.9 2.1-.9L18 14z" fill="currentColor" opacity=".7"/></svg>';
@@ -81002,18 +81323,36 @@ function build(){
   document.body.appendChild(fab); bindFab(fab); fabRestore(false); wake();
   var ov = document.createElement('div'); ov.id = 'raOverlay';
   ov.innerHTML = '<div id="raPanel" role="dialog" aria-modal="true" aria-label="Asisten Keuangan Renco">' +
-    '<div id="raHead"><div class="av">' + ICON_AV + '</div><div class="tt"><b>Asisten Renco</b><span>Online · Penasihat keuangan Koperasi Renco</span></div>' +
-    '<button type="button" id="raClear" title="Mulai ulang" aria-label="Mulai ulang"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
-    '<button type="button" id="raClose" aria-label="Tutup"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button></div>' +
-    '<div id="raLog" aria-live="polite"></div><div id="raModeBar"></div><div id="raQuick"></div>' +
-    '<form id="raForm" autocomplete="off"><input id="raIn" type="text" maxlength="500" placeholder="Tulis bebas, mis. gajiku 4 juta, gimana ngaturnya?" enterkeyhint="send" autocomplete="off" autocapitalize="sentences"><button id="raSend" type="submit" aria-label="Kirim"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z" fill="currentColor"/></svg></button></form></div>';
+    '<div id="raHead"><div class="tt"><b>Asisten Renco</b><span>Online</span></div>' +
+    '<button type="button" id="raClear" title="Mulai ulang" aria-label="Mulai ulang">Ulang</button>' +
+    '<button type="button" id="raClose" aria-label="Tutup">Tutup</button></div>' +
+    '<div id="raLog" aria-live="polite"></div><button type="button" id="raDown" aria-label="Ke pesan terbaru">Terbaru ↓</button><div id="raModeBar"></div><div id="raQuick"></div>' +
+    '<form id="raForm" autocomplete="off"><input id="raIn" type="text" maxlength="500" placeholder="Tanya apa saja, mis. gajiku 4 juta" enterkeyhint="send" autocomplete="off" autocapitalize="sentences"><button id="raSend" type="submit" aria-label="Kirim">Kirim</button></form></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click', function(e){ /* abaikan klik susulan dari ketukan pembuka (muncul di bawah jari) */ if (e.target === ov && Date.now() - (UI.t0 || 0) > 500) toggle(false); });
   $('raClose').onclick = function(){ toggle(false); };
   $('raClear').onclick = function(){ var b = $('raClear'); b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); reset(); greet(); };
   var inp = $('raIn'), send = $('raSend');
-  inp.addEventListener('input', function(){ send.classList.toggle('ready', !!inp.value.trim()); });
-  $('raForm').onsubmit = function(e){ e.preventDefault(); var v = inp.value; if (!v.trim()) return; inp.value = ''; send.classList.remove('ready'); ask(v); };
+  inp.addEventListener('input', function(){
+    send.classList.toggle('ready', !!inp.value.trim());
+    /* saran topik langsung saat mengetik */
+    var qv = inp.value.trim().toLowerCase();
+    if (qv.length >= 2 && !modeInfo()) {
+      var seen = {}, hit = CHIPS_UTAMA.concat(Object.keys(EMO)).filter(function(x){ if (seen[x] || x === 'Ya, lanjut' || x === 'Lewati' || x.toLowerCase().indexOf(qv) < 0) return false; seen[x] = 1; return true; }).slice(0, 4);
+      if (hit.length) { UI.sug = 1; setQuick(hit); UI.sug = 0; UI.sugOn = 1; return; }
+    }
+    if (UI.sugOn) { UI.sugOn = 0; setQuick(UI.ql, UI.qm); }
+  });
+  inp.addEventListener('keydown', function(e){
+    var h = UI.hist || []; if (!h.length || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    if (UI.hi == null) UI.hi = h.length;
+    UI.hi = clamp(UI.hi + (e.key === 'ArrowUp' ? -1 : 1), 0, h.length);
+    inp.value = h[UI.hi] || ''; e.preventDefault(); inp.dispatchEvent(new Event('input'));
+  });
+  var lg = $('raLog'), dn = $('raDown');
+  lg.addEventListener('scroll', function(){ dn.classList.toggle('on', lg.scrollHeight - lg.scrollTop - lg.clientHeight > 140); }, { passive: true });
+  dn.onclick = function(){ scrollEnd(); };
+  $('raForm').onsubmit = function(e){ e.preventDefault(); var v = inp.value; if (!v.trim()) return; inp.value = ''; send.classList.remove('ready'); (UI.hist = UI.hist || []).push(v.trim()); UI.hi = null; if (UI.sugOn) { UI.sugOn = 0; setQuick(UI.ql, UI.qm); } ask(v); };
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && UI.open) toggle(false); });
   bindSwipe($('raHead'), $('raPanel'));
   UI.built = true;
@@ -81032,18 +81371,20 @@ function hhmm(){ var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':'
 function row(cls){ var r = document.createElement('div'); r.className = 'ra-row ' + cls; return r; }
 function addMe(t){
   var r = row('me'), c = document.createElement('div'); c.className = 'ra-col';
-  var m = document.createElement('div'); m.className = 'ra-m me'; m.textContent = t;
+  var m = document.createElement('div'); m.className = 'ra-m me'; m.textContent = t; m.title = 'Ketuk untuk menyunting';
+  m.onclick = function(){ var i = $('raIn'); if (i) { i.value = t; i.focus(); i.dispatchEvent(new Event('input')); } };
   var tm = document.createElement('div'); tm.className = 'ra-time'; tm.textContent = hhmm();
   c.appendChild(m); c.appendChild(tm); r.appendChild(c); log().appendChild(r); scrollEnd();
 }
 function botShell(){
-  var r = row('bot'), av = document.createElement('div'); av.className = 'ra-mini'; av.innerHTML = ICON_S;
+  var r = row('bot');
   var c = document.createElement('div'); c.className = 'ra-col'; var m = document.createElement('div'); m.className = 'ra-m bot';
-  c.appendChild(m); r.appendChild(av); r.appendChild(c); log().appendChild(r);
+  c.appendChild(m); r.appendChild(c); log().appendChild(r);
   return { row: r, col: c, bubble: m };
 }
 function setQuick(list, menu){
   var q = $('raQuick'); if (!q) return; q.innerHTML = '';
+  if (!UI.sug) { UI.ql = list; UI.qm = menu; }
   var info = modeInfo(), all = (list || []).slice();
   if (!info) {
     if (list === CHIPS_UTAMA || !all.length) all = saranDefault();
@@ -81055,11 +81396,11 @@ function setQuick(list, menu){
   q.style.display = (all.length || !info) ? '' : 'none';
   all.forEach(function(x, i){
     var b = document.createElement('button'); b.type = 'button'; b.className = 'ra-chip'; b.style.animationDelay = (i * 40) + 'ms';
-    b.textContent = (EMO[x] && !info ? EMO[x] + ' ' : '') + x; b.onclick = function(){ ask(x); }; q.appendChild(b);
+    b.textContent = noEmo(x); b.onclick = function(){ ask(x); }; q.appendChild(b);
   });
   if (!info) {
     var mb = document.createElement('button'); mb.type = 'button'; mb.className = 'ra-chip ra-chip-menu';
-    mb.textContent = menu ? '✕ Tutup menu' : '☰ Menu'; mb.setAttribute('aria-label', menu ? 'Tutup menu topik' : 'Tampilkan semua topik');
+    mb.textContent = menu ? 'Tutup menu' : 'Menu'; mb.setAttribute('aria-label', menu ? 'Tutup menu topik' : 'Tampilkan semua topik');
     mb.onclick = function(){ setQuick(list, !menu); }; q.appendChild(mb);
   }
   q.scrollLeft = 0;
@@ -81070,10 +81411,9 @@ function fillBot(sh, r){
     var g = document.createElement('div'); g.className = 'ra-tiles';
     r.tiles.forEach(function(x){
       var b = document.createElement('button'); b.type = 'button'; b.className = 'ra-tile' + (x.warn ? ' warn' : '');
-      var e = document.createElement('div'); e.className = 'e'; e.textContent = x.ic;
-      var l = document.createElement('div'); l.className = 'l'; l.textContent = x.lb;
-      var v = document.createElement('div'); v.className = 'v'; v.textContent = x.v;
-      b.appendChild(e); b.appendChild(l); b.appendChild(v); b.onclick = function(){ ask(x.q); }; g.appendChild(b);
+      var l = document.createElement('div'); l.className = 'l'; l.textContent = noEmo(x.lb);
+      var v = document.createElement('div'); v.className = 'v'; v.textContent = noEmo(x.v);
+      b.appendChild(l); b.appendChild(v); b.onclick = function(){ ask(x.q); }; g.appendChild(b);
     });
     sh.bubble.appendChild(g);
   }
@@ -81081,10 +81421,19 @@ function fillBot(sh, r){
   if (r.thread && r.thread.length) { sh.bubble.appendChild(threadEl(r.thread)); UI.thrKk = r.thrKk || null; UI.thrTs = r.thrTs || 0; if (UI.cw && r.thrTs) UI.cw.last = Math.max(UI.cw.last, r.thrTs); }
   if (r.actions && r.actions.length) {
     var a = document.createElement('div'); a.className = 'ra-acts';
-    r.actions.forEach(function(x){ var b = document.createElement('button'); b.type = 'button'; b.className = 'ra-act'; b.textContent = x.t + ' →'; b.onclick = function(){ go(x.go); }; a.appendChild(b); });
+    r.actions.forEach(function(x){ var b = document.createElement('button'); b.type = 'button'; b.className = 'ra-act'; b.textContent = noEmo(x.t) + ' →'; b.onclick = function(){ go(x.go); }; a.appendChild(b); });
     sh.bubble.appendChild(a);
   }
-  var tm = document.createElement('div'); tm.className = 'ra-time'; tm.textContent = hhmm(); sh.col.appendChild(tm);
+  var tm = document.createElement('div'); tm.className = 'ra-time'; tm.textContent = hhmm() + ' · ';
+  var cp = document.createElement('button'); cp.type = 'button'; cp.className = 'ra-cp'; cp.textContent = 'Salin';
+  cp.onclick = function(){
+    var tx = sh.bubble.innerText || sh.bubble.textContent || '';
+    function ok(){ cp.textContent = 'Tersalin'; setTimeout(function(){ cp.textContent = 'Salin'; }, 1500); }
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(tx).then(ok, function(){ cp.textContent = 'Gagal'; }); return; } } catch(e){}
+    var ta = document.createElement('textarea'); ta.value = tx; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); ok(); } catch(e){ cp.textContent = 'Gagal'; } ta.remove();
+  };
+  tm.appendChild(cp); sh.col.appendChild(tm);
   applyMode(); setQuick(r.chips); scrollEnd();
 }
 function addBot(r){ var sh = botShell(); fillBot(sh, r); }
@@ -81172,13 +81521,13 @@ function ask(text, silent){
       .catch(function(){ if (sh.row.parentNode) fillBot(sh, { text: 'Maaf, ada kendala saat menghubungi server. Coba lagi sebentar ya 🙏', chips: CHIPS_UTAMA, noFb: true }); });
     return;
   }
-  var wait = reduceMotion() ? 0 : Math.min(1500, (r.small ? 450 : 650) + String(r.text).length * 1.1 + Math.random() * 350);
+  var wait = reduceMotion() ? 0 : Math.min(450, 120 + String(r.text).length * 0.25);
   setTimeout(function(){ if (!sh.row.parentNode) return; fillBot(sh, r); }, wait);
 }
 function greet(){
   var n = firstName(), p = kumpulPengingat();
   var w = salamWaktu();
-  var t = 'Assalamualaikum' + (n ? ', Kak ' + n : '') + '! Selamat ' + w + ' ' + EMO_WAKTU[w] + '\nAku **Asisten Renco** 🤖 Ada yang bisa kubantu?';
+  var t = 'Assalamualaikum' + (n ? ', Kak ' + n : '') + '! Selamat ' + w + ' ' + EMO_WAKTU[w] + '\nAku **Asisten Renco**. Ada yang bisa kubantu?';
   if (UI.psN > 0) t += '\n\n💬 Ada **' + UI.psN + ' pesan baru** ' + (psAdmin() ? 'dari anggota. Ketuk **Pesan masuk**' : 'dari admin. Ketuk **Balasan admin**') + ' di bawah.';
   if (p.length) t += '\n\n🔔 Ada **' + p.length + ' hal** yang perlu diperhatikan. Ketuk **Cek pengingat** di bawah.';
   var chips = ['Konsultasi terpandu', p.length ? 'Cek pengingat' : 'Cek kesehatan keuangan', 'Saldo saya'];
@@ -81204,15 +81553,15 @@ function applyMode(){
   var tt = pn.querySelector('#raHead .tt'), av = pn.querySelector('#raHead .av'), inp = $('raIn');
   if (tt) {
     tt.querySelector('b').textContent = mi ? (mi.t === 'm' ? 'Chat Admin Renco' : 'Chat dengan ' + String(mi.nama).split(' ')[0]) : 'Asisten Renco';
-    tt.querySelector('span').textContent = mi ? (mi.t === 'm' ? 'Layanan admin · pesan diteruskan ke pengurus' : 'Balas anggota · pesan langsung terkirim') : 'Online · makin pintar tiap kamu nanya';
+    tt.querySelector('span').textContent = mi ? (mi.t === 'm' ? 'Layanan admin · pesan diteruskan ke pengurus' : 'Balas anggota · pesan langsung terkirim') : 'Online';
   }
   if (av) av.innerHTML = mi ? ICON_SH : ICON_AV;
-  if (inp) inp.placeholder = mi ? (mi.t === 'm' ? 'Tulis pesan untuk admin…' : 'Balas ke ' + String(mi.nama).split(' ')[0] + '…') : 'Tulis bebas, mis. gajiku 4 juta, gimana ngaturnya?';
+  if (inp) inp.placeholder = mi ? (mi.t === 'm' ? 'Tulis pesan untuk admin…' : 'Balas ke ' + String(mi.nama).split(' ')[0] + '…') : 'Tanya apa saja, mis. gajiku 4 juta';
   /* ikon chat admin kini di header (sebelah tombol mulai ulang), bukan di kolom ketik */
   var sbn = $('raStartBtn'), hd = $('raHead'), clr = $('raClear');
   if (!mi && canStart && hd) {
     if (!sbn) { sbn = document.createElement('button'); sbn.type = 'button'; sbn.id = 'raStartBtn'; sbn.onclick = startChat; hd.insertBefore(sbn, clr); }
-    sbn.innerHTML = adm ? ICON_INBOX : ICON_CHAT;
+    sbn.textContent = adm ? 'Pesan' : 'Admin';
     sbn.title = adm ? 'Mulai chat anggota' : 'Chat dengan admin'; sbn.setAttribute('aria-label', sbn.title);
   } else if (sbn) sbn.remove();
   if (bar.getAttribute('data-k') === key) return;
@@ -81227,7 +81576,7 @@ function applyMode(){
   s1.textContent = mi.t === 'm' ? 'Pesan Anda diteruskan kepada pengurus' : 'Pesan Anda langsung dikirim ke anggota';
   sp.appendChild(b1); sp.appendChild(s1); lv.appendChild(dot); lv.appendChild(sp);
   var en = document.createElement('button'); en.type = 'button'; en.className = 'ra-end'; en.setAttribute('aria-label', 'Akhiri chat');
-  en.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg><span>Akhiri</span>'; en.onclick = endChat;
+  en.innerHTML = '<span>Akhiri</span>'; en.onclick = endChat;
   bar.appendChild(lv); bar.appendChild(en);
 }
 function reset(){ if (log()) log().innerHTML = ''; UI.ctx = {}; try { applyMode(); } catch(e){} }
@@ -90289,18 +90638,50 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
      • Tidak aktif >90 hari → perlu konfirmasi ulang. Maksimal 5 perangkat terpercaya per akun.
      • Data lama (tanpa status) otomatis dianggap terpercaya agar tidak ada nasabah yang terkunci saat pembaruan ini. */
   var MAX_DEV=5, EXP_MS=90*24*3600*1000, REQ_MS=48*3600*1000, reqShown={}, devPoll=null, lastAppr=0, lastReplay=0;
+  var MEREK=[[/^(SM-|GT-|SCG|SC-|SHV)/i,'Samsung'],[/^(Redmi|POCO|Mi[ -]|M\d{4}[A-Z]|\d{5,}[A-Z0-9]+$)/i,'Xiaomi'],[/^CPH/i,'OPPO'],[/^RMX/i,'realme'],[/^(vivo|V\d{4})/i,'vivo'],[/^Pixel/i,'Google'],
+    [/^(ONEPLUS|(LE|IN|KB|NE|HD|GM|BE)\d{4}$)/i,'OnePlus'],[/^HONOR/i,'Honor'],[/^(HUAWEI|[A-Z]{2,4}-(L|AL|TL|LX)\d+)/i,'Huawei'],[/^(Infinix|X\d{3,4}[A-Z]?$)/i,'Infinix'],[/^(TECNO|K[A-Z]\d)/i,'Tecno'],
+    [/^itel/i,'itel'],[/^Nokia/i,'Nokia'],[/^(moto|XT\d{4})/i,'Motorola'],[/^(SO-|SOG|XQ-|F\d{4}$)/i,'Sony'],[/^(ASUS|ZS\d)/i,'ASUS'],[/^Lenovo/i,'Lenovo'],[/^(iPhone|iPad)/,'Apple']];
+  function merekDari(model){ for(var i=0;i<MEREK.length;i++) if(MEREK[i][0].test(model||'')) return MEREK[i][1]; return ''; }
   function devInfo(){
     var ua=navigator.userAgent||'', m=ua.match(/Android[^;]*;\s*([^;)]+?)(?:\sBuild|[;)])/);
     var os=/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iOS':/Windows/.test(ua)?'Windows':/Mac OS/.test(ua)?'Mac':/Linux/.test(ua)?'Linux':'Perangkat';
     var br=/SamsungBrowser/.test(ua)?'Samsung Internet':/Edg\//.test(ua)?'Edge':/OPR\//.test(ua)?'Opera':/Firefox/.test(ua)?'Firefox':/Chrome/.test(ua)?'Chrome':/Safari/.test(ua)?'Safari':'Browser';
     var model=(m&&m[1]&&m[1].trim().length>1)?m[1].trim():'';
-    return {nama:model||os,browser:br};
+    if(os==='iOS') model=/iPad/.test(ua)?'iPad':'iPhone'; else if(os==='Windows') model='PC Windows'; else if(os==='Mac') model='Mac'; else if(os==='Linux') model='PC Linux';
+    return {nama:model||os,browser:br,os:os,model:model,merek:merekDari(model)};
   }
+  /* Chrome Android membekukan model di User-Agent ("K"); model asli hanya lewat User-Agent Client Hints */
+  function devInfoAsync(cb){
+    var i=devInfo();
+    try{
+      if(navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues){
+        navigator.userAgentData.getHighEntropyValues(['model']).then(function(v){
+          if(v&&v.model&&v.model.length>1){ i.model=v.model; i.nama=v.model; i.merek=merekDari(v.model)||i.merek; }
+          cb(i);
+        }).catch(function(){ cb(i); });
+        return;
+      }
+    }catch(e){}
+    cb(i);
+  }
+  function devTitle(x){
+    if(x.label) return x.label;
+    var mm=[x.merek,x.model].filter(Boolean);
+    if(x.merek&&x.model&&x.model.toLowerCase().indexOf(x.merek.toLowerCase())===0) mm=[x.model];
+    return mm.join(' ')||x.nama||'Perangkat';
+  }
+  function lokStr(l){
+    if(!l) return '';
+    if(l.alamat) return l.alamat+(l.negara&&String(l.alamat).indexOf(l.negara)<0?', '+l.negara:'');
+    var s=[l.kota,l.wilayah].filter(Boolean).join(', ');
+    return s+(l.negara?(s?', ':'')+l.negara:'');
+  }
+  function lokLine(x){ var l=x&&x.lokasi, s=l?lokStr(l):''; return s?esc(s)+(l.ip?' · IP '+esc(l.ip):''):''; }
   function myRec(){ var u=uname(), d=devId(); return arr('rpPerangkat').find(function(x){ return x.username===u&&x.deviceId===d; }); }
   function nowIso(){ return new Date().toISOString(); }
   function stOf(r){ if(!r) return 'baru'; if(r.dicabut) return 'dicabut'; if(r.status==='ditolak') return 'ditolak'; if(r.status==='menunggu') return 'menunggu'; return 'terpercaya'; }
   function isExp(x){ var t=Date.parse(x.terakhir||x.pertama||''); return !isNaN(t)&&Date.now()-t>EXP_MS; }
-  function namaDev(x){ return (x.label||x.nama||'Perangkat')+' · '+(x.browser||''); }
+  function namaDev(x){ return devTitle(x)+' · '+(x.browser||''); }
   function trustedOthers(u,exId){ return arr('rpPerangkat').filter(function(x){ return x.username===u&&x.id!==exId&&stOf(x)==='terpercaya'&&!isExp(x); }); }
   /* token rahasia perangkat (tidak pernah dikirim ke cloud; hanya hash-nya) */
   function tokKey(){ return 'rp_dev_tok_'+uname(); }
@@ -90335,7 +90716,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     var u=uname(), d=devId(), now=nowIso(), list=arr('rpPerangkat'), mine=myRec(), info=devInfo(), dirty=false;
     if(!mine){
       var punyaLain=trustedOthers(u,'').length>0;
-      mine={id:'pd_'+RCPW.sha(u+'|'+d).slice(0,16),username:u,deviceId:d,nama:info.nama,browser:info.browser,pertama:now,terakhir:now,dicabut:false};
+      mine={id:'pd_'+RCPW.sha(u+'|'+d).slice(0,16),username:u,deviceId:d,nama:info.nama,browser:info.browser,merek:info.merek,model:info.model,os:info.os,pertama:now,terakhir:now,dicabut:false};
       list.push(mine);
       try{ localStorage.setItem('rp_sec_seen_'+u,String(Date.now())); }catch(e){}
       if(!punyaLain){ trust(mine,'otomatis'); mine.tokenHash=tokHash(ensureTok()); log('perangkat-baru','Perangkat pertama dipercaya: '+namaDev(mine),{adaLain:false,deviceId:d}); }
@@ -90370,6 +90751,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     if(!isNas()||window._rencoOfflineMode||!window.DB||!devId()) return 'ok';
     register();
     var m=myRec(); if(!m) return 'ok';
+    enrichOnce();
     var st=stOf(m); return st==='terpercaya'?'ok':st;
   }
   function closeDevOv(){ if(devPoll){ clearInterval(devPoll); devPoll=null; } var o=$('rpDevOv'); if(o) o.remove(); }
@@ -90378,39 +90760,111 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     var b=$('rpDevCheck'); if(b&&!silent){ b.disabled=true; b.textContent='Memeriksa…'; }
     function done(){
       var st=devStatus();
-      try{ var inf=$('rpDevInfo'), rr=myRec(); if(inf) inf.textContent='Status di server: '+(rr?stOf(rr):'-')+' · dicek '+new Date().toLocaleTimeString('id-ID'); }catch(e){}
+      try{ var inf=$('rpDevInfo'), rr=myRec(); if(inf) inf.textContent='Dicek '+new Date().toLocaleTimeString('id-ID'); }catch(e){}
       if(st==='ok'){ closeDevOv(); toast('✅ Perangkat ini sudah dipercaya'); if(typeof navTo==='function') navTo('rencoPay'); return; }
       if(!silent){ var b2=$('rpDevCheck'); if(b2){ b2.disabled=false; b2.textContent='Periksa status'; } toast(st==='ditolak'?'Permintaan ditolak':'Belum ada persetujuan'); }
     }
     if(typeof _rencoStrictReload==='function') _rencoStrictReload(done); else done();
+  }
+  /* ── Lokasi login & info perangkat ── */
+  var enr={};
+  function geoIp(cb){
+    var done=false, to=setTimeout(function(){ fin(null); },6000);
+    function fin(v){ if(done) return; done=true; clearTimeout(to); cb(v); }
+    try{
+      fetch('https://ipwho.is/',{cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){
+        if(!j||j.success===false||!j.ip) return fin(null);
+        var c=j.connection||{};
+        fin({sumber:'ip',ip:j.ip,kota:j.city||'',wilayah:j.region||'',negara:j.country_code||'',lat:j.latitude!=null?+(+j.latitude).toFixed(4):'',lon:j.longitude!=null?+(+j.longitude).toFixed(4):'',isp:c.isp||c.org||'',at:nowIso()});
+      }).catch(function(){ fin(null); });
+    }catch(e){ fin(null); }
+  }
+  /* GPS (butuh izin; dipicu ketukan pengguna) + alamat lewat reverse geocode */
+  function gpsLokasi(cb){
+    if(!navigator.geolocation) return cb(null,'GPS tidak tersedia di perangkat ini');
+    navigator.geolocation.getCurrentPosition(function(p){
+      var la=+p.coords.latitude.toFixed(5), lo=+p.coords.longitude.toFixed(5), ac=Math.round(p.coords.accuracy||0), done=false;
+      var to=setTimeout(function(){ fin(''); },5000);
+      function fin(alamat){
+        if(done) return; done=true; clearTimeout(to);
+        var r=myRec(); if(!r) return cb(null);
+        var o=r.lokasi||{};
+        r.lokasi={sumber:'gps',lat:la,lon:lo,akurasi:ac,alamat:alamat||'',kota:o.kota||'',wilayah:o.wilayah||'',negara:o.negara||'',ip:o.ip||'',isp:o.isp||'',at:nowIso()};
+        save(); cb(r.lokasi);
+      }
+      try{
+        fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+la+'&longitude='+lo+'&localityLanguage=id').then(function(r){ return r.json(); }).then(function(j){
+          var a=[]; [j.locality,j.city,j.principalSubdivision].forEach(function(t){ if(t&&a.indexOf(t)<0) a.push(t); });
+          fin(a.join(', '));
+        }).catch(function(){ fin(''); });
+      }catch(e){ fin(''); }
+    },function(err){ cb(null,err&&err.code===1?'Izin lokasi ditolak':'Lokasi tidak terbaca'); },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+  }
+  function refreshRows(){ var el=$('rpDevRows'), mm=myRec(); if(el&&mm) el.innerHTML=devRows(mm); }
+  function enrichOnce(){
+    var r=myRec(); if(!r||enr[r.id]) return;
+    var id=r.id; enr[id]=1;
+    devInfoAsync(function(i){
+      var a=myRec();
+      if(a&&(a.merek!==i.merek||a.model!==i.model||a.os!==i.os||a.browser!==i.browser)){ a.merek=i.merek; a.model=i.model; a.os=i.os; a.browser=i.browser; if(i.model) a.nama=i.model; save(); }
+      refreshRows();
+      geoIp(function(g){
+        var b=myRec(); enr[id]=2;
+        if(b&&g){ var o=b.lokasi||{}; if(!(o.sumber==='gps'&&o.ip===g.ip)&&(o.ip!==g.ip||o.kota!==g.kota||!o.lat)){ b.lokasi=g; save(); } }
+        refreshRows();
+      });
+    });
+  }
+  function devRows(m){
+    function row(k,v){ return '<div style="display:flex;gap:8px;padding:2px 0"><span style="flex:none;width:60px;color:#7a8a80">'+k+'</span><span style="flex:1;min-width:0;font-weight:600;word-break:break-word">'+v+'</span></div>'; }
+    function mute(t){ return '<span style="font-weight:500;color:#7a8a80">'+t+'</span>'; }
+    var br=esc(m.browser||'Browser'), l=m.lokasi, ls=l?lokStr(l):'';
+    var h=row('Perangkat',(!m.merek&&!m.model)?esc(m.os||m.nama||'Perangkat')+' '+mute('(model tidak terbaca)')+' · '+br:esc(devTitle(m))+' · '+br);
+    var gb=(l&&l.sumber==='gps')?'':' <button type="button" data-gps="1" style="margin-left:4px;border:1px solid #b02a37;background:#fff;color:#b02a37;border-radius:8px;padding:1px 7px;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer">Pakai GPS</button>';
+    h+=row('Login di',(ls?esc(ls):mute(enr[m.id]===1?'Mencari…':'Tidak terbaca'))+gb);
+    if(l&&(l.lat!==''&&l.lat!=null)) h+=row('Titik',esc(l.lat+', '+l.lon)+' <a href="https://www.google.com/maps?q='+encodeURIComponent(l.lat+','+l.lon)+'" target="_blank" rel="noopener" style="color:#1f6b45;font-weight:700">Peta</a>'+mute(' · '+(l.sumber==='gps'?'GPS ±'+(l.akurasi||'?')+' m':'perkiraan IP')));
+    if(l&&l.ip) h+=row('IP',esc(l.ip)+(l.isp?mute(' · '+esc(l.isp)):''));
+    if(m.diminta) h+=row('Diminta',esc(tgl(m.diminta)));
+    return h;
   }
   function showDevOv(st){
     closeDevOv();
     var m=myRec()||{}, alasan=m.alasan||'';
     var T={
       menunggu:['Perangkat Ini Belum Dipercaya',
-        alasan==='kedaluwarsa'?'Perangkat ini tidak dipakai lebih dari 90 hari, jadi perlu dikonfirmasi ulang sebelum membuka RencoPay.'
-        :alasan==='token'?'Identitas perangkat ini tidak cocok dengan data terpercaya (mis. data aplikasi dipulihkan atau disalin). Konfirmasi ulang diperlukan.'
-        :alasan==='dicabut'?'Perangkat ini pernah dicabut aksesnya. Untuk memakai RencoPay lagi, perangkat harus disetujui ulang.'
-        :'RencoPay hanya bisa dibuka dari perangkat terpercaya. Permintaan persetujuan sudah dikirim ke perangkat Anda yang lain.'],
-      ditolak:['Permintaan Ditolak','Permintaan akses RencoPay dari perangkat ini ditolak. Jika ini perangkat Anda, kirim ulang permintaan lalu setujui dari perangkat terpercaya.'],
-      dicabut:['Akses Dicabut','Akses perangkat ini dicabut dari akun. Masuk ulang dengan password.']
+        alasan==='kedaluwarsa'?'Tidak dipakai lebih dari 90 hari, perlu konfirmasi ulang.'
+        :alasan==='token'?'Identitas perangkat tidak cocok (mis. data aplikasi dipulihkan). Perlu konfirmasi ulang.'
+        :alasan==='dicabut'?'Akses perangkat ini pernah dicabut. Perlu disetujui ulang.'
+        :'RencoPay hanya untuk perangkat terpercaya.'],
+      ditolak:['Permintaan Ditolak','Kirim ulang permintaan bila ini perangkat Anda.'],
+      dicabut:['Akses Dicabut','Masuk ulang dengan password.']
     }[st]||['Perangkat Belum Dipercaya',''];
-    var h='<div style="font-size:34px;text-align:center">🛡️</div><div style="font-size:16px;font-weight:800;text-align:center;margin:4px 0 6px">'+esc(T[0])+'</div>'
-      +'<div style="font-size:12.5px;line-height:1.6;color:#4a5f53;text-align:center;margin-bottom:10px">'+esc(T[1])+'</div>'
-      +'<div style="background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.6;margin-bottom:10px"><b>'+esc(namaDev(m))+'</b><br>Status: <b>'+(st==='menunggu'?'menunggu persetujuan':st)+'</b>'
-      +'<br><span id="rpDevInfo" style="color:#6b7d72">Belum diperiksa</span>'
-      +(st==='menunggu'?'<br>Cara menyetujui: buka <b>RencoPay → Keamanan Akun</b> di perangkat terpercaya Anda lalu ketuk <b>Izinkan</b> (atau muncul otomatis). Tidak punya perangkat lain? Minta admin koperasi menyetujui.':'')+'</div>';
-    if(st!=='dicabut') h+='<button id="rpDevCheck" style="width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#1f6b45,#2d8a5e);color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:8px">Periksa status</button>';
-    if(st==='menunggu'||st==='ditolak') h+='<button id="rpDevAgain" style="width:100%;padding:12px;border:1px solid #2d8a5e;border-radius:12px;background:#eaf4ee;color:#1f6b45;font:inherit;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:8px">Kirim ulang permintaan</button>';
-    h+='<button id="rpDevBack" style="width:100%;padding:12px;border:1px solid #cfd9d2;border-radius:12px;background:#fff;color:#14281c;font:inherit;font-size:13px;font-weight:700;cursor:pointer">'+((window._rencoPayOnly||window._rencoOfflineMode)?'Keluar':'Kembali')+'</button>';
+    var SC={menunggu:'Menunggu persetujuan',ditolak:'Ditolak',dicabut:'Dicabut'};
+    var btn='flex:1;padding:10px 8px;border-radius:10px;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer';
+    var ico='<div style="flex:none;width:38px;height:38px;border-radius:12px;background:#fde8ea;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b02a37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M12 8v5M12 16.5v.01"/></svg></div>';
+    var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'+ico+'<div style="min-width:0"><div style="font-size:15px;font-weight:800;line-height:1.25">'+esc(T[0])+'</div><div style="font-size:11.5px;line-height:1.4;color:#5f7568">'+esc(T[1])+'</div></div></div>'
+      +'<div style="background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:8px 10px;font-size:11.5px;line-height:1.45;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px"><span style="padding:2px 9px;border-radius:99px;font-size:11px;font-weight:800;background:#fde8ea;color:#b02a37">'+esc(SC[st]||st)+'</span><span id="rpDevInfo" style="font-size:10.5px;color:#7a8a80">Belum dicek</span></div>'
+      +'<div id="rpDevRows">'+devRows(m)+'</div></div>'
+      +(st==='menunggu'?'<div style="border-left:3px solid #b02a37;background:#fdf3f4;border-radius:6px;padding:6px 9px;font-size:11px;line-height:1.45;color:#5a3a3e;margin-bottom:10px">Buka <b>RencoPay → Keamanan Akun</b> di perangkat terpercaya, lalu ketuk <b>Izinkan</b>. Tidak ada perangkat lain? Minta admin koperasi.</div>':'');
+    if(st!=='dicabut'){
+      h+='<div style="display:flex;gap:8px;margin-bottom:6px"><button id="rpDevCheck" style="'+btn+';border:none;background:linear-gradient(135deg,#1f6b45,#2d8a5e);color:#fff">Periksa status</button>'
+        +((st==='menunggu'||st==='ditolak')?'<button id="rpDevAgain" style="'+btn+';border:1px solid #2d8a5e;background:#eaf4ee;color:#1f6b45">Kirim ulang</button>':'')+'</div>';
+    }
+    h+='<button id="rpDevBack" style="width:100%;padding:9px;border:1px solid #efc9cd;border-radius:10px;background:#fff;color:#b02a37;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer">'+((window._rencoPayOnly||window._rencoOfflineMode)?'Keluar':'Kembali')+'</button>';
     var o=overlay('rpDevOv',h); o.style.zIndex='100002';
+    var sh=o.firstChild; sh.style.borderTopColor='#b02a37'; sh.style.padding='14px 14px calc(14px + env(safe-area-inset-bottom,0px))';
+    o.addEventListener('click',function(e){
+      var g=e.target.closest&&e.target.closest('[data-gps]'); if(!g) return;
+      g.textContent='Mencari…'; g.disabled=true;
+      gpsLokasi(function(l,err){ if(err) toast(err); refreshRows(); });
+    });
     var cb=$('rpDevCheck'); if(cb) cb.onclick=function(){ devCek(false); };
     var ag=$('rpDevAgain'); if(ag) ag.onclick=function(){
       var r=myRec(); if(!r) return;
       r.status='menunggu'; r.diminta=nowIso(); delete r.ditolakAt; if(r.dicabut) r.dicabut=false;
       log('perangkat-baru','Permintaan persetujuan dikirim ulang: '+namaDev(r),{adaLain:true,deviceId:devId()});
-      save(); toast('📨 Permintaan dikirim ulang'); showDevOv('menunggu');
+      save(); toast('📨 Permintaan dikirim ulang'); delete enr[r.id]; enrichOnce(); showDevOv('menunggu');
     };
     $('rpDevBack').onclick=devKeluar;
     if(st==='menunggu'){ var n=0; devPoll=setInterval(function(){ if(!$('rpDevOv')||++n>200){ closeDevOv(); return; } if(!document.hidden) devCek(true); },6000); }
@@ -90469,7 +90923,9 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     return o;
   }
   /* Tampilkan permintaan persetujuan yang menunggu di perangkat terpercaya ini; true bila ditampilkan */
+  function inRp(){ try{ return typeof window._rpGateUnlocked==='function' && window._rpGateUnlocked(); }catch(e){ return false; } }
   function showApprovals(){
+    if(!inRp()) return false;   // tunggu sampai RencoPay dibuka (PIN/biometrik)
     if(!isNas()||!window.DB||window._rencoOfflineMode||$('rpDevReq')||$('rpDevOv')) return false;
     var m=myRec(); if(!m||stOf(m)!=='terpercaya') return false;
     var u=uname(), me=devId();
@@ -90477,7 +90933,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     if(!pend.length) return false;
     var r=pend[0]; reqShown[r.id+'|'+r.diminta]=1;
     var o=overlay('rpDevReq','<div style="font-size:30px;text-align:center">📲</div><div style="font-size:16px;font-weight:800;text-align:center;margin:4px 0 6px">Izinkan perangkat ini membuka RencoPay?</div>'
-      +'<div style="font-size:12.5px;line-height:1.6;color:#4a5f53;text-align:center;margin-bottom:14px"><b>'+esc(namaDev(r))+'</b><br>Diminta '+esc(tgl(r.diminta))+'<br>Izinkan hanya jika ini perangkat Anda sendiri. Jika bukan, ketuk Tolak lalu ganti password Anda.</div>'
+      +'<div style="font-size:12.5px;line-height:1.6;color:#4a5f53;text-align:center;margin-bottom:14px"><b>'+esc(namaDev(r))+'</b><br>Diminta '+esc(tgl(r.diminta))+(lokLine(r)?'<br>📍 '+lokLine(r):'')+'<br>Izinkan hanya jika ini perangkat Anda sendiri. Jika bukan, ketuk Tolak lalu ganti password Anda.</div>'
       +'<button id="rpReqOk" style="width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#1f6b45,#2d8a5e);color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:8px">Izinkan (pakai PIN)</button>'
       +'<button id="rpReqNo" style="width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#b02a37,#d1495b);color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:8px">Tolak</button>'
       +'<button id="rpReqLater" style="width:100%;padding:12px;border:1px solid #cfd9d2;border-radius:12px;background:#fff;color:#14281c;font:inherit;font-size:13px;font-weight:700;cursor:pointer">Nanti</button>');
@@ -90487,6 +90943,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     return true;
   }
   function showAlerts(){
+    if(!inRp()) return;         // tunggu sampai RencoPay dibuka (PIN/biometrik)
     if(!isNas()||!window.DB) return;
     var u=uname(), me=devId(), seen=0; try{ seen=+(localStorage.getItem('rp_sec_seen_'+u)||0); }catch(e){}
     var fresh=arr('rpLogKeamanan').filter(function(x){ return x.username===u&&(x.jenis==='perangkat-baru'||x.jenis==='perangkat-aktif'||x.jenis==='perangkat-curiga')&&x.adaLain&&x.deviceId!==me&&Date.parse(x.t)>seen; });
@@ -90534,7 +90991,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
         else if(st==='terpercaya'&&!ini) bt='<button data-rv="'+esc(x.id)+'" style="border:none;background:#b02a37;color:#fff;border-radius:10px;padding:6px 10px;font:inherit;font-size:11.5px;font-weight:800;cursor:pointer">Cabut</button>';
         else if(ini) bt='<button data-rn="'+esc(x.id)+'" style="border:1px solid #cfd9d2;background:#fff;color:#14281c;border-radius:10px;padding:6px 10px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer">Ganti nama</button>';
         return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed #dbe5de"><div style="font-size:22px">📱</div><div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700">'+esc(namaDev(x))+(ini?' <span style="color:#1f6b45">(perangkat ini)</span>':'')+' <span style="padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:800;background:'+c[0]+';color:'+c[1]+'">'+c[2]+'</span></div>'
-          +'<div style="font-size:11px;color:#6b7d72">Pertama masuk '+esc(tgl(x.pertama))+' · terakhir aktif '+esc(tgl(x.terakhir))+'</div></div><div style="flex:none;white-space:nowrap">'+bt+'</div></div>'; }).join(''):'<div style="font-size:12px;color:#6b7d72">Belum ada data perangkat.</div>')
+          +'<div style="font-size:11px;color:#6b7d72">Pertama masuk '+esc(tgl(x.pertama))+' · terakhir aktif '+esc(tgl(x.terakhir))+'</div>'+(lokLine(x)?'<div style="font-size:11px;color:#6b7d72">📍 '+lokLine(x)+'</div>':'')+'</div><div style="flex:none;white-space:nowrap">'+bt+'</div></div>'; }).join(''):'<div style="font-size:12px;color:#6b7d72">Belum ada data perangkat.</div>')
       +(lain>0?'<button id="secRevAll" style="width:100%;margin-top:10px;padding:10px;border:1px solid #b02a37;background:#fff;color:#b02a37;border-radius:12px;font:inherit;font-size:12px;font-weight:800;cursor:pointer">Cabut semua perangkat lain</button>':'')+'</div>';
     h+='<div style="background:#fff;border:1px solid #d9e1dc;border-radius:16px;padding:12px"><div style="font-size:13px;font-weight:800;margin-bottom:6px">Riwayat Keamanan</div>'
       +(logs.length?logs.map(function(x){ return '<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px dashed #dbe5de"><div style="font-size:16px">'+(ICON[x.jenis]||'•')+'</div><div style="flex:1;min-width:0"><div style="font-size:12.5px;line-height:1.4">'+esc(x.pesan)+'</div><div style="font-size:10.5px;color:#6b7d72">'+esc(tgl(x.t))+'</div></div></div>'; }).join(''):'<div style="font-size:12px;color:#6b7d72">Belum ada aktivitas tercatat.</div>')+'</div>';
@@ -90631,12 +91088,16 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     var nas=isNas();
     if(!document.hidden && Date.now()-lastReplay>15000){ lastReplay=Date.now(); try{ replayApprovals(); }catch(e){} }
     var b=$('rpMenuSecBtn'); if(b) b.style.display=nas?'flex':'none';
-    if(!nas){ regFor=''; return; }
+    if(!nas){ regFor=''; wasInRp=false; return; }
+    var nowIn=inRp();
+    if(nowIn && !wasInRp){ clearTimeout(alertTimer); alertTimer=setTimeout(cekNotif,800); }   // baru masuk RencoPay → periksa pemberitahuan
+    wasInRp=nowIn;
     wrapAll(); patchPending();
     var key=uname()+':'+(AUTH.user.id||'');
     if(regFor!==key && window.DB){ regFor=key; register(); clearTimeout(alertTimer); alertTimer=setTimeout(cekNotif,2500); }
-    else if(window.DB && !document.hidden && Date.now()-lastAppr>20000){ lastAppr=Date.now(); try{ showApprovals(); }catch(e){} }
+    else if(window.DB && !document.hidden && nowIn && Date.now()-lastAppr>20000){ lastAppr=Date.now(); try{ showApprovals(); }catch(e){} }
   }
+  var wasInRp=false;
   setInterval(tick,1500); setTimeout(tick,600);
 })();
 </script>
@@ -92641,6 +93102,23 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 @media (prefers-reduced-motion:reduce){
   #puOverlay *,#puOverlay .pu-card{animation-duration:.01s !important;animation-delay:0s !important;transition-duration:.01s !important}
 }
+
+/* ── Ukuran diperkecil: pop-up lebih ringkas, tidak memenuhi layar ── */
+.pu-card{width:min(300px,86vw);max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px);border-radius:26px}
+.pu-in{padding:16px 16px 12px;gap:9px}
+.pu-x{top:10px;right:10px;width:32px;height:32px;font-size:15px}
+.pu-badge{font-size:9.5px;padding:5px 10px 5px 8px;margin-right:38px}
+.pu-h{font-size:clamp(22px,6.6vw,27px);line-height:1.05}
+.pu-sub{font-size:12px;line-height:1.4}
+.pu-pts{gap:5px}
+.pu-pts li{font-size:11.5px;gap:8px}
+.pu-pts li:before{flex:0 0 17px;height:17px;font-size:10.5px}
+.pu-vis{height:104px}
+.pu-vis.img{height:120px;border-radius:18px}
+.pu-cta{height:46px;border-radius:15px;font-size:14.5px}
+.pu-cta .ar{width:24px;height:24px;font-size:14px}
+.pu-later{font-size:11.5px;padding:4px 12px}
+@media (max-height:700px){.pu-vis{height:88px}.pu-vis.img{height:100px}}
 
 /* ── Editor Admin ── */
 .pi-sw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:14px;background:var(--cream,#f6f3ea);border:2px solid #e8e8e8;margin-bottom:16px}
