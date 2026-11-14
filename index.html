@@ -94123,6 +94123,29 @@ html, body{ height:100%; min-height:100dvh; overscroll-behavior:none; background
 #rpInstallFab{ bottom:calc(var(--nav-h) + 12px) !important; right:calc(16px + var(--sar)) !important; }
 .rp-toast-notif{ bottom:calc(var(--nav-h) + 12px) !important; }
 .toast-rencopay{ bottom:calc(var(--nav-h) + 12px) !important; }
+
+/* ===== Login: tombol kiri-atas sejajar dengan tombol kanan-atas, tanpa animasi Install ===== */
+#loginScreen .login-help-fab,
+#loginInstallBtn,
+.login-icon-row{ top:calc(var(--sat) + 14px) !important; height:32px !important; }
+#loginScreen .login-help-fab{ left:calc(14px + var(--sal)) !important; width:32px !important; }
+#loginScreen #loginInstallBtn,#loginInstallBtn{ left:calc(54px + var(--sal)) !important; box-sizing:border-box; padding:0 12px !important; line-height:1; }
+.login-icon-row{ right:calc(14px + var(--sar)) !important; align-items:center; }
+#loginInstallBtn::before,#loginInstallBtn::after{ content:none !important; display:none !important; animation:none !important; }
+#loginInstallBtn,#loginInstallBtn *{ animation:none !important; }
+
+/* ===== Header utama: dinaikkan & diperkecil, semua tampilan menyesuaikan ===== */
+:root{ --hdr-pt: calc(4px + var(--sat) * 0.5); }
+.app-header{ padding:var(--hdr-pt) 12px 6px !important; gap:4px !important; box-shadow:0 2px 10px rgba(4,14,7,.3) !important; }
+.app-header .app-header-top{ gap:4px; min-height:32px; }
+.app-header .hdr-swap-b{ height:clamp(24px,7.6vw,30px) !important; }
+.app-header .rc-wordmark-hdr{ height:clamp(22px,7vw,28px) !important; }
+.app-header .logo-icon{ width:30px !important; height:30px !important; font-size:16px !important; border-radius:9px !important; }
+.app-header .header-menu-toggle,.app-header .header-moon-btn{ width:30px !important; height:30px !important; }
+.app-header .header-menu-toggle svg,.app-header .header-moon-btn svg{ width:20px; height:20px; }
+#page-rencoPay{ padding-top:var(--hdr-pt) !important; }
+/* menu bawah: jarak aman minimum agar label tidak menempel ke tepi layar */
+.bottom-nav{ padding-bottom:max(var(--sab), 8px) !important; min-height:calc(68px + max(var(--sab), 8px)) !important; }
 </style>
 <script id="fs-layout-js">
 (function(){
@@ -94136,6 +94159,49 @@ html, body{ height:100%; min-height:100dvh; overscroll-behavior:none; background
     var n=nav();
     if(n) document.documentElement.style.setProperty('--nav-h', n.offsetHeight+'px');
   }
+
+  // ===== Mode layar penuh (Chrome Android / browser biasa): sembunyikan bilah alamat & navigasi =====
+  function isStandalone(){ try{ return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||(window.matchMedia&&matchMedia('(display-mode: fullscreen)').matches)||window.navigator.standalone===true; }catch(e){ return false; } }
+  function inFs(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); }
+  function goFs(){
+    if(isStandalone()||inFs()) return;
+    var el=document.documentElement;
+    var rq=el.requestFullscreen||el.webkitRequestFullscreen;
+    if(!rq) return;               // iOS Safari tidak mendukung: gunakan "Tambahkan ke Layar Utama"
+    try{ var r=rq.call(el,{navigationUI:'hide'}); if(r&&r.catch) r.catch(function(){}); }catch(e){}
+  }
+  function onGesture(e){
+    var t=e.target;
+    if(t&&t.closest&&t.closest('input,textarea,select,[contenteditable="true"]')) return; // jangan ganggu keyboard
+    goFs();
+  }
+  // dicoba pada setiap sentuhan pertama setelah keluar dari layar penuh (tombol Back / swipe)
+  document.addEventListener('touchend', onGesture, {passive:true});
+  document.addEventListener('click', onGesture, true);
+  ['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){
+    document.addEventListener(ev, function(){ setTimeout(sync,150); setTimeout(sync,500); });
+  });
+
+  // ===== Otomatis: manifest PWA dipaksa display=fullscreen (berlaku saat dipasang/dibuka dari ikon) =====
+  try{
+    var ml=document.querySelector('link[rel="manifest"]');
+    if(ml && ml.href && window.fetch && window.Blob && URL.createObjectURL){
+      var base=ml.href;
+      fetch(base).then(function(r){return r.json();}).then(function(m){
+        var abs=function(u){ try{ return new URL(u,base).href; }catch(e){ return u; } };
+        m.display='fullscreen';
+        m.display_override=['fullscreen','standalone'];
+        m.start_url=abs(m.start_url||'./');
+        m.scope=abs(m.scope||'./');
+        if(m.id) m.id=abs(m.id);
+        if(m.icons) m.icons.forEach(function(i){ i.src=abs(i.src); });
+        ml.href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/manifest+json'}));
+      }).catch(function(){});
+    }
+  }catch(e){}
+  // pointerup & keydown juga memicu layar penuh (sentuhan/ketukan pertama apa pun)
+  document.addEventListener('pointerup', onGesture, {passive:true});
+  document.addEventListener('keydown', function(){ goFs(); }, true);
   window.addEventListener('resize', sync);
   window.addEventListener('orientationchange', function(){ setTimeout(sync,250); });
   if(window.ResizeObserver){
