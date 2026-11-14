@@ -1,6 +1,50 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+<script id="rc-loop-guard">
+/* ═══ PENGAMAN LOOP TAK BERUJUNG (MutationObserver) ═══
+   Latar belakang: callback MutationObserver yang mengubah elemen yang sama dengan yang ia pantau
+   (mis. classList.remove pada class yang tidak ada tetap menulis ulang atribut) menghasilkan loop
+   mikrotask yang membekukan seluruh aplikasi (pernah terjadi: login berhasil tapi aplikasi macet).
+   Pengaman ini membungkus SEMUA MutationObserver (termasuk modul/patch yang ditambahkan nanti):
+   bila satu observer terpanggil >200x dalam 1 detik, observer itu diputus sementara (1,5 dtk) supaya
+   aplikasi tetap responsif; bila terulang 3x, diputus permanen. Dicatat di console + window.__rcLoopTrips. */
+(function(){
+  var Native=window.MutationObserver;
+  if(!Native || Native.__rcGuard) return;
+  window.__rcLoopTrips=[];
+  var LIMIT=200, WINDOW=1000, PAUSE=1500, MAXTRIPS=3;
+  function Guarded(cb){
+    if(typeof cb!=='function') return new Native(cb);
+    var self=this, calls=0, winStart=Date.now(), trips=0, targets=[];
+    var inner=new Native(function(recs){
+      var now=Date.now();
+      if(now-winStart>WINDOW){ winStart=now; calls=0; }
+      if(++calls>LIMIT){
+        try{ inner.disconnect(); }catch(e){}
+        trips++; calls=0; winStart=now;
+        try{
+          var t=recs&&recs[0]&&recs[0].target, d=t?((t.id?'#'+t.id:(t.nodeName||'?'))+(recs[0].attributeName?' ['+recs[0].attributeName+']':'')):'?';
+          window.__rcLoopTrips.push({t:now,target:d,trip:trips});
+          console.error('[RENCO][loop-guard] MutationObserver berulang berlebihan pada '+d+' — diputus '+(trips<MAXTRIPS?'sementara':'permanen')+' (#'+trips+'). Periksa kode yang mengubah elemen ini di dalam callback observer.');
+        }catch(e){}
+        if(trips<MAXTRIPS){
+          setTimeout(function(){ targets.forEach(function(a){ try{ inner.observe(a[0],a[1]); }catch(e){} }); },PAUSE);
+        }
+        return;
+      }
+      return cb.call(self,recs,self);
+    });
+    this.observe=function(t,o){ targets.push([t,o]); return inner.observe(t,o); };
+    this.disconnect=function(){ targets=[]; return inner.disconnect(); };
+    this.takeRecords=function(){ return inner.takeRecords(); };
+  }
+  Guarded.prototype=Native.prototype;
+  Guarded.__rcGuard=true;
+  window.MutationObserver=Guarded;
+})();
+</script>
+
 <meta charset="UTF-8">
 <script id="renco-perf-head">
 /* ══ KINERJA — tahap awal (sebelum skrip lain) ═══════════════════════════════
@@ -6636,12 +6680,45 @@ window._rencoAwalKewajiban = _rencoAwalKewajiban;
 var USERS_KEY = 'renco_users_v2'; // legacy key — fallback saja
 var AUTH = { loggedIn: false, user: null };
 
+/* ── JEDA WAKTU PEMULIHAN SESI (grace period) ──────────────────────────────────────────────
+   Saat aplikasi diminimize / ditutup sebentar, Android/iOS kerap membuang halaman dari memori lalu
+   memuat ulang saat dibuka lagi (sessionStorage ikut hilang) → aplikasi "restart" ke splash + login.
+   Solusi: sesi login juga dicadangkan di localStorage bersama penanda waktu aktif terakhir. Bila
+   aplikasi dibuka lagi DALAM jeda waktu (default 5 menit), sesi dipulihkan otomatis tanpa login ulang.
+   Lewat jeda → login normal. Logout manual selalu menghapus cadangan.
+   Ubah lama jeda (menit, 1–60):  localStorage.setItem('renco_resume_grace_min','10') */
+var AUTH_RESUME_KEY = 'renco_auth_resume';
+function _authGraceMs() {
+  try { var m = parseInt(localStorage.getItem('renco_resume_grace_min'), 10); if (m >= 1 && m <= 60) return m * 60000; } catch(e) {}
+  return 5 * 60000;
+}
+function _authBackup() {
+  try {
+    if (AUTH && AUTH.loggedIn && AUTH.user) localStorage.setItem(AUTH_RESUME_KEY, JSON.stringify({ a: AUTH, t: Date.now() }));
+    else localStorage.removeItem(AUTH_RESUME_KEY);
+  } catch(e) {}
+}
 function authLoad() {
-  try { var s = sessionStorage.getItem(AUTH_KEY); if (s) AUTH = JSON.parse(s); } catch(e) {}
+  try { var s = sessionStorage.getItem(AUTH_KEY); if (s) { AUTH = JSON.parse(s); return; } } catch(e) {}
+  try {
+    var b = JSON.parse(localStorage.getItem(AUTH_RESUME_KEY) || 'null');
+    if (b && b.a && b.a.loggedIn && b.a.user && (Date.now() - (b.t || 0)) < _authGraceMs()) {
+      AUTH = b.a;
+      try { sessionStorage.setItem(AUTH_KEY, JSON.stringify(AUTH)); } catch(e) {}
+    } else if (b) { localStorage.removeItem(AUTH_RESUME_KEY); }
+  } catch(e) {}
 }
 function authSave() {
   try { sessionStorage.setItem(AUTH_KEY, JSON.stringify(AUTH)); } catch(e) {}
+  _authBackup();
 }
+/* penanda "terakhir aktif": saat disembunyikan/ditutup + berkala selama aplikasi terlihat */
+(function() {
+  function touch() { try { if (AUTH && AUTH.loggedIn && AUTH.user) _authBackup(); } catch(e) {} }
+  document.addEventListener('visibilitychange', function() { if (document.hidden) touch(); });
+  window.addEventListener('pagehide', touch);
+  setInterval(function() { if (!document.hidden) touch(); }, 30000);
+})();
 
 /* Migrasi sekali: dulu 'keuangan' otomatis membuka 'vision2045' tanpa tercentang di Kelola User.
    Sekarang hak itu dijadikan eksplisit (u.v45Migrated) sehingga centang Vision 2045 benar-benar berlaku. */
@@ -6783,6 +6860,7 @@ function authLogout() {
   }
   AUTH = { loggedIn: false, user: null };
   try { sessionStorage.removeItem(AUTH_KEY); } catch(e) {}
+  try { localStorage.removeItem(AUTH_RESUME_KEY); } catch(e) {}
   if (window._rencoOfflineMode) {
     window._rencoOfflineMode = false;
     if (typeof window._rencoHideOfflineModeBanner === 'function') window._rencoHideOfflineModeBanner();
@@ -11406,7 +11484,14 @@ html.renco-dark .rk-warn a{color:#ff8f98}
 #qlPinOv .ql-dot{width:15px;height:15px;border:1.5px solid rgba(255,255,255,.75);background:rgba(255,255,255,.08);transition:background .15s,transform .15s,box-shadow .15s}
 #qlPinOv .ql-dot.on{background:#f4d67a;border-color:#f4d67a;transform:scale(1.12);box-shadow:0 0 10px rgba(244,214,122,.7)}
 #qlPinOv .ql-err{color:#ffd98a;text-shadow:0 1px 6px rgba(0,0,0,.4)}
+#qlPinOv .ql-card.dark::before{display:none !important;content:none !important}
+#qlPinOv #qlPinAv{width:76px;height:76px;margin:0 auto 12px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#145236;border:2px solid rgba(244,214,122,.75);box-shadow:0 6px 18px rgba(0,0,0,.4);color:#f5d77e;font-size:32px;font-weight:800}
+#qlPinOv #qlPinAv img{width:100%;height:100%;object-fit:cover;display:block}
+@media (max-height:640px){#qlPinOv #qlPinAv{width:58px;height:58px;font-size:24px;margin-bottom:8px}}
 #qlPinOv .ql-pad{gap:14px 20px;margin-top:6px}
+#qlPinOv #qlPinPw{display:block;margin:30px auto 0;padding:10px 18px;border:none;background:transparent;color:#f5d77e;font-family:inherit;font-size:14px;font-weight:700;letter-spacing:.3px;text-decoration:underline;text-underline-offset:4px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#qlPinOv #qlPinPw:active{opacity:.6}
+@media (max-height:640px){#qlPinOv #qlPinPw{margin-top:18px}}
 #qlPinOv .ql-key{width:74px;height:74px;border-radius:50%;font-size:27px;font-weight:500;color:#fff;
   background:radial-gradient(120% 120% at 30% 20%,rgba(255,255,255,.26),rgba(255,255,255,.07) 62%);
   border:1px solid rgba(255,255,255,.34);
@@ -76745,16 +76830,67 @@ function doLogin(username,password){
   },500);
 }
 
+/* ── Foto nasabah di layar PIN (menggantikan ikon gembok) ──
+   Sumber: DB.nasabah[].foto lewat akun (getMemberPhoto). Disalin ke cache kecil 'rc_ql_photo_v1'
+   (awalan rc_ql → aman saat Update Aplikasi) agar tetap tampil walau data cloud belum termuat. */
+var QLP='rc_ql_photo_v1';
+function cacheQlPhoto(user,src){
+  var key=String(user||'').toLowerCase(); if(!key||!src) return;
+  var sig=key+'|'+src.length; if(window._qlPhotoSig===sig) return; window._qlPhotoSig=sig;
+  function put(s){ try{ localStorage.setItem(QLP,JSON.stringify({u:key,src:s})); }catch(e){} }
+  if(src.indexOf('data:')!==0){ put(src); return; }
+  var im=new Image();
+  im.onload=function(){ try{ var S=128,c=document.createElement('canvas'); c.width=c.height=S; var x=c.getContext('2d'),r=Math.max(S/im.width,S/im.height),w=im.width*r,hh=im.height*r; x.drawImage(im,(S-w)/2,(S-hh)/2,w,hh); put(c.toDataURL('image/jpeg',.82)); }catch(e){} };
+  im.src=src;
+}
+function pinPhotoFor(d){
+  var src=null, key=String((d&&d.username)||'').toLowerCase();
+  try{
+    var us=(window.DB&&Array.isArray(DB.users))?DB.users:[];
+    var u=us.find(function(x){ return x&&x.username&&String(x.username).toLowerCase()===key; });
+    if(u&&u.nasabahId&&typeof getMemberPhoto==='function') src=getMemberPhoto(u.nasabahId);
+  }catch(e){}
+  if(src){ cacheQlPhoto(key,src); return src; }
+  try{ var c=JSON.parse(localStorage.getItem(QLP)||'null'); if(c&&c.u===key&&c.src) return c.src; }catch(e){}
+  return null;
+}
+function paintPinAvatar(d){
+  var av=$('qlPinAv'); if(!av) return;
+  av.textContent='';
+  function initial(){ av.textContent=String((d&&(d.nama||d.username))||'?').trim().charAt(0).toUpperCase(); }
+  var src=pinPhotoFor(d);
+  if(!src){ initial(); return; }
+  var im=new Image(); im.alt=''; im.onerror=function(){ av.textContent=''; initial(); };
+  im.src=src; av.appendChild(im);
+}
+/* simpan foto ke cache setelah login berhasil (akun nasabah yang sama dengan Login Cepat) */
+(function(){
+  var _hq=window.hideLoginScreen;
+  if(typeof _hq==='function') window.hideLoginScreen=function(){
+    var r=_hq.apply(this,arguments);
+    setTimeout(function(){ try{
+      var a=window.AUTH, d=rd();
+      if(a&&a.loggedIn&&a.user&&a.user.nasabahId&&d&&String(d.username||'').toLowerCase()===String(a.user.username||'').toLowerCase()){
+        var s=(typeof getMemberPhoto==='function')?getMemberPhoto(a.user.nasabahId):null; if(s) cacheQlPhoto(d.username,s);
+      }
+    }catch(e){} },2500);
+    return r;
+  };
+})();
+
 /* ── Layar PIN ── */
 var pinBuf='', pinBusy=false, pinOpts=null, setupOpts=null;
 function ensurePinUI(){
   if($('qlPinOv')) return;
   var ov=document.createElement('div'); ov.className='ql-ov'; ov.id='qlPinOv';
   var keys=''; for(var i=1;i<=9;i++) keys+='<button type="button" class="ql-key" data-k="'+i+'">'+i+'</button>';
-  ov.innerHTML='<div class="ql-card dark" id="qlPinCard"><div class="ql-ttl" id="qlPinTtl">Masukkan PIN</div><div class="ql-sub" id="qlPinWho"></div>'+
+  ov.innerHTML='<div class="ql-card dark" id="qlPinCard"><div id="qlPinAv" aria-hidden="true"></div><div class="ql-ttl" id="qlPinTtl">Masukkan PIN</div><div class="ql-sub" id="qlPinWho"></div>'+
     '<div class="ql-dots" id="qlDots"></div><div class="ql-err" id="qlPinErr"></div>'+
-    '<div class="ql-pad">'+keys+'<button type="button" class="ql-key sm" data-k="x">Batal</button><button type="button" class="ql-key" data-k="0">0</button><button type="button" class="ql-key sm" data-k="b">⌫ Hapus</button></div></div>';
+    '<div class="ql-pad">'+keys+'<button type="button" class="ql-key sm" data-k="x">Batal</button><button type="button" class="ql-key" data-k="0">0</button><button type="button" class="ql-key sm" data-k="b">⌫ Hapus</button></div>'+
+    '<button type="button" id="qlPinPw">Password</button></div>';
   document.body.appendChild(ov);
+  /* Password: tutup layar PIN lalu buka halaman login User & Password (tombol lama di halaman 1 disembunyikan) */
+  $('qlPinPw').addEventListener('click',function(){ closePin(); var b=$('lgPw'); if(b) b.click(); });
   var dots=''; for(var j=0;j<6;j++) dots+='<span class="ql-dot"></span>'; $('qlDots').innerHTML=dots;
   function _kp(e){ var b=e.target.closest&&e.target.closest('.ql-key'); if(!b) return; pinKeyPress(b.getAttribute('data-k')); }
   /* respons instan: proses saat jari menyentuh (pointerdown), bukan menunggu jari diangkat */
@@ -76780,8 +76916,9 @@ window._qlOpenPin=function(opts){
   var d=rd(); if(!d||!d.pin){ refreshRow(); return; }
   ensurePinUI(); pinBuf=''; pinBusy=false; paintDots();
   pinOpts=(opts&&opts.verify)?opts:null;
+  $('qlPinPw').style.display=pinOpts?'none':'';
   $('qlPinTtl').textContent=(pinOpts&&pinOpts.title)||'Masukkan PIN';
-  $('qlPinErr').textContent=''; $('qlPinWho').textContent=d.nama||d.username;
+  $('qlPinErr').textContent=''; $('qlPinWho').textContent=d.nama||d.username; paintPinAvatar(d);
   $('qlPinOv').classList.add('show');
 };
 window._qlHasPinFor=function(u){ var d=rd(); return !!(d&&d.pin&&d.username===u); };
@@ -94171,7 +94308,8 @@ body{ background:transparent !important; }
   function isStandalone(){ try{ return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||(window.matchMedia&&matchMedia('(display-mode: fullscreen)').matches)||window.navigator.standalone===true; }catch(e){ return false; } }
   function inFs(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); }
   function goFs(){
-    if(isStandalone()||inFs()) return;
+    if(inFs()) return;
+    try{ if(window.matchMedia&&matchMedia('(display-mode: fullscreen)').matches) return; }catch(e){}
     var el=document.documentElement;
     var rq=el.requestFullscreen||el.webkitRequestFullscreen;
     if(!rq) return;               // iOS Safari tidak mendukung: gunakan "Tambahkan ke Layar Utama"
@@ -94277,6 +94415,557 @@ body{ background:transparent !important; }
   }
   if(window.indexedDB) boot();
   window.addEventListener('pageshow', function(){ if(window.indexedDB) boot(); });
+})();
+</script>
+
+<!-- ===== HALAMAN LOGIN 1 (polos + tombol persegi pintu Lottie → PIN/Biometrik) → HALAMAN LOGIN 2 (User & Password) ===== -->
+<style id="lg-gate-style">
+#loginGate{ position:fixed; inset:0; z-index:99998; display:none; background:#0a2616; }
+#loginGate.show{ display:block; }
+/* Mode Malam: halaman login 1 ikut tema hitam-emas (sama dengan halaman login 2) */
+#loginGate{ transition:background .25s ease; }
+html.renco-dark #loginGate{ background:linear-gradient(170deg,#0d0d0d 0%,#111111 38%,#191919 68%,#0f0f0f 100%); }
+html.renco-dark #loginMoonBtn{ color:#f5d77e; }
+#lgDock{ position:absolute; right:calc(20px + env(safe-area-inset-right,0px)); bottom:calc(24px + env(safe-area-inset-bottom,0px)); display:flex; flex-direction:column; align-items:flex-end; gap:12px; }
+#lgMain{ width:64px; height:64px; padding:0; border:1.5px solid rgba(244,201,66,.6); border-radius:50%; cursor:pointer; background:rgba(255,255,255,.07); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(0,0,0,.25); display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; transition:transform .15s, background .15s; }
+#lgMain:active{ transform:scale(.93); background:rgba(244,201,66,.16); }
+#lgDoor{ width:40px; height:40px; display:block; pointer-events:none; }
+#lgDoor svg{ width:100% !important; height:100% !important; display:block; }
+#lgMainRow{ display:flex; flex-direction:column-reverse; align-items:center; gap:4px; }
+#lgMainLbl{ font-size:10.5px; font-weight:700; letter-spacing:.4px; color:#f5d77e; text-shadow:0 1px 3px rgba(0,0,0,.45); cursor:pointer; }
+#lgPw{ display:none !important; border:none; background:transparent; color:rgba(245,215,126,.85); font-family:inherit; font-size:12.5px; font-weight:700; text-decoration:underline; text-underline-offset:3px; padding:6px 2px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+#lgBack{ position:fixed; z-index:100001; display:none; left:calc(16px + env(safe-area-inset-left,0px)); bottom:calc(58px + env(safe-area-inset-bottom,0px)); align-items:center; gap:6px; padding:9px 14px; border-radius:999px; border:1px solid rgba(244,201,66,.5); background:rgba(255,255,255,.08); color:#f5d77e; font-family:inherit; font-size:12.5px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+#lgBack.show{ display:flex; }
+/* Header halaman 1: tombol & ikon header login lama (bantuan, Install, mode malam, menu) pindah ke halaman 1.
+   Halaman lama berada di atas gerbang tetapi dibuat transparan & hanya header-nya yang terlihat/bisa disentuh. */
+html #loginScreen.lg-gate-on{ background:none !important; pointer-events:none !important; overflow:hidden !important; }
+#loginScreen.lg-gate-on > *{ visibility:hidden !important; }
+#loginScreen.lg-gate-on > .login-help-fab,
+#loginScreen.lg-gate-on > #loginInstallBtn,
+#loginScreen.lg-gate-on > .login-icon-row{ visibility:visible !important; pointer-events:auto !important; }
+#loginScreen.lg-gate-on > #loginMenuDropdown{ visibility:visible !important; pointer-events:none !important; }
+#loginScreen.lg-gate-on > #loginMenuDropdown.open{ pointer-events:auto !important; }
+/* Halaman 2 (User & Password): header lama dikosongkan */
+#loginScreen:not(.lg-gate-on) > .login-help-fab,
+#loginScreen:not(.lg-gate-on) > #loginInstallBtn,
+#loginScreen:not(.lg-gate-on) > .login-icon-row,
+#loginScreen:not(.lg-gate-on) > #loginMenuDropdown{ display:none !important; }
+/* Halaman 2 khusus User & Password: PIN/biometrik hanya lewat halaman 1 */
+#loginScreen #qlLoginRow, #loginScreen .login-qa-row, #loginScreen #loginQuickAccessBtn{ display:none !important; }
+</style>
+<div id="loginGate" aria-label="Halaman login">
+  <div id="lgDock">
+    <button type="button" id="lgPw">User &amp; Password</button>
+    <div id="lgMainRow"><span id="lgMainLbl" aria-hidden="true">Login</span>
+    <button type="button" id="lgMain" aria-label="Masuk dengan PIN atau biometrik" title="Masuk">
+      <span id="lgDoor"><svg viewBox="0 0 100 100" fill="none" stroke="#f4c842" stroke-width="5" stroke-linejoin="round"><rect x="22" y="12" width="56" height="76" rx="4"/><rect x="26" y="16" width="48" height="68" rx="2" fill="#f4c842" stroke="none"/><circle cx="64" cy="50" r="3.5" fill="#0a2616" stroke="none"/></svg></span>
+    </button></div>
+  </div>
+</div>
+<button type="button" id="lgBack"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>PIN / Biometrik</button>
+<script id="lg-gate-js">
+(function(){
+  'use strict';
+  function $(i){ return document.getElementById(i); }
+  var gate=$('loginGate'), back=$('lgBack');
+  var passMode=false;     // true = pengguna memilih halaman login 2 (User & Password)
+  function lsVisible(){ var ls=$('loginScreen'); return !!ls && ls.style.display!=='none' && getComputedStyle(ls).display!=='none'; }
+  function sync(){
+    var vis=lsVisible();
+    /* FIX: ubah class HANYA bila nilainya memang berubah. classList.remove/toggle tanpa perubahan tetap
+       menulis ulang atribut class (class="") → memicu MutationObserver lagi → loop tak berujung yang
+       membekukan aplikasi setelah login berhasil. */
+    function sc(el,c,on){ if(el && el.classList.contains(c)!==!!on) el.classList.toggle(c,!!on); }
+    if(!vis){ passMode=false; sc(gate,'show',false); sc(back,'show',false); sc($('loginScreen'),'lg-gate-on',false); return; }
+    sc(gate,'show',!passMode);
+    sc($('loginScreen'),'lg-gate-on',!passMode);
+    sc(back,'show',passMode);
+    if(!passMode){ try{ var a=document.activeElement; if(a&&a.blur&&a!==document.body) a.blur(); }catch(e){} }
+  }
+  function goPassword(){ passMode=true; sync(); setTimeout(function(){ var u=$('loginUsername'); if(u) try{ u.focus(); }catch(e){} },120); }
+  function goGate(){ passMode=false; sync(); }
+  function quickOn(){ var row=$('qlLoginRow'); return !!(row && row.style.display!=='none'); }
+
+  $('lgMain').addEventListener('click',function(){
+    if(!quickOn()){
+      goPassword();   // belum ada PIN/biometrik di perangkat ini → halaman 2 dengan pesan
+      try{ if(typeof window._loginQuickAccess==='function') window._loginQuickAccess(); }catch(e){}
+      return;
+    }
+    var bio=$('qlBioBtn');
+    if(bio && bio.style.display!=='none' && typeof window._qlBio==='function') window._qlBio();
+    else if(typeof window._qlOpenPin==='function') window._qlOpenPin();
+    else goPassword();
+  });
+  $('lgPw').addEventListener('click',goPassword);
+  var _lbl=$('lgMainLbl'); if(_lbl) _lbl.addEventListener('click',function(){ $('lgMain').click(); });
+  back.addEventListener('click',goGate);
+
+  document.addEventListener('focusin',function(e){
+    if(gate.classList.contains('show') && e.target && e.target.closest && e.target.closest('#loginScreen')){ try{ e.target.blur(); }catch(_e){} }
+  },true);
+
+  var ls=$('loginScreen');
+  if(ls && window.MutationObserver) new MutationObserver(sync).observe(ls,{attributes:true,attributeFilter:['style','class']});
+  var le=$('loginError');
+  if(le && window.MutationObserver) new MutationObserver(function(){
+    if(gate.classList.contains('show') && le.style.display!=='none' && (le.textContent||'').trim()) goPassword();
+  }).observe(le,{attributes:true,attributeFilter:['style'],childList:true,characterData:true,subtree:true});
+  window.addEventListener('pageshow',sync);
+  sync(); setTimeout(sync,300); setTimeout(sync,1200);
+
+  /* ── Ikon pintu animasi (Lottie). Ikon SVG statis di atas jadi cadangan bila Lottie gagal dimuat ── */
+  function rgb(h){ return [parseInt(h.substr(1,2),16)/255,parseInt(h.substr(3,2),16)/255,parseInt(h.substr(5,2),16)/255,1]; }
+  var DARK=rgb('#f4c842'), GOLD=rgb('#0a2616'), N=function(k){ return {a:0,k:k}; };
+  function tr(){ return {ty:'tr',p:N([0,0]),a:N([0,0]),s:N([100,100]),r:N(0),o:N(100)}; }
+  function rc(w,h,x,y,r){ return {ty:'rc',d:1,s:N([w,h]),p:N([x,y]),r:N(r),nm:'rc'}; }
+  function fl(c){ return {ty:'fl',c:N(c),o:N(100),r:1}; }
+  function st(c,w){ return {ty:'st',c:N(c),o:N(100),w:N(w),lc:2,lj:2}; }
+  function el(r,x,y){ return {ty:'el',d:1,s:N([r*2,r*2]),p:N([x,y]),nm:'el'}; }
+  function ks(o,p,s){ return {o:o||N(100),r:N(0),p:N(p||[50,50,0]),a:N([0,0,0]),s:s||N([100,100,100])}; }
+  function layer(i,nm,k,shapes){ return {ddd:0,ind:i,ty:4,nm:nm,sr:1,ks:k,ao:0,shapes:shapes,ip:0,op:120,st:0,bm:0}; }
+  function ease(t,v){ return {t:t,s:v,i:{x:[.45,.45,.45],y:[1,1,1]},o:{x:[.55,.55,.55],y:[0,0,0]}}; }
+  function easeO(t,v){ return {t:t,s:v,i:{x:[.45],y:[1]},o:{x:[.55],y:[0]}}; }
+  function doorData(){
+    // daun pintu: engsel di sisi kiri, menyempit (terbuka) lalu menutup lagi
+    var panelScale={a:1,k:[ease(0,[100,100,100]),ease(20,[100,100,100]),ease(45,[18,100,100]),ease(80,[18,100,100]),ease(105,[100,100,100]),{t:120,s:[100,100,100]}]};
+    var glow={a:1,k:[easeO(0,[0]),easeO(20,[0]),easeO(45,[100]),easeO(80,[100]),easeO(105,[0]),{t:120,s:[0]}]};
+    var panel=layer(1,'daun',ks(null,[26,50,0],panelScale),[
+      {ty:'gr',nm:'d',it:[rc(48,68,24,0,2),fl(DARK),tr()]},
+      {ty:'gr',nm:'k',it:[el(3.5,40,0),fl(GOLD),tr()]}
+    ]);
+    var frame=layer(2,'kusen',ks(),[{ty:'gr',nm:'f',it:[rc(56,76,0,0,4),st(DARK,5),tr()]}]);
+    var light=layer(3,'cahaya',ks(glow),[{ty:'gr',nm:'l',it:[rc(48,68,0,0,2),fl([1,.95,.75,1]),tr()]}]);
+    return {v:'5.5.7',fr:30,ip:0,op:120,w:100,h:100,nm:'pintu',ddd:0,assets:[],layers:[panel,frame,light]};
+  }
+  function mount(){
+    var box=$('lgDoor'); if(!box||!window.lottie) return;
+    var reduce=false; try{ reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+    try{
+      var holder=document.createElement('span'); holder.style.cssText='display:block;width:100%;height:100%';
+      var a=window.lottie.loadAnimation({container:holder,renderer:'svg',loop:!reduce,autoplay:!reduce,animationData:doorData(),rendererSettings:{preserveAspectRatio:'xMidYMid meet'}});
+      a.addEventListener('DOMLoaded',function(){ box.innerHTML=''; box.appendChild(holder); if(reduce) a.goToAndStop(0,true); });
+    }catch(e){}
+  }
+  function loadLottie(){
+    if(window.lottie) return mount();
+    var sc=document.createElement('script'); sc.src='https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie_light.min.js'; sc.async=true;
+    sc.onload=mount; document.head.appendChild(sc);
+  }
+  if(document.readyState==='complete') loadLottie(); else window.addEventListener('load',loadLottie);
+})();
+</script>
+
+<!-- ===== SHORTCUT HALAMAN LOGIN 1 (kiri bawah): default RencoPay + maks. 2 pilihan sendiri dari Aksi Cepat ===== -->
+<style id="lg-short-style">
+#lgShort{ position:absolute; left:calc(16px + env(safe-area-inset-left,0px)); bottom:calc(24px + env(safe-area-inset-bottom,0px)); display:flex; align-items:flex-end; gap:8px; max-width:calc(100vw - 120px); }
+.lgs-tile{ width:56px; height:62px; border-radius:15px; border:1px solid rgba(244,201,66,.45); background:rgba(255,255,255,.08); color:#f5d77e; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:0; font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .15s, background .2s; }
+.lgs-tile:active{ transform:scale(.93); background:rgba(244,201,66,.18); }
+.lgs-tile svg{ width:24px; height:24px; display:block; }
+.lgs-tile span{ font-size:9.5px; font-weight:700; line-height:1; max-width:52px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:rgba(245,215,126,.92); }
+.lgs-add{ width:36px; height:36px; border-radius:50%; border:1.5px dashed rgba(244,201,66,.55); background:transparent; color:#f5d77e; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; -webkit-tap-highlight-color:transparent; margin-bottom:13px; }
+.lgs-add svg{ width:18px; height:18px; }
+#lgsOv{ position:fixed; inset:0; z-index:100003; display:none; align-items:flex-end; justify-content:center; background:rgba(3,17,10,.65); }
+#lgsOv.show{ display:flex; }
+#lgsSheet{ width:100%; max-width:480px; max-height:80vh; overflow:auto; background:#f6faf7; color:#14281c; border-radius:22px 22px 0 0; padding:16px 16px calc(18px + env(safe-area-inset-bottom,0px)); box-sizing:border-box; }
+#lgsSheet h3{ font-size:16px; font-weight:800; margin:0 0 4px; }
+#lgsSheet p{ font-size:12px; color:#5f7568; margin:0 0 12px; line-height:1.45; }
+#lgsSheet .lgs-h{ font-size:10.5px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:#4b5d52; margin:12px 0 6px; }
+.lgs-row{ display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; margin-bottom:6px; border-radius:13px; border:1.5px solid #dbe5de; background:#fff; font-family:inherit; font-size:14px; font-weight:700; color:#14281c; text-align:left; cursor:pointer; }
+.lgs-row svg{ width:24px; height:24px; flex-shrink:0; color:#b07a00; }
+.lgs-row em{ margin-left:auto; font-style:normal; font-size:12px; font-weight:800; }
+.lgs-row.add em{ color:#2d6a4f; } .lgs-row.del em{ color:#b03a2e; }
+.lgs-row[disabled]{ opacity:.45; cursor:default; }
+#lgsClose{ width:100%; margin-top:8px; padding:12px; border:none; border-radius:13px; background:linear-gradient(135deg,#1a472a,#2d6a4f); color:#f5d77e; font-family:inherit; font-size:14px; font-weight:800; cursor:pointer; }
+</style>
+<script id="lg-short-js">
+(function(){
+  'use strict';
+  function $(i){ return document.getElementById(i); }
+  var gate=$('loginGate'); if(!gate) return;
+  var KEY='rc_ql_shortcuts_v1', MAX=2;     // nama berawalan "rc_ql" → ikut dilindungi saat Update Aplikasi
+  var SV='viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"';
+  var OPT={
+    rencopay:{t:'RencoPay',  i:'<svg '+SV+'><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18M7 15h3"/></svg>', rp:true},
+    simpan:  {t:'Simpanan',  i:'<svg '+SV+'><circle cx="12" cy="12" r="9"/><path d="M9 8h4a2 2 0 0 1 0 4H9m3 0 3 4M9 8v8"/></svg>', a:function(){ if(typeof openModal==='function') openModal('modalSimpan'); }},
+    tarik:   {t:'Tarik Tunai',i:'<svg '+SV+'><rect x="3" y="7" width="18" height="11" rx="2.5"/><path d="M12 11v4m-2-2 2 2 2-2"/></svg>', a:function(){ if(typeof openModal==='function') openModal('modalTarikTunai'); }},
+    transfer:{t:'Transfer',  i:'<svg '+SV+'><circle cx="12" cy="12" r="9"/><path d="M8 12h8m-3-3 3 3-3 3"/></svg>', a:function(){ navTo('rencoPay'); setTimeout(function(){ try{ renderRencoPay(); rpTab('transfer',document.getElementById('rptab_transfer')); }catch(e){} },200); }},
+    pinjam:  {t:'Pinjaman',  i:'<svg '+SV+'><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M12 13v2"/><circle cx="12" cy="14" r="0.6"/></svg>', a:function(){ if(typeof openModal==='function') openModal('modalPinjam'); }},
+    laporan: {t:'Laporan',   i:'<svg '+SV+'><path d="M5 20v-6M12 20V6M19 20v-9"/></svg>', a:function(){ navTo('laporan'); }},
+    vision:  {t:'Vision 2045',i:'<svg '+SV+'><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg>', a:function(){ navTo('vision2045'); }},
+    janji:   {t:'Janji Temu',i:'<svg '+SV+'><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4m6-4v4"/></svg>', a:function(){ if(typeof openJanjiTemu==='function') openJanjiTemu($('qaJanjiBtn')); }}
+  };
+  var ORDER=['simpan','tarik','transfer','pinjam','laporan','vision','janji'];
+  function load(){ try{ var a=JSON.parse(localStorage.getItem(KEY)||'[]'); if(Array.isArray(a)) return a.filter(function(k){ return OPT[k]&&k!=='rencopay'; }).slice(0,MAX).filter(function(k,i,r){ return r.indexOf(k)===i; }); }catch(e){} return []; }
+  function save(a){ try{ localStorage.setItem(KEY,JSON.stringify(a)); }catch(e){} }
+  var mine=load(), pending=null;
+
+  var box=document.createElement('div'); box.id='lgShort'; gate.appendChild(box);
+  function render(){
+    var ids=['rencopay'].concat(mine), h='';
+    ids.forEach(function(k){ h+='<button type="button" class="lgs-tile" data-k="'+k+'" aria-label="Shortcut '+OPT[k].t+'">'+OPT[k].i+'<span>'+OPT[k].t+'</span></button>'; });
+    // tanda + di sisi KIRI deretan shortcut; disembunyikan bila shortcut sudah penuh
+    if(mine.length<MAX) h='<button type="button" class="lgs-add" id="lgsAdd" aria-label="Tambah shortcut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>'+h;
+    box.innerHTML=h;
+  }
+  // Saat + disembunyikan (shortcut penuh), tahan lama ikon shortcut buatan sendiri untuk membuka Kelola Shortcut (hapus)
+  var lpT=null, lpFired=false;
+  function lpClear(){ if(lpT){ clearTimeout(lpT); lpT=null; } }
+  box.addEventListener('pointerdown',function(e){
+    var t=e.target.closest('.lgs-tile'); if(!t||t.getAttribute('data-k')==='rencopay') return;
+    lpFired=false; lpClear(); lpT=setTimeout(function(){ lpFired=true; lpT=null; openSheet(); },550);
+  });
+  ['pointerup','pointercancel','pointerleave','pointermove'].forEach(function(ev){ box.addEventListener(ev,lpClear); });
+  box.addEventListener('contextmenu',function(e){ if(e.target.closest('.lgs-tile')) e.preventDefault(); });
+  box.addEventListener('click',function(e){
+    if(lpFired){ lpFired=false; return; }
+    if(e.target.closest('#lgsAdd')){ openSheet(); return; }
+    var t=e.target.closest('.lgs-tile'); if(!t) return; run(t.getAttribute('data-k'));
+  });
+
+  /* Jalankan shortcut: login lewat tombol utama (PIN/biometrik, atau halaman User & Password bila belum aktif),
+     lalu buka tujuan shortcut setelah berhasil masuk. */
+  function run(k){
+    var o=OPT[k]; if(!o) return;
+    var m=$('lgMain'); if(m) m.click();   // ini memulai login dan mengosongkan pending…
+    pending={k:k};                         // …jadi pending diisi sesudahnya
+  }
+  var m0=$('lgMain'), p0=$('lgPw'), b0=$('lgBack');
+  [m0,p0,b0].forEach(function(b){ if(b) b.addEventListener('click',function(){ pending=null; },true); });
+
+  // RencoPay: login "ketat" memakai jalur handleLogin('rencoPay')
+  var _hl=window.handleLogin;
+  if(typeof _hl==='function') window.handleLogin=function(t){
+    if(!t && pending && OPT[pending.k] && OPT[pending.k].rp) t='rencoPay';
+    return _hl.call(this,t);
+  };
+  // setelah login berhasil → buka tujuan shortcut
+  var _hide=window.hideLoginScreen;
+  if(typeof _hide==='function') window.hideLoginScreen=function(){
+    var r=_hide.apply(this,arguments), p=pending; pending=null;
+    var act=p && (p.act || (OPT[p.k] && OPT[p.k].a));
+    if(act) setTimeout(function(){ try{ act(); }catch(e){} },1100);
+    return r;
+  };
+
+  // dipakai banner Reminder: login dulu, lalu jalankan aksi
+  window._lgLoginThen=function(fn){ var m=$('lgMain'); if(m) m.click(); pending={k:'_x',act:fn}; };
+
+  /* Kelola shortcut */
+  function sheet(){
+    var ov=$('lgsOv'); if(ov) return ov;
+    ov=document.createElement('div'); ov.id='lgsOv';
+    ov.innerHTML='<div id="lgsSheet"></div>'; document.body.appendChild(ov);
+    ov.addEventListener('click',function(e){
+      if(e.target===ov||e.target.id==='lgsClose'){ ov.classList.remove('show'); return; }
+      var r=e.target.closest('.lgs-row'); if(!r||r.disabled) return;
+      var k=r.getAttribute('data-k'), act=r.getAttribute('data-act');
+      if(act==='add' && mine.length<MAX && mine.indexOf(k)<0) mine.push(k);
+      if(act==='del') mine=mine.filter(function(x){ return x!==k; });
+      save(mine); render(); fill();
+    });
+    return ov;
+  }
+  function fill(){
+    var full=mine.length>=MAX, h='<h3>Kelola Shortcut</h3><p>RencoPay selalu ada. Anda bisa menambah maksimal '+MAX+' shortcut lagi dari menu Aksi Cepat. Shortcut membuka tujuannya setelah Anda berhasil masuk. Tahan lama ikon shortcut untuk membuka menu ini.</p>';
+    if(mine.length){ h+='<div class="lgs-h">Shortcut Anda</div>'; mine.forEach(function(k){ h+='<button type="button" class="lgs-row del" data-act="del" data-k="'+k+'">'+OPT[k].i+OPT[k].t+'<em>Hapus</em></button>'; }); }
+    h+='<div class="lgs-h">Tambah dari Aksi Cepat'+(full?' (penuh)':'')+'</div>';
+    ORDER.forEach(function(k){ if(mine.indexOf(k)>-1) return; h+='<button type="button" class="lgs-row add" data-act="add" data-k="'+k+'"'+(full?' disabled':'')+'>'+OPT[k].i+OPT[k].t+'<em>Tambah</em></button>'; });
+    h+='<button type="button" id="lgsClose">Selesai</button>';
+    $('lgsSheet').innerHTML=h;
+  }
+  function openSheet(){ sheet().classList.add('show'); fill(); }
+  render();
+})();
+</script>
+
+<!-- ===== BANNER HALAMAN LOGIN 1: Promo · News & Update · Reminder ===== -->
+<style id="lg-ban-style">
+#lgBan{ position:absolute; left:16px; right:16px; top:calc(84px + env(safe-area-inset-top,0px)); display:flex; flex-direction:column; gap:14px; max-width:480px; margin:0 auto; }
+.lgb-card{ position:relative; display:flex; align-items:center; gap:14px; width:100%; padding:19px 17px; border-radius:20px; border:1px solid rgba(244,201,66,.35); background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.04)); color:#f4f9f1; font-family:inherit; text-align:left; cursor:pointer; box-sizing:border-box; -webkit-tap-highlight-color:transparent; transition:transform .15s; }
+.lgb-card:active{ transform:scale(.98); }
+.lgb-ic{ width:50px; height:50px; border-radius:15px; display:flex; align-items:center; justify-content:center; font-size:25px; flex-shrink:0; background:rgba(244,201,66,.16); }
+.lgb-tx{ flex:1; min-width:0; }
+.lgb-tx b{ display:block; font-size:17px; font-weight:800; color:#f5d77e; }
+.lgb-tx span{ display:block; margin-top:3px; font-size:12.5px; color:rgba(244,249,241,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lgb-go{ color:#f5d77e; flex-shrink:0; width:22px; height:22px; transition:transform .2s; }
+.lgb-rem{ cursor:pointer; flex-direction:column; align-items:stretch; gap:10px; }
+.lgb-rem:not(.open) .lgb-ri{ display:none; }
+.lgb-rem.open .lgb-go{ transform:rotate(90deg); }
+.lgb-rem:active{ transform:none; }
+.lgb-rh{ display:flex; align-items:center; gap:14px; }
+.lgb-rh .lgb-tx{ flex:1; }
+.lgb-ri{ display:flex; align-items:center; gap:10px; width:100%; padding:12px 13px; border-radius:13px; border:none; background:rgba(0,0,0,.22); color:#f4f9f1; font-family:inherit; font-size:13.5px; font-weight:700; text-align:left; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.lgb-ri:active{ background:rgba(244,201,66,.2); }
+.lgb-ri small{ margin-left:auto; font-size:11px; font-weight:600; color:rgba(244,249,241,.6); white-space:nowrap; }
+@media (max-height:640px){ #lgBan{ top:calc(70px + env(safe-area-inset-top,0px)); gap:10px; } .lgb-card{ padding:13px 14px; } .lgb-ri{ padding:9px 11px; } }
+/* panel daftar banner (Promo / News) */
+#lgbOv{ position:fixed; inset:0; z-index:100003; display:none; flex-direction:column; background:#0a2616; }
+#lgbOv.show{ display:flex; }
+#lgbHead{ padding:calc(16px + env(safe-area-inset-top,0px)) 18px 10px; color:#f5d77e; }
+#lgbHead b{ display:block; font-size:19px; font-weight:800; }
+#lgbHead span{ font-size:12px; color:rgba(244,249,241,.65); }
+#lgbList{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:6px 16px calc(96px + env(safe-area-inset-bottom,0px)); display:flex; flex-direction:column; gap:12px; }
+.lgp{ flex-shrink:0; border-radius:18px; padding:16px; color:#fff; position:relative; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.28); }
+.lgp .bd{ display:inline-block; font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:99px; background:rgba(255,255,255,.18); margin-bottom:8px; }
+.lgp h4{ margin:0 0 4px; font-size:16px; font-weight:800; line-height:1.3; }
+.lgp p{ margin:0; font-size:12.5px; line-height:1.5; opacity:.9; }
+.lgp .em{ position:absolute; right:12px; bottom:4px; font-size:44px; opacity:.28; }
+.lgn{ flex-shrink:0; display:block; text-decoration:none; border-radius:16px; padding:13px 14px; background:rgba(255,255,255,.07); border:1px solid rgba(244,201,66,.22); color:#f4f9f1; }
+.lgn .k{ display:inline-block; font-size:10px; font-weight:800; padding:2px 8px; border-radius:99px; background:rgba(244,201,66,.18); color:#f5d77e; margin-bottom:6px; }
+.lgn h4{ margin:0 0 4px; font-size:14px; font-weight:800; line-height:1.4; }
+.lgn p{ margin:0 0 6px; font-size:12px; line-height:1.5; color:rgba(244,249,241,.75); }
+.lgn small{ font-size:10.5px; color:rgba(244,249,241,.55); }
+.lgb-empty{ text-align:center; padding:48px 20px; color:rgba(244,249,241,.65); font-size:13px; }
+#lgbX{ position:absolute; left:50%; transform:translateX(-50%); bottom:calc(22px + env(safe-area-inset-bottom,0px)); width:56px; height:56px; border-radius:50%; border:1.5px solid rgba(244,201,66,.6); background:rgba(10,38,22,.92); color:#f5d77e; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 22px rgba(0,0,0,.5); cursor:pointer; padding:0; -webkit-tap-highlight-color:transparent; }
+#lgbX:active{ transform:translateX(-50%) scale(.92); }
+</style>
+<script id="lg-ban-js">
+(function(){
+  'use strict';
+  function $(i){ return document.getElementById(i); }
+  var gate=$('loginGate'); if(!gate) return;
+  var MAXN=10;
+  function el(tag,cls,txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
+  function promoData(){
+    var a=null; try{ if(window.DB && Array.isArray(DB.slideBanner) && DB.slideBanner.length) a=DB.slideBanner; }catch(e){}
+    if(!a){ try{ if(typeof SLIDES!=='undefined') a=SLIDES; }catch(e){} }
+    return (a||[]).slice(0,MAXN);
+  }
+  function newsData(){
+    var a=[]; try{ if(window.DB && Array.isArray(DB.berita)) a=DB.berita.slice(); }catch(e){}
+    a.sort(function(x,y){ return String(y.tanggal||'').localeCompare(String(x.tanggal||'')); });
+    return a.slice(0,MAXN);
+  }
+  var box=el('div'); box.id='lgBan'; gate.appendChild(box);
+  var CH='<svg class="lgb-go" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  function card(id,ic,title){ var b=el('button','lgb-card'); b.type='button'; b.id=id; b.innerHTML='<span class="lgb-ic">'+ic+'</span><span class="lgb-tx"><b></b><span></span></span>'+CH; b.querySelector('b').textContent=title; return b; }
+  var bP=card('lgbPromo','🎁','Promo'), bN=card('lgbNews','📰','Renco Penuh Gosip (RPG)');
+  var rem=el('div','lgb-card lgb-rem'); rem.id='lgbRem';
+  rem.innerHTML='<div class="lgb-rh"><span class="lgb-ic">⏰</span><span class="lgb-tx"><b>Pengingat &amp; Jadwal</b><span>Jangan lewatkan jatuh tempo Anda</span></span>'+CH+'</div>'+
+    '<button type="button" class="lgb-ri" data-r="wajib">Simpanan Wajib<small>Setiap bulan</small></button>'+
+    '<button type="button" class="lgb-ri" data-r="kop">Cicilan Koperasi<small>Sesuai jatuh tempo</small></button>'+
+    '<button type="button" class="lgb-ri" data-r="rc">Cicilan Renco Capital<small>Sesuai jatuh tempo</small></button>';
+  box.appendChild(bP); box.appendChild(bN); box.appendChild(rem);
+  function counts(){
+    bP.querySelector('.lgb-tx span').textContent=promoData().length+' promo & info terbaru';
+    var n=newsData().length; bN.querySelector('.lgb-tx span').textContent=n? (n+' berita & pembaruan') : 'Berita & pembaruan koperasi';
+  }
+  counts(); setInterval(function(){ if(gate.classList.contains('show')) counts(); },2000);
+
+  // Reminder → masuk dulu, lalu buka daftar tagihan/cicilan Anda
+  rem.addEventListener('click',function(e){
+    if(!e.target.closest('.lgb-ri')){ rem.classList.toggle('open'); return; }
+    if(typeof window._lgLoginThen!=='function') return;
+    window._lgLoginThen(function(){
+      try{ if(typeof navTo==='function') navTo('home'); }catch(_e){}
+      setTimeout(function(){ var w=$('_tjt_widget')||$('_home_tagihan_section'); if(w&&w.scrollIntoView) w.scrollIntoView({behavior:'smooth',block:'start'}); },700);
+    });
+  });
+
+  /* Panel daftar (maks. 10) + tombol X melayang di bawah */
+  var ov=el('div'); ov.id='lgbOv';
+  ov.innerHTML='<div id="lgbHead"><b></b><span></span></div><div id="lgbList"></div><button type="button" id="lgbX" aria-label="Tutup"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+  document.body.appendChild(ov);
+  function close(){ ov.classList.remove('show'); }
+  $('lgbX').addEventListener('click',close);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') close(); });
+  function open(kind){
+    var list=$('lgbList'), head=ov.querySelector('#lgbHead'); list.innerHTML=''; list.scrollTop=0;
+    if(kind==='promo'){
+      var d=promoData(); head.querySelector('b').textContent='Promo'; head.querySelector('span').textContent=d.length+' banner';
+      d.forEach(function(s){
+        var c=el('div','lgp'); try{ if(s.gradient) c.style.background=s.gradient; else c.style.background='linear-gradient(135deg,#1a472a,#2d6a4f)'; }catch(e){}
+        if(s.badge) c.appendChild(el('span','bd',s.badge));
+        c.appendChild(el('h4',null,s.title||'')); if(s.desc) c.appendChild(el('p',null,s.desc));
+        if(s.emoji) c.appendChild(el('span','em',s.emoji));
+        list.appendChild(c);
+      });
+      if(!d.length) list.appendChild(el('div','lgb-empty','Belum ada promo.'));
+    } else {
+      var n=newsData(); head.querySelector('b').textContent='Renco Penuh Gosip (RPG)'; head.querySelector('span').textContent=n.length+' berita';
+      var KAT={ekonomi:'📈 Ekonomi',koperasi:'🤝 Koperasi',investasi:'💰 Investasi',bursa:'📊 Bursa',umum:'🌐 Umum'};
+      n.forEach(function(b){
+        var url=String(b.url||''), ok=/^https?:\/\//i.test(url);
+        var a=el(ok?'a':'div','lgn'); if(ok){ a.href=url; a.target='_blank'; a.rel='noopener'; }
+        a.appendChild(el('span','k',KAT[b.kategori]||KAT.umum));
+        a.appendChild(el('h4',null,b.judul||'')); if(b.ringkasan) a.appendChild(el('p',null,b.ringkasan));
+        var tg=''; try{ if(b.tanggal) tg=new Date(b.tanggal).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}); }catch(e){}
+        a.appendChild(el('small',null,[b.sumber,tg].filter(Boolean).join(' · ')));
+        list.appendChild(a);
+      });
+      if(!n.length) list.appendChild(el('div','lgb-empty','Belum ada berita. Kembali lagi nanti ya.'));
+    }
+    ov.classList.add('show');
+  }
+  bP.addEventListener('click',function(){ open('promo'); });
+  bN.addEventListener('click',function(){ open('news'); });
+})();
+</script>
+
+<!-- ===== REMINDER HALAMAN LOGIN 1: tampilkan data dari login terakhir ===== -->
+<style id="lg-rem-style">
+.lgb-rtop{ display:flex; align-items:center; gap:12px; }
+.lgb-eye{ width:34px; height:34px; border-radius:10px; border:none; background:rgba(0,0,0,.2); color:#f5d77e; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; flex-shrink:0; -webkit-tap-highlight-color:transparent; }
+.lgb-ri small.ov{ color:#ff8a8a; } .lgb-ri small.nr{ color:#ffc266; }
+.lgb-ri .rt{ margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:1px; }
+.lgb-ri .rt b{ font-size:12.5px; font-weight:800; color:#f4f9f1; }
+.lgb-ri .rt small{ margin:0; }
+.lgb-rf{ font-size:10.5px; color:rgba(244,249,241,.55); text-align:center; padding-top:2px; }
+</style>
+<script id="lg-rem-js">
+(function(){
+  'use strict';
+  var KEY='rc_ql_reminder_v1', HID='rc_ql_remhide_v1';   // awalan "rc_ql" → ikut dilindungi saat Update Aplikasi
+  function $(i){ return document.getElementById(i); }
+  function rp(n){ return 'Rp '+Math.round(n||0).toLocaleString('id-ID'); }
+  function day0(d){ d=new Date(d); d.setHours(0,0,0,0); return d; }
+  function iso(d){ return d.toISOString(); }
+
+  /* ── 1) REKAM ringkasan tagihan nasabah yang sedang login ── */
+  function snapshot(){
+    try{
+      if(!window.AUTH || !AUTH.loggedIn || !AUTH.user || AUTH.user.role!=='nasabah' || !window.DB) return;
+      var kk=AUTH.user.nasabahId; if(!kk) return;
+      var nas=(DB.nasabah||[]).find(function(a){ return a.id===kk; }); if(!nas) return;
+      var today=day0(new Date()), out={v:1,u:AUTH.user.username,nama:nas.nama||AUTH.user.nama||AUTH.user.username,at:new Date().toISOString()};
+
+      // Simpanan Wajib
+      if(nas.status!=='Tidak Aktif'){
+        var jml=(DB.pengaturan&&DB.pengaturan.simpananWajib)||100000, hari=(DB.pengaturan&&DB.pengaturan.iuranJatuhTempo)||10;
+        var g=new Date(nas.tanggal||nas.createdAt); if(isNaN(g)) g=new Date(); g.setDate(1); g.setHours(0,0,0,0);
+        if(typeof _rencoAwalKewajiban==='function'){ try{ g=_rencoAwalKewajiban(g); }catch(e){} }
+        var paid={};
+        (DB.transaksi||[]).forEach(function(t){
+          if(t.kkId!==kk||t.type!=='simpanan'||(t.jenis||'')!=='wajib') return;
+          var k=t.bulanIuran; if(!k){ var d=new Date(t.tanggal); if(isNaN(d)) return; k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+          paid[k]=1;
+        });
+        var cur=new Date(g), unpaid=[], endM=new Date(today.getFullYear(),today.getMonth(),1);
+        while(cur<=endM){ var key=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0'); if(!paid[key]) unpaid.push(new Date(cur)); cur.setMonth(cur.getMonth()+1); }
+        var due=unpaid.length? new Date(unpaid[0].getFullYear(),unpaid[0].getMonth(),hari) : new Date(today.getFullYear(),today.getMonth()+1,hari);
+        out.wajib={due:iso(due),amount:jml*Math.max(1,unpaid.length),n:unpaid.length};
+      }
+
+      // Cicilan Koperasi (pinjaman aktif)
+      var best=null;
+      (DB.pinjaman||[]).filter(function(p){ return p.kkId===kk&&(p.status==='aktif'||p.status==='menunggak'); }).forEach(function(p){
+        if(!p.tanggal||!p.tenor) return;
+        var pokok=p.jumlah/p.tenor, sisa=p.sisaPokok!=null?p.sisaPokok:p.jumlah;
+        var sudah=p.jumlah>0?Math.floor((p.jumlah-sisa)/pokok):0, no=sudah+1; if(no>p.tenor) return;
+        var sisaTenor=Math.max(1,p.tenor-sudah), bunga=p.bunga>0?sisa*(p.bunga/100)/12:0, cic=Math.round(sisa/sisaTenor+bunga);
+        var d=new Date(p.tanggal); d.setMonth(d.getMonth()+no); d.setHours(0,0,0,0);
+        if(p.perpanjangan){ var ex=p.perpanjangan.find(function(x){ return x.no===no; }); if(ex&&ex.tambahHari) d.setTime(d.getTime()+ex.tambahHari*86400000); }
+        if(!best||d<best.d) best={d:d,a:cic};
+      });
+      if(best) out.kop={due:iso(best.d),amount:best.a};
+
+      // Cicilan Renco Capital (pembiayaan + syariah)
+      var best2=null;
+      var AK={};
+      var all=(DB.pembiayaan||[]).filter(function(p){ return p.kkId===kk&&(p.status==='aktif'||p.status==='disetujui'||p.status==='menunggak'); })
+        .concat((DB.pembiayaanSyariah||[]).filter(function(p){ return p.kkId===kk&&(p.status==='aktif'||p.status==='menunggak'); }).map(function(p){
+          var tn=Math.max(1,p.tenor||12);
+          return {jumlah:p.jumlah||0,tenor:tn,bunga:0,cicilanPerBln:p.cicilan||Math.round((p.totalBayar||p.jumlah||0)/tn),angsuranDibayar:p.angsuranDibayar||0,tanggal:p.tanggal||p.createdAt,tglAktif:p.tanggal||p.createdAt,perpanjangan:p.perpanjangan};
+        }));
+      all.forEach(function(pm){
+        var tn=pm.tenor||0; if(!tn) return; var dib=pm.angsuranDibayar||0, no=dib+1; if(no>tn) return;
+        var h=null; try{ if(typeof _rcHitungCicilanBulanIni==='function') h=_rcHitungCicilanBulanIni(pm); }catch(e){}
+        var cic=h?h.cicilanBulanIni:(pm.cicilanPerBln||Math.round(pm.jumlah/tn+pm.jumlah*((pm.bunga||0)/100)/12));
+        var d=new Date(pm.tglAktif||pm.tanggal); if(isNaN(d)) return; d.setMonth(d.getMonth()+no); d.setHours(0,0,0,0);
+        if(pm.perpanjangan){ var ex=pm.perpanjangan.find(function(x){ return x.no===no; }); if(ex&&ex.tambahHari) d.setTime(d.getTime()+ex.tambahHari*86400000); }
+        if(!best2||d<best2.d) best2={d:d,a:cic};
+      });
+      if(best2) out.rc={due:iso(best2.d),amount:best2.a};
+
+      localStorage.setItem(KEY,JSON.stringify(out));
+      paint();
+    }catch(e){ try{ console.warn('[reminder]',e); }catch(_e){} }
+  }
+  var _hide=window.hideLoginScreen;
+  if(typeof _hide==='function') window.hideLoginScreen=function(){ var r=_hide.apply(this,arguments); [2500,9000].forEach(function(ms){ setTimeout(snapshot,ms); }); return r; };
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) snapshot(); });
+  window.addEventListener('pagehide',snapshot);
+  setInterval(function(){ if(!document.hidden) snapshot(); },60000);
+
+  /* ── 2) TAMPILKAN di banner Reminder halaman 1 ── */
+  var rem=$('lgbRem'); if(!rem) return;
+  // tombol mata (sembunyikan nominal) + keterangan "per login terakhir"
+  var hdr=rem.querySelector('.lgb-rh'); if(hdr) hdr.classList.add('lgb-rtop');
+  var eye=document.createElement('button'); eye.type='button'; eye.className='lgb-eye'; eye.setAttribute('aria-label','Tampilkan/sembunyikan nominal');
+  eye.innerHTML='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  if(hdr) hdr.appendChild(eye);
+  var foot=document.createElement('div'); foot.className='lgb-rf'; foot.style.display='none'; rem.appendChild(foot);
+  function hidden(){ try{ return localStorage.getItem(HID)==='1'; }catch(e){ return false; } }
+  eye.addEventListener('click',function(e){ e.stopPropagation(); try{ localStorage.setItem(HID,hidden()?'0':'1'); }catch(_e){} paint(); });
+
+  var DEF={wajib:['Setiap bulan'],kop:['Sesuai jatuh tempo'],rc:['Sesuai jatuh tempo']};
+  function fmtTgl(d){ return d.toLocaleDateString('id-ID',{day:'numeric',month:'short'}); }
+  function paint(){
+    var data=null; try{ data=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){}
+    var today=day0(new Date()), hide=hidden();
+    ['wajib','kop','rc'].forEach(function(k){
+      var row=rem.querySelector('.lgb-ri[data-r="'+k+'"]'); if(!row) return;
+      var small=row.querySelector(':scope > small'), box=row.querySelector('.rt');
+      var it=data&&data[k];
+      if(!it){
+        if(box){ box.remove(); }
+        if(!small){ small=document.createElement('small'); row.appendChild(small); }
+        small.className=''; small.textContent=(data&&k==='wajib'&&!data.wajib)?'Tidak ada kewajiban':(data?'Tidak ada tagihan aktif':DEF[k][0]); return;
+      }
+      var d=day0(it.due), diff=Math.round((d-today)/86400000), cls='', st;
+      if(diff<0){ st=Math.abs(diff)+' hari telat'; cls='ov'; }
+      else if(diff===0){ st='Jatuh tempo hari ini'; cls='ov'; }
+      else if(diff<=7){ st=diff+' hari lagi'; cls='nr'; }
+      else st='JT '+fmtTgl(d);
+      if(small) small.remove();
+      if(!box){ box=document.createElement('span'); box.className='rt'; box.innerHTML='<b></b><small></small>'; row.appendChild(box); }
+      box.querySelector('b').textContent=hide?'Rp •••••':rp(it.amount);
+      var sm=box.querySelector('small'); sm.textContent=st; sm.className=cls;
+    });
+    if(data&&data.at){
+      var at=new Date(data.at), t=at.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})+' '+at.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+      foot.textContent='Data per login terakhir · '+t; foot.style.display='';
+      eye.style.display='';
+    } else { foot.style.display='none'; eye.style.display='none'; }
+  }
+  paint(); setInterval(paint,60000);
+})();
+</script>
+
+<!-- ===== Latar blur saat menu tiga garis dibuka (halaman 1) ===== -->
+<style id="lg-menublur-style">
+#lgMenuBlur{ position:absolute; inset:0; z-index:50; display:none; background:rgba(4,16,9,.8); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); opacity:0; transition:opacity .2s ease; }
+#lgMenuBlur.show{ display:block; opacity:1; }
+/* daftar menu: latar lebih pekat agar mudah dibaca */
+#loginScreen.lg-gate-on > #loginMenuDropdown.open .login-side-item{ text-shadow:0 1px 6px rgba(0,0,0,.6); }
+</style>
+<style id="lg-menu-panel-style">
+/* Daftar menu (garis tiga): panel rapi tepat di bawah tombol, rata kanan dengan tombol */
+#loginMenuDropdown{ top:calc(env(safe-area-inset-top,0px) + 52px); right:14px; min-width:230px; padding:6px; gap:0; align-items:stretch; box-sizing:border-box;
+  background:linear-gradient(160deg,#14442a,#0b2a19); border:1px solid rgba(244,201,66,.45); border-radius:16px;
+  box-shadow:0 14px 34px rgba(0,0,0,.55); transform:translateY(-8px) scale(.97); transform-origin:top right; }
+#loginMenuDropdown.open{ transform:translateY(0) scale(1); }
+#loginMenuDropdown::before{ content:""; position:absolute; top:-6px; right:19px; width:11px; height:11px; background:#14442a; border-left:1px solid rgba(244,201,66,.45); border-top:1px solid rgba(244,201,66,.45); transform:rotate(45deg); }
+#loginMenuDropdown .login-side-item{ flex-direction:row-reverse; justify-content:flex-end; gap:12px; padding:12px 12px; border-radius:11px; font-size:13.5px; font-weight:700; text-align:left; filter:none; }
+#loginMenuDropdown .login-side-item + .login-side-item{ border-top:1px solid rgba(244,201,66,.14); border-top-left-radius:0; border-top-right-radius:0; }
+#loginMenuDropdown .login-side-item:active{ background:rgba(244,201,66,.16); transform:none; opacity:1; }
+#loginMenuDropdown .lsi-icon svg{ width:19px; height:19px; }
+html.renco-dark #loginMenuDropdown{ background:linear-gradient(160deg,#1c1c1c,#101010); }
+html.renco-dark #loginMenuDropdown::before{ background:#1c1c1c; }
+</style>
+<script id="lg-menublur-js">
+(function(){
+  'use strict';
+  var gate=document.getElementById('loginGate'), dd=document.getElementById('loginMenuDropdown'), tg=document.getElementById('loginMenuToggleBtn');
+  if(!gate||!dd) return;
+  var bl=document.createElement('div'); bl.id='lgMenuBlur'; gate.appendChild(bl);
+  function sync(){ var on=dd.classList.contains('open') && gate.classList.contains('show'); if(bl.classList.contains('show')!==on) bl.classList.toggle('show', on); }
+  new MutationObserver(sync).observe(dd,{attributes:true,attributeFilter:['class','style']});
+  new MutationObserver(sync).observe(gate,{attributes:true,attributeFilter:['class']});
+  // ketuk area blur → tutup menu
+  bl.addEventListener('click',function(){ if(dd.classList.contains('open') && tg) tg.click(); });
+  sync();
 })();
 </script>
 </body></html>
