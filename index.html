@@ -89,7 +89,7 @@
   };
 })();
 </script>
-<meta name="rc-build" content="20261103-janjitemu-tiket-v1">
+<meta name="rc-build" content="20261115-devrecover-v1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' data: blob: https://ipwho.is https://api.bigdatacloud.net https://cwtoqrxakgaawqgyxhjz.supabase.co wss://cwtoqrxakgaawqgyxhjz.supabase.co https://api.rss2json.com https://api.allorigins.win https://corsproxy.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -354,6 +354,57 @@ window.addEventListener('beforeinstallprompt',function(e){
       });
     }).catch(function(){});
   }catch(e){}
+})();
+</script>
+
+<script id="rc-device-persist">
+/* ID perangkat + token perangkat terpercaya RencoPay dicadangkan ke IndexedDB (rc_dev_db).
+   localStorage bisa hilang sendiri (pembersihan browser, iOS, pindah WebView/PWA); IndexedDB lebih awet dan
+   asalnya sama (origin) sehingga tidak menambah celah. ID perangkat: IDB yang berlaku (ditulis sekali).
+   Token: dipulihkan hanya bila localStorage kosong; pencabutan token (removeItem) ikut menghapus cadangannya. */
+(function(){
+  var DBN='rc_dev_db', ST='kv', ONCE={'_renco_client_id':1,'renco_device_id':1};
+  function isK(k){ return !!ONCE[k] || /^rp_dev_tok_/.test(k); }
+  function open(){ return new Promise(function(res,rej){
+    if(!window.indexedDB) return rej(new Error('noidb'));
+    var r=indexedDB.open(DBN,1); r.onupgradeneeded=function(){ r.result.createObjectStore(ST); };
+    r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); };
+  }); }
+  function all(db){ return new Promise(function(res,rej){
+    var o={}, c=db.transaction(ST,'readonly').objectStore(ST).openCursor();
+    c.onsuccess=function(){ var x=c.result; if(x){ o[x.key]=x.value; x.continue(); } else res(o); };
+    c.onerror=function(){ rej(c.error); };
+  }); }
+  function write(db,fn){ return new Promise(function(res,rej){
+    var t=db.transaction(ST,'readwrite'); fn(t.objectStore(ST));
+    t.oncomplete=function(){ res(); }; t.onerror=t.onabort=function(){ rej(t.error); };
+  }); }
+  function sync(){
+    return open().then(function(db){ return all(db).then(function(saved){
+      var puts=[], restored=0, i, k, v;
+      Object.keys(saved).forEach(function(k){ try{
+        var cur=localStorage.getItem(k);
+        if(cur!==saved[k] && (ONCE[k] || !cur)){ localStorage.setItem(k,saved[k]); restored++; }
+      }catch(e){} });
+      try{ for(i=0;i<localStorage.length;i++){ k=localStorage.key(i); if(!isK(k)) continue; v=localStorage.getItem(k); if(!v) continue;
+        if(ONCE[k] ? !(k in saved) : saved[k]!==v) puts.push([k,v]); } }catch(e){}
+      var done=puts.length ? write(db,function(s){ puts.forEach(function(p){ s.put(p[1],p[0]); }); }) : Promise.resolve();
+      return done.then(function(){ db.close(); return restored; });
+    }); });
+  }
+  window.rcDevSync=function(){ return sync().catch(function(){ return 0; }); };
+  window.rcDevReady=window.rcDevSync();
+  try{ var _ri=Storage.prototype.removeItem;
+    Storage.prototype.removeItem=function(k){
+      var r=_ri.apply(this,arguments);
+      try{ if(this===window.localStorage && /^rp_dev_tok_/.test(String(k))) open().then(function(db){ return write(db,function(s){ s.delete(String(k)); }).then(function(){ db.close(); }); }).catch(function(){}); }catch(e){}
+      return r;
+    };
+  }catch(e){}
+  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){}); }catch(e){}
+  window.addEventListener('load',function(){ setTimeout(window.rcDevSync,1500); });
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) window.rcDevSync(); });
+  setInterval(function(){ if(!document.hidden) window.rcDevSync(); },60000);
 })();
 </script>
 
@@ -7018,7 +7069,7 @@ async function _rencoForceUpdateApp() {
         var dbs = await indexedDB.databases();
         await Promise.all(dbs.map(function(d) {
           if (!d || !d.name) return Promise.resolve();
-          if (d.name === 'rc_ql_db') return Promise.resolve();   // kunci biometrik Login Cepat — dilindungi
+          if (d.name === 'rc_ql_db' || d.name === 'rc_dev_db') return Promise.resolve();   // kunci biometrik Login Cepat & cadangan ID perangkat — dilindungi
           return new Promise(function(res) {
             var req = indexedDB.deleteDatabase(d.name);
             req.onsuccess = req.onerror = req.onblocked = function() { res(); };
@@ -76922,6 +76973,18 @@ window._qlOpenPin=function(opts){
   $('qlPinOv').classList.add('show');
 };
 window._qlHasPinFor=function(u){ var d=rd(); return !!(d&&d.pin&&d.username===u); };
+/* Ikatan passkey perangkat terpercaya RencoPay: ID kredensial biometrik (bukan rahasia) + pembuktian bahwa perangkat ini
+   memegang salah satu kredensial yang pernah didaftarkan. Kredensial platform hidup di OS, jadi umumnya selamat saat data situs hilang. */
+window._qlBioCredId=function(u){ var d=rd(); return (d&&d.bio&&d.username===u)?(d.bio.credId||''):''; };
+window._qlBioProve=function(ids){
+  ids=(ids||[]).filter(Boolean).slice(0,10);
+  if(!ids.length||!window.PublicKeyCredential||!navigator.credentials) return Promise.reject(new Error('unsupported'));
+  return navigator.credentials.get({publicKey:{
+    challenge:crypto.getRandomValues(new Uint8Array(32)),
+    allowCredentials:ids.map(function(i){ return {type:'public-key',id:unb64(i),transports:['internal']}; }),
+    userVerification:'required', timeout:60000
+  }}).then(function(c){ return b64(c.rawId); });
+};
 window._qlWipe=function(){ qlClear(); };
 function pinFail(msg){
   var c=$('qlPinCard'), e=$('qlPinErr'); if(e) e.textContent=msg;
@@ -90665,7 +90728,8 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
    4) Riwayat keamanan akun yang bisa dilihat nasabah
    Data tersimpan di cloud sebagai array ber-id: DB.rpPerangkat, DB.rpLogKeamanan; batas di DB.rencoPay.settings.limit */
 (function(){
-  var GRACE_MS = 60*1000, lastOk = 0, lastUser = '', regFor = '', alertTimer = null;
+  var GRACE_MS = 60*1000, lastOk = 0, lastUser = '', regFor = '', alertTimer = null, cleaned = false, PULIH_MS = 24*3600*1000,
+      BUILD = (function(){ try{ return (document.querySelector('meta[name="rc-build"]')||{}).content||''; }catch(e){ return ''; } })();
   function $(id){ return document.getElementById(id); }
   function isNas(){ return !!(window.AUTH && AUTH.loggedIn && AUTH.user && AUTH.user.role==='nasabah'); }
   function uname(){ return isNas() ? AUTH.user.username : ''; }
@@ -90686,7 +90750,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
   function log(jenis, pesan, extra){ if(!isNas()) return; logFor(uname(), jenis, pesan, extra); }
   function logFor(username, jenis, pesan, extra){
     if(!username||!window.DB) return;
-    var L=arr('rpLogKeamanan'), e={id:rid('sl_'),username:username,t:new Date().toISOString(),jenis:jenis,pesan:pesan,deviceId:devId()};
+    var L=arr('rpLogKeamanan'), e={id:rid('sl_'),username:username,t:new Date().toISOString(),jenis:jenis,pesan:pesan,deviceId:devId(),build:BUILD};
     if(extra) for(var k in extra) e[k]=extra[k];
     L.push(e);
     var mine=L.filter(function(x){ return x.username===e.username; });
@@ -90805,7 +90869,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
        disalin tanpa token tidak lagi dipercaya.
      • Tidak aktif >90 hari → perlu konfirmasi ulang. Maksimal 5 perangkat terpercaya per akun.
      • Data lama (tanpa status) otomatis dianggap terpercaya agar tidak ada nasabah yang terkunci saat pembaruan ini. */
-  var MAX_DEV=5, EXP_MS=90*24*3600*1000, REQ_MS=48*3600*1000, reqShown={}, devPoll=null, lastAppr=0, lastReplay=0;
+  var MAX_DEV=5, EXP_MS=90*24*3600*1000, REQ_MS=48*3600*1000, reqShown={}, devPoll=null, lastAppr=0, lastReplay=0, needPinTok=false, pinAsk=false;
   var MEREK=[[/^(SM-|GT-|SCG|SC-|SHV)/i,'Samsung'],[/^(Redmi|POCO|Mi[ -]|M\d{4}[A-Z]|\d{5,}[A-Z0-9]+$)/i,'Xiaomi'],[/^CPH/i,'OPPO'],[/^RMX/i,'realme'],[/^(vivo|V\d{4})/i,'vivo'],[/^Pixel/i,'Google'],
     [/^(ONEPLUS|(LE|IN|KB|NE|HD|GM|BE)\d{4}$)/i,'OnePlus'],[/^HONOR/i,'Honor'],[/^(HUAWEI|[A-Z]{2,4}-(L|AL|TL|LX)\d+)/i,'Huawei'],[/^(Infinix|X\d{3,4}[A-Z]?$)/i,'Infinix'],[/^(TECNO|K[A-Z]\d)/i,'Tecno'],
     [/^itel/i,'itel'],[/^Nokia/i,'Nokia'],[/^(moto|XT\d{4})/i,'Motorola'],[/^(SO-|SOG|XQ-|F\d{4}$)/i,'Sony'],[/^(ASUS|ZS\d)/i,'ASUS'],[/^Lenovo/i,'Lenovo'],[/^(iPhone|iPad)/,'Apple']];
@@ -90859,6 +90923,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     try{ var a=new Uint8Array(24); if(window.crypto&&crypto.getRandomValues) crypto.getRandomValues(a); else for(var i=0;i<24;i++) a[i]=Math.floor(Math.random()*256);
       t=Array.prototype.map.call(a,function(b){ return ('0'+b.toString(16)).slice(-2); }).join(''); }catch(e){ t=rid('t'); }
     try{ localStorage.setItem(tokKey(),t); }catch(e){}
+    try{ if(window.rcDevSync) window.rcDevSync(); }catch(e){}
     return t;
   }
   function tokHash(t){ try{ return (window.RCPW&&RCPW.sha)?RCPW.sha(uname()+'|'+t):''; }catch(e){ return ''; } }
@@ -90881,6 +90946,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
   /* Evaluasi (idempoten) status perangkat ini; mendaftarkan bila belum ada */
   function register(){
     if(!isNas()||!window.DB||!devId()) return;
+    needPinTok=false;
     var u=uname(), d=devId(), now=nowIso(), list=arr('rpPerangkat'), mine=myRec(), info=devInfo(), dirty=false;
     if(!mine){
       var punyaLain=trustedOthers(u,'').length>0;
@@ -90907,12 +90973,39 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
       if(stOf(mine)==='terpercaya'){
         var t=myTok();
         if(mine.tokenHash){
-          if(!t||tokHash(t)!==mine.tokenHash){ demote(mine,'token','Identitas perangkat tidak cocok dengan data terpercaya'); dirty=true; }
+          /* ID cocok tapi token lokal hilang (mis. data aplikasi tidak lengkap setelah pembaruan): jangan langsung diturunkan —
+             minta PIN pemilik untuk menerbitkan token baru. Token ada tapi hash-nya beda (indikasi salinan) tetap diturunkan. */
+          if(!t && hasPin() && trustedOthers(u,mine.id).length){ needPinTok=true; }
+          else if(!t||tokHash(t)!==mine.tokenHash){ demote(mine,'token','Identitas perangkat tidak cocok dengan data terpercaya'); dirty=true; }
         } else { mine.tokenHash=tokHash(ensureTok()); dirty=true; }   // perangkat lama / baru disetujui → terbitkan token
       }
     }
     if(stOf(mine)==='terpercaya' && Date.now()-Date.parse(mine.terakhir||0)>30*60*1000){ mine.terakhir=now; dirty=true; }
+    if(stOf(mine)==='terpercaya'){
+      var cid=''; try{ cid=(window._qlBioCredId&&window._qlBioCredId(u))||''; }catch(e){}
+      if(cid&&mine.credId!==cid){ mine.credId=cid; dirty=true; }           // ikat perangkat ke passkey biometriknya
+      if(BUILD&&mine.build!==BUILD){ mine.build=BUILD; dirty=true; }
+      if(!cleaned){ cleaned=true; if(bersih(mine)) dirty=true; }
+    }
     if(dirty) save();
+  }
+  /* Bersihkan sisa record: permintaan basi >7 hari, sisa kedaluwarsa dengan model+browser yang sama dengan perangkat ini, dan
+     record hasil penggantian >30 hari. Hanya milik akun yang sama, hanya dari perangkat yang sedang terpercaya. */
+  function bersih(mine){
+    var L=arr('rpPerangkat'), u=mine.username, now=Date.now();
+    function sig(x){ return [x.os,x.browser,x.model].join('|'); }
+    var keep=L.filter(function(x){
+      if(x.username!==u||x.id===mine.id) return true;
+      var st=stOf(x), t=Date.parse(x.diminta||x.terakhir||x.pertama||'');
+      if((st==='menunggu'||st==='ditolak')&&!isNaN(t)&&now-t>7*864e5) return false;
+      if(st==='terpercaya'&&isExp(x)&&mine.model&&sig(x)===sig(mine)) return false;
+      if(x.diganti&&now-Date.parse(x.dicabutAt||0)>30*864e5) return false;
+      return true;
+    });
+    if(keep.length===L.length) return false;
+    var n=L.length-keep.length; window.DB.rpPerangkat=keep;
+    log('perangkat-bersih','Membersihkan '+n+' sisa catatan perangkat lama',{deviceId:mine.deviceId,jumlah:n});
+    return true;
   }
   /* 'ok' = boleh memakai RencoPay; selain itu = status yang menghalangi */
   function devStatus(){
@@ -90920,6 +91013,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
     register();
     var m=myRec(); if(!m) return 'ok';
     enrichOnce();
+    if(needPinTok && stOf(m)==='terpercaya') return 'pin';
     var st=stOf(m); return st==='terpercaya'?'ok':st;
   }
   function closeDevOv(){ if(devPoll){ clearInterval(devPoll); devPoll=null; } var o=$('rpDevOv'); if(o) o.remove(); }
@@ -91015,6 +91109,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
       +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px"><span style="padding:2px 9px;border-radius:99px;font-size:11px;font-weight:800;background:#fde8ea;color:#b02a37">'+esc(SC[st]||st)+'</span><span id="rpDevInfo" style="font-size:10.5px;color:#7a8a80">Belum dicek</span></div>'
       +'<div id="rpDevRows">'+devRows(m)+'</div></div>'
       +(st==='menunggu'?'<div style="border-left:3px solid #b02a37;background:#fdf3f4;border-radius:6px;padding:6px 9px;font-size:11px;line-height:1.45;color:#5a3a3e;margin-bottom:10px">Buka <b>RencoPay → Keamanan Akun</b> di perangkat terpercaya, lalu ketuk <b>Izinkan</b>. Tidak ada perangkat lain? Minta admin koperasi.</div>':'');
+    h+=pulihHtml(m,st);
     if(st!=='dicabut'){
       h+='<div style="display:flex;gap:8px;margin-bottom:6px"><button id="rpDevCheck" style="'+btn+';border:none;background:linear-gradient(135deg,#1f6b45,#2d8a5e);color:#fff">Periksa status</button>'
         +((st==='menunggu'||st==='ditolak')?'<button id="rpDevAgain" style="'+btn+';border:1px solid #2d8a5e;background:#eaf4ee;color:#1f6b45">Kirim ulang</button>':'')+'</div>';
@@ -91035,11 +91130,102 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
       save(); toast('📨 Permintaan dikirim ulang'); delete enr[r.id]; enrichOnce(); showDevOv('menunggu');
     };
     $('rpDevBack').onclick=devKeluar;
+    pulihBind(st);
     if(st==='menunggu'){ var n=0; devPoll=setInterval(function(){ if(!$('rpDevOv')||++n>200){ closeDevOv(); return; } if(!document.hidden) devCek(true); },6000); }
+  }
+  /* ── Pemulihan mandiri: perangkat yang sama terbaca baru ──
+     A) Passkey: sidik jari / Face ID yang cocok dengan kredensial salah satu perangkat lama akun ini → langsung dipulihkan,
+        catatan lama diganti (tidak menambah kuota).
+     B) Masa tunggu 24 jam: pilih perangkat lama yang digantikan; perangkat terpercaya lain / admin masih bisa menolak;
+        setelah 24 jam perangkat bisa mengaktifkan dirinya. Pemilik sudah login dengan password untuk sampai ke sini.
+     Catatan: seluruh pengamanan RencoPay berjalan di sisi klien (data disinkronkan lewat snapshot JSON), jadi ini
+     pengamanan tingkat aplikasi, bukan verifikasi server. */
+  function kandidat(m){ return arr('rpPerangkat').filter(function(x){ return x.username===m.username&&x.id!==m.id&&!x.dicabut&&x.status!=='ditolak'&&x.status!=='menunggu'; }); }
+  function rebind(m,old,via){
+    if(old){ old.dicabut=true; old.diganti=true; old.penggantiId=m.id; old.dicabutAt=nowIso(); delete old.tokenHash; }
+    trust(m,'pemulihan',devId()); m.tokenHash=tokHash(ensureTok()); m.terakhir=nowIso(); delete m.pulihDiminta; delete m.pulihTarget;
+    var cid=''; try{ cid=(window._qlBioCredId&&window._qlBioCredId(m.username))||''; }catch(e){} if(cid) m.credId=cid;
+    logFor(m.username,'perangkat-pulih','Perangkat dipulihkan ('+(via==='passkey'?'sidik jari / Face ID':'setelah masa tunggu')+'): '+namaDev(m)+(old?', menggantikan '+namaDev(old):''),{deviceId:m.deviceId,via:via});
+    save();
+  }
+  function pulihHtml(m,st){
+    if(st!=='menunggu') return '';
+    var kand=kandidat(m); if(!kand.length) return '';
+    var box='background:#fff;border:1px solid #d9e1dc;border-radius:12px;padding:8px 10px;font-size:11.5px;line-height:1.45;margin-bottom:8px';
+    var bt='width:100%;padding:9px;border-radius:10px;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;margin-top:6px';
+    var h='<div style="'+box+'"><div style="font-weight:800;margin-bottom:3px">Ini perangkat saya yang sama?</div><div style="color:#5f7568">Kadang terbaca baru setelah aplikasi diperbarui. Pulihkan sendiri tanpa perangkat lain:</div>';
+    if(window.PublicKeyCredential&&kand.some(function(x){ return x.credId; }))
+      h+='<button id="rpDevBio" type="button" style="'+bt+';border:none;background:linear-gradient(135deg,#1f6b45,#2d8a5e);color:#fff">Pulihkan dengan sidik jari / Face ID</button>';
+    if(m.pulihDiminta){
+      var sisa=PULIH_MS-(Date.now()-Date.parse(m.pulihDiminta)), jam=Math.max(0,Math.ceil(sisa/3600000));
+      h+='<div style="margin-top:6px;color:#5a3a3e">Masa tunggu pemulihan: '+(sisa>0?'sisa ±'+jam+' jam. Perangkat terpercaya lain masih bisa menolak.':'selesai.')+'</div>'
+        +'<button id="rpDevAkt" type="button" '+(sisa>0?'disabled ':'')+'style="'+bt+';border:1px solid #2d8a5e;background:#eaf4ee;color:#1f6b45;'+(sisa>0?'opacity:.5':'')+'">Aktifkan perangkat ini</button>';
+    } else {
+      h+='<select id="rpDevPick" style="width:100%;margin-top:6px;padding:8px;border:1px solid #d9e1dc;border-radius:10px;font:inherit;font-size:12px"><option value="">Pilih perangkat lama yang digantikan…</option>'
+        +kand.map(function(x){ return '<option value="'+esc(x.id)+'">'+esc(namaDev(x))+'</option>'; }).join('')+'</select>'
+        +'<button id="rpDevAjukan" type="button" style="'+bt+';border:1px solid #2d8a5e;background:#eaf4ee;color:#1f6b45">Ajukan pemulihan (tunggu 24 jam)</button>';
+    }
+    return h+'</div>';
+  }
+  function pulihBind(st){
+    var m=myRec(); if(!m||st!=='menunggu') return;
+    var b1=$('rpDevBio'); if(b1) b1.onclick=function(){
+      var ids=kandidat(m).map(function(x){ return x.credId; }).filter(Boolean), t0=b1.textContent;
+      b1.disabled=true; b1.textContent='Menunggu verifikasi…';
+      var p=(typeof window._qlBioProve==='function')?window._qlBioProve(ids):Promise.reject(new Error('unsupported'));
+      p.then(function(cid){
+        var cur=myRec(), old=cur&&kandidat(cur).find(function(x){ return x.credId===cid; });
+        if(!cur||!old) throw new Error('nomatch');
+        rebind(cur,old,'passkey'); closeDevOv(); toast('✅ Perangkat dipulihkan');
+        try{ if(typeof navTo==='function') navTo('rencoPay'); }catch(e){}
+      }).catch(function(e){
+        b1.disabled=false; b1.textContent=t0;
+        toast((e&&e.name==='NotAllowedError')?'Verifikasi dibatalkan':'Sidik jari / Face ID tidak cocok dengan perangkat terdaftar');
+      });
+    };
+    var aj=$('rpDevAjukan'); if(aj) aj.onclick=function(){
+      var sel=$('rpDevPick'), tg=arr('rpPerangkat').find(function(x){ return sel&&x.id===sel.value&&x.username===m.username; });
+      if(!tg){ toast('Pilih perangkat lama dulu'); return; }
+      if(!confirm('Perangkat lama "'+namaDev(tg)+'" akan dicabut saat pemulihan diaktifkan. Lanjutkan?')) return;
+      var cur=myRec(); if(!cur) return;
+      cur.pulihDiminta=nowIso(); cur.pulihTarget=tg.id; cur.diminta=nowIso(); cur.alasan='pemulihan';
+      log('perangkat-baru','Permintaan pemulihan perangkat (masa tunggu 24 jam): '+namaDev(cur)+', menggantikan '+namaDev(tg),{adaLain:true,deviceId:devId()});
+      save(); toast('📨 Permintaan pemulihan dikirim'); showDevOv('menunggu');
+    };
+    var ak=$('rpDevAkt'); if(ak) ak.onclick=function(){
+      var cur=myRec(); if(!cur||stOf(cur)!=='menunggu'||!cur.pulihDiminta) return;
+      if(Date.now()-Date.parse(cur.pulihDiminta)<PULIH_MS){ toast('Masa tunggu belum selesai'); return; }
+      var old=arr('rpPerangkat').find(function(x){ return x.id===cur.pulihTarget&&x.username===cur.username&&!x.dicabut; });
+      rebind(cur,old||null,'tunggu'); closeDevOv(); toast('✅ Perangkat dipulihkan');
+      try{ if(typeof navTo==='function') navTo('rencoPay'); }catch(e){}
+    };
+  }
+  /* Token hilang tapi ID perangkat cocok: PIN benar → token baru diterbitkan; PIN gagal → turun ke "menunggu" seperti sebelumnya */
+  function pinTurun(){
+    needPinTok=false; var m=myRec();
+    if(m&&stOf(m)==='terpercaya'){ demote(m,'token','Identitas perangkat tidak cocok dengan data terpercaya'); save(); }
+    var s2=stOf(myRec()); if(s2!=='terpercaya'&&s2!=='baru') showDevOv(s2);
+  }
+  function pinReissue(){
+    if(pinAsk) return;
+    if(typeof window._qlOpenPin!=='function'){ pinTurun(); return; }
+    pinAsk=true;
+    window._qlOpenPin({ verify:true, title:'Verifikasi Perangkat',
+      onOk:function(){
+        pinAsk=false; var m=myRec(); if(!m||stOf(m)!=='terpercaya') return;
+        m.tokenHash=tokHash(ensureTok()); m.terakhir=nowIso(); needPinTok=false;
+        log('perangkat-pulih','Token perangkat dipulihkan dengan PIN: '+namaDev(m),{adaLain:false,deviceId:devId()});
+        save(); toast('✅ Perangkat diverifikasi');
+        try{ if(typeof navTo==='function') navTo('rencoPay'); }catch(e){}
+      },
+      onFail:function(){ pinAsk=false; pinTurun(); },
+      onCancel:function(){ pinAsk=false; devKeluar(); }
+    });
   }
   function devBlock(){
     var st=devStatus();
     if(st==='ok'){ closeDevOv(); return false; }
+    if(st==='pin'){ pinReissue(); return true; }
     if(st==='dicabut') return true;     // register() sudah mengeluarkan akun
     if(!$('rpDevOv')) showDevOv(st);
     return true;
@@ -91134,7 +91320,7 @@ html.renco-dark #page-home .hero-stick::after{background:linear-gradient(to bott
   };
 
   /* ── Layar Keamanan Akun (nasabah) ── */
-  var ICON={'perangkat-baru':'📱','perangkat-aktif':'📱','perangkat-dicabut':'🚫','perangkat-disetujui':'✅','perangkat-ditolak':'⛔','perangkat-curiga':'⚠️','pin-aktif':'🔐','pin-terkunci':'🔒','transfer':'💸','bayar':'🧾','batas':'⛔'};
+  var ICON={'perangkat-baru':'📱','perangkat-aktif':'📱','perangkat-pulih':'🔁','perangkat-bersih':'🧹','perangkat-dicabut':'🚫','perangkat-disetujui':'✅','perangkat-ditolak':'⛔','perangkat-curiga':'⚠️','pin-aktif':'🔐','pin-terkunci':'🔒','transfer':'💸','bayar':'🧾','batas':'⛔'};
   window.rpSecOpen=function(){
     if(!isNas()) return;
     var u=uname(), me=devId(), L=limits(), pin=hasPin();
