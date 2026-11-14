@@ -11627,6 +11627,12 @@ html.renco-dark body #app #page-rencoPay #rpMenuGrid .rp-hint{position:absolute;
       <div class="la-ref">QS. Al-Mā'idah: 2</div>
     </div>
   </div>
+  <button type="button" class="login-help-fab" id="loginHelpBtn" onclick="_openLoginInfo('bantuan')" title="Bantuan" aria-label="Bantuan"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.6"/><rect x="17" y="14" width="4" height="6" rx="1.6"/><path d="M20 20c0 1.2-1.6 2-4 2h-2"/></svg></button>
+  <style id="loginHelpFabCSS">
+  #loginScreen .login-help-fab{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);left:14px;z-index:6;width:32px;height:32px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08);border:1px solid rgba(244,201,66,.5);color:#f5d77e;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .2s,transform .15s}
+  #loginScreen .login-help-fab:hover{background:rgba(244,201,66,.2)}#loginScreen .login-help-fab:active{transform:scale(.92)}
+  #loginScreen #loginInstallBtn{left:54px}
+  </style>
   <button class="login-btn-secondary" id="loginInstallBtn" type="button" onclick="rcInstallApp()" style="display:none" title="Install Aplikasi">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v12M7 11l5 5 5-5" stroke="#f5d77e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20h16" stroke="#f5d77e" stroke-width="1.9" stroke-linecap="round"/></svg>
     Install
@@ -11659,10 +11665,6 @@ html.renco-dark body #app #page-rencoPay #rpMenuGrid .rp-hint{position:absolute;
     <div class="login-side-item" onclick="_openLoginInfo('struktur')">
       <span>Struktur Pengurus</span>
       <span class="lsi-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="6" r="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="18" r="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="18" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M12 8.4V12M12 12L6 15.8M12 12l6 3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-    </div>
-    <div class="login-side-item" onclick="_openLoginInfo('bantuan')">
-      <span>Bantuan</span>
-      <span class="lsi-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 9.3a2.5 2.5 0 1 1 3.7 2.2c-.8.5-1.2 1-1.2 1.9v.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 17v.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
     </div>
     <div class="login-side-item" onclick="_rencoForceUpdateApp()">
       <span>Update/Restart</span>
@@ -11710,17 +11712,6 @@ html.renco-dark body #app #page-rencoPay #rpMenuGrid .rp-hint{position:absolute;
       Belum punya akun? <span>Daftar</span>
     </div>
     <button class="login-btn-secondary" id="daftarAkunBtn" onclick="_openDaftarAkunLogin()" style="display:none">Daftar Akun Baru</button>
-    <button type="button" class="login-help-admin" id="loginHelpAdminBtn" onclick="_openLoginInfo('bantuanAdmin')" aria-label="Bantuan Admin">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.6"/><rect x="17" y="14" width="4" height="6" rx="1.6"/><path d="M20 20c0 1.2-1.6 2-4 2h-2"/></svg>
-      <span>Bantuan Admin</span>
-    </button>
-    <style id="loginHelpAdminCSS">
-    #loginScreen .login-help-admin{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;height:38px;padding:0 10px;border-radius:12px;
-      background:rgba(244,200,66,.12);border:1.5px solid rgba(244,200,66,.55);color:#f4c842;font-family:inherit;font-size:12.5px;font-weight:700;letter-spacing:.2px;cursor:pointer;
-      -webkit-tap-highlight-color:transparent;transition:background .2s,transform .15s}
-    #loginScreen .login-help-admin:hover{background:rgba(244,200,66,.2)}
-    #loginScreen .login-help-admin:active{transform:scale(.97)}
-    </style>
     <div class="login-footer">
       RENCO &copy; 2026 &middot; Bersama Membangun Kesejahteraan<br>
       <span style="opacity:0.6">Hubungi admin jika lupa password</span>
@@ -11873,43 +11864,47 @@ var _LOGIN_INFO_CONTENT = {
     body: null /* dibuat dinamis oleh _renderStrukturPengurusBody() dari DB.pengurusList */
   },
   bantuan: {
-    title: '&#x2753; Bantuan',
-    body:
-      '<div style="font-size:13.5px;line-height:1.75;color:#374151">' +
-        '<p>Mengalami kendala login atau ingin bertanya seputar simpanan, pinjaman, atau transaksi Anda?</p>' +
-        '<div style="background:rgba(45,106,79,0.08);border:1.5px solid rgba(45,106,79,0.18);border-radius:12px;padding:12px 14px;margin-top:12px;font-size:12.5px;color:#2d6a4f;font-weight:600">' +
-          '&#x1F4E7; Hubungi admin/pengurus koperasi Anda untuk bantuan lebih lanjut, termasuk jika lupa username atau password.' +
+    title: 'Pusat Bantuan',
+    body: (function(){
+      var SV = function(d){ return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
+      var ICO_WA = SV('<path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3z"/><path d="M9.2 8.6c.2 2.6 2.7 5.1 5.3 5.4l1.3-1.3-1.9-1-.8.7a4 4 0 0 1-1.8-1.8l.7-.8-1-1.9z"/>');
+      var ICO_ML = SV('<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3.5 7.5L12 13l8.5-5.5"/>');
+      var ICO_FB = '<span style="font:900 21px Georgia,serif;color:#fff;line-height:1">f</span>';
+      var ICO_HS = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffd166" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="2"/><rect x="17" y="14" width="4" height="6" rx="2"/><path d="M20 20v.5a2.5 2.5 0 0 1-2.5 2.5H13"/></svg>';
+      function row(href, ext, grad, ico, lbl, val, act, copyVal){
+        var pill = 'border:1px solid rgba(45,106,79,.28);background:#eef6f1;color:#1f6b45;border-radius:99px;padding:5px 11px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;text-decoration:none;flex-shrink:0';
+        return '<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid rgba(45,106,79,.16);border-radius:14px;padding:7px 9px 7px 7px;box-shadow:0 1px 5px rgba(26,71,42,.07)">' +
+          '<a href="' + href + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + ' style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-decoration:none;color:inherit">' +
+            '<span style="width:38px;height:38px;border-radius:12px;background:' + grad + ';display:flex;align-items:center;justify-content:center;flex-shrink:0">' + ico + '</span>' +
+            '<span style="min-width:0"><span style="display:block;font-size:10.5px;font-weight:700;color:#6b7d72;letter-spacing:.2px">' + lbl + '</span>' +
+            '<span style="display:block;font-size:13.5px;font-weight:800;color:#1c3025;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + val + '</span></span>' +
+          '</a>' +
+          (copyVal ? '<button type="button" onclick="_liCopy(this,\'' + copyVal + '\')" style="' + pill + '">Salin</button>'
+                   : '<a href="' + href + '" target="_blank" rel="noopener" style="' + pill + '">Buka</a>') +
+        '</div>';
+      }
+      return '<div style="color:#374151">' +
+        '<div style="display:flex;align-items:center;gap:11px;background:linear-gradient(135deg,#12351f,#2d6a4f);border-radius:14px;padding:11px 13px">' +
+          '<span style="width:40px;height:40px;border-radius:50%;background:rgba(255,209,102,.16);border:1px solid rgba(255,209,102,.4);display:flex;align-items:center;justify-content:center;flex-shrink:0">' + ICO_HS + '</span>' +
+          '<div style="min-width:0"><div style="font-size:13.5px;font-weight:800;color:#fff">Ada kendala?</div>' +
+          '<div style="font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.82)">Hubungi pengurus untuk bantuan login, lupa username/password, atau transaksi.</div></div>' +
         '</div>' +
-        '<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">' +
-          '<a href="https://wa.me/6287855712922" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:11px;text-decoration:none;background:#25D366;border-radius:12px;padding:12px 14px;box-shadow:0 4px 10px rgba(37,211,102,0.3)">' +
-            '<span style="font-size:20px;line-height:1;flex-shrink:0">&#x1F4AC;</span>' +
-            '<div style="flex:1;min-width:0">' +
-              '<div style="font-size:12px;font-weight:800;color:#fff">WhatsApp</div>' +
-              '<div style="font-size:12.5px;color:rgba(255,255,255,0.9);font-weight:600">0878-5571-2922</div>' +
-            '</div>' +
-            '<span style="font-size:14px;color:#fff">&rarr;</span>' +
-          '</a>' +
-          '<a href="mailto:koperasirenco@gmail.com" style="display:flex;align-items:center;gap:11px;text-decoration:none;background:#fff;border:1.5px solid rgba(45,106,79,0.25);border-radius:12px;padding:12px 14px">' +
-            '<span style="font-size:20px;line-height:1;flex-shrink:0">&#x2709;&#xFE0F;</span>' +
-            '<div style="flex:1;min-width:0">' +
-              '<div style="font-size:12px;font-weight:800;color:#1c3025">Email</div>' +
-              '<div style="font-size:12.5px;color:#2d6a4f;font-weight:600;overflow:hidden;text-overflow:ellipsis">koperasirenco@gmail.com</div>' +
-            '</div>' +
-            '<span style="font-size:14px;color:#2d6a4f">&rarr;</span>' +
-          '</a>' +
-          '<a href="https://www.facebook.com/share/1FoxWn4nsu/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:11px;text-decoration:none;background:#1877F2;border-radius:12px;padding:12px 14px;box-shadow:0 4px 10px rgba(24,119,242,0.3)">' +
-            '<span style="width:24px;height:24px;border-radius:50%;background:#fff;color:#1877F2;font:900 17px Georgia,serif;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1">f</span>' +
-            '<div style="flex:1;min-width:0">' +
-              '<div style="font-size:12px;font-weight:800;color:#fff">Facebook</div>' +
-              '<div style="font-size:12.5px;color:rgba(255,255,255,0.9);font-weight:600">Koperasi Renco</div>' +
-            '</div>' +
-            '<span style="font-size:14px;color:#fff">&rarr;</span>' +
-          '</a>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">' +
+          row('https://wa.me/6287855712922', true, 'linear-gradient(135deg,#25D366,#128c4a)', ICO_WA, 'WhatsApp · chat langsung', '0878-5571-2922', 0, '0878-5571-2922') +
+          row('mailto:koperasirenco@gmail.com', false, 'linear-gradient(135deg,#2d6a4f,#40916c)', ICO_ML, 'Email · kirim pesan', 'koperasirenco@gmail.com', 0, 'koperasirenco@gmail.com') +
+          row('https://www.facebook.com/share/1FoxWn4nsu/', true, 'linear-gradient(135deg,#1877F2,#0b57c9)', ICO_FB, 'Facebook · halaman resmi', 'Koperasi Renco', 1, '') +
         '</div>' +
-      '</div>'
+      '</div>';
+    })()
   }
 };
 /* Tombol "Bantuan Admin" di halaman login memakai isi yang sama dengan menu Bantuan */
+function _liCopy(b, t){
+  function ok(){ b.textContent = 'Tersalin'; setTimeout(function(){ b.textContent = 'Salin'; }, 1400); }
+  try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(ok, function(){ b.textContent = 'Gagal'; }); return; } } catch(e){}
+  var a = document.createElement('textarea'); a.value = t; a.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(a); a.select();
+  try { document.execCommand('copy'); ok(); } catch(e){ b.textContent = 'Gagal'; } a.remove();
+}
 _LOGIN_INFO_CONTENT.bantuanAdmin = { title: '&#x1F3A7; Bantuan Admin', body: _LOGIN_INFO_CONTENT.bantuan.body };
 function _liProduk(icon, judul, ket) {
   return '<div style="display:flex;gap:11px;align-items:flex-start;background:#f8faf9;border-radius:12px;padding:11px 13px;border:1.5px solid rgba(45,106,79,0.12)">' +
@@ -81237,7 +81232,39 @@ var CSS = '' +
 '#raModeBar{padding:6px 10px 0}.ra-live{padding:6px 10px;border-radius:10px}.ra-end{padding:7px 10px;font-size:11.5px;border-radius:10px}' +
 '#raDown{position:absolute;right:12px;bottom:92px;z-index:3;border:none;border-radius:99px;padding:5px 11px;font:inherit;font-size:11px;font-weight:800;background:#1f5236;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.28);cursor:pointer;opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .2s,transform .2s}#raDown.on{opacity:1;pointer-events:auto;transform:none}' +
 'html.renco-dark .ra-chip:hover,html.renco-dark .ra-chip:focus-visible{background:#40916c;color:#fff}' +
-'@media (min-width:700px){#raPanel{height:min(66vh,540px);border-radius:18px}}';
+'#raOverlay{align-items:center;padding:12px;transition:background .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s,visibility 0s .6s}' +
+'#raOverlay.open{background:rgba(13,32,22,.3);-webkit-backdrop-filter:blur(9px) saturate(1.15)!important;backdrop-filter:blur(9px) saturate(1.15)!important;transition:background .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s,visibility 0s}' +
+'#raPanel{z-index:2;width:min(92vw,340px);max-width:340px;height:min(60vh,430px);height:min(60dvh,430px);border-radius:22px;border:1px solid rgba(255,255,255,.2);' +
+ 'box-shadow:0 24px 60px rgba(0,0,0,.45);opacity:0;transform:scale(.8) translateY(26px);transition:transform .22s ease-in,opacity .2s}' +
+'#raOverlay.open #raPanel{opacity:1;transform:none;transition:transform .42s cubic-bezier(.2,.9,.25,1.2),opacity .25s}#raPanel.swiping{transition:none}' +
+'#raHead{padding:11px 10px 8px 13px}#raHead:before{display:none}' +
+'#raLot{position:absolute;left:50%;top:50%;width:460px;height:460px;margin:-230px 0 0 -230px;pointer-events:none;z-index:1}' +
+'#raDown{bottom:84px}' +
+'#raOverlay{transition:background .5s,backdrop-filter .5s,-webkit-backdrop-filter .5s,visibility 0s .7s}' +
+'#raOverlay.open{background:rgba(8,24,15,.5);-webkit-backdrop-filter:blur(22px) saturate(1.25)!important;backdrop-filter:blur(22px) saturate(1.25)!important;transition:background .5s,backdrop-filter .5s,-webkit-backdrop-filter .5s,visibility 0s}' +
+/* ── lorong waktu: kartu terhisap/terpusar dari titik tengah, pusaran berputar di belakangnya ── */
+'#raPanel{opacity:0;transform:scale(.04);border-radius:50%;transition:none}' +
+'#raOverlay.open #raPanel{opacity:1;transform:none;border-radius:22px;transition:none;animation:raVin .75s cubic-bezier(.2,.8,.2,1) both}' +
+'#raOverlay.closing #raPanel{animation:raVout .55s cubic-bezier(.65,0,.85,.4) both}' +
+'@keyframes raVin{0%{opacity:0;transform:scale(.04) rotate(-420deg);border-radius:50%;filter:blur(8px)}45%{opacity:1;border-radius:50%;filter:blur(3px)}100%{opacity:1;transform:none;border-radius:22px;filter:blur(0)}}' +
+'@keyframes raVout{0%{opacity:1;transform:none;border-radius:22px;filter:blur(0)}55%{border-radius:50%;filter:blur(3px)}100%{opacity:0;transform:scale(.04) rotate(380deg);border-radius:50%;filter:blur(8px)}}' +
+'#raLot{width:580px;height:580px;margin:-290px 0 0 -290px;opacity:0;transform:scale(.1)}' +
+'#raLot i{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0,rgba(255,209,102,.75) 12%,transparent 30%,rgba(82,224,138,.6) 52%,transparent 72%,rgba(255,209,102,.55) 88%,transparent 100%);' +
+ '-webkit-mask:radial-gradient(circle,transparent 16%,#000 42%,transparent 70%);mask:radial-gradient(circle,transparent 16%,#000 42%,transparent 70%);filter:blur(6px)}' +
+'#raLot i+i{inset:14%;background:conic-gradient(from 180deg,transparent 0,rgba(255,255,255,.6) 10%,transparent 28%,rgba(255,209,102,.65) 55%,transparent 76%)}' +
+'#raOverlay.open #raLot{animation:raVtxIn .9s cubic-bezier(.2,.7,.3,1) both}#raOverlay.open #raLot i+i{animation:raCtr .9s linear both}' +
+'#raOverlay.closing #raLot{animation:raVtxOut .65s cubic-bezier(.5,0,.8,.5) both}#raOverlay.closing #raLot i+i{animation:raCtr .65s linear reverse both}' +
+'@keyframes raVtxIn{0%{opacity:0;transform:scale(.1) rotate(0)}30%{opacity:1}100%{opacity:0;transform:scale(1.15) rotate(540deg)}}' +
+'@keyframes raVtxOut{0%{opacity:0;transform:scale(1.1) rotate(0)}40%{opacity:1}100%{opacity:0;transform:scale(.1) rotate(-440deg)}}' +
+'@keyframes raCtr{from{transform:rotate(0)}to{transform:rotate(-900deg)}}' +
+'@media (prefers-reduced-motion:reduce){#raOverlay.open #raPanel,#raOverlay.closing #raPanel{animation:none!important;transform:none;border-radius:22px;opacity:1}#raLot{display:none}}' +
+/* ── tanpa animasi: kartu langsung tampil/hilang ── */
+'#raLot{display:none!important}' +
+'#raOverlay,#raOverlay.open{transition:none!important}' +
+'#raPanel,#raOverlay.open #raPanel,#raOverlay.closing #raPanel{animation:none!important;transition:none!important;transform:none!important;filter:none!important;border-radius:22px}' +
+'#raPanel{opacity:0}#raOverlay.open #raPanel{opacity:1}' +
+'#raFab,#raFab *,#raFab::before,#raFab::after,#raFab:not(.dragging):not(.press),#raFab.has-alert .dot{animation:none!important}' +
+'.ra-row,.ra-chip,#raHead,.ra-bar-t i,#raDown,#raSend,.ra-tile,.ra-act{animation:none!important;transition:none!important}';
 
 var ICON = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#raG)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="raG" x1="4" y1="3" x2="20" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="#ffe9a8"/><stop offset=".55" stop-color="#ffd166"/><stop offset="1" stop-color="#f4a922"/></linearGradient></defs><path d=\"M4 13v-1a8 8 0 0 1 16 0v1\"/><rect x=\"3\" y=\"12\" width=\"4\" height=\"6\" rx=\"2\"/><rect x=\"17\" y=\"12\" width=\"4\" height=\"6\" rx=\"2\"/><path d=\"M20 18v1a3 3 0 0 1-3 3h-3\"/><rect x=\"11\" y=\"20.2\" width=\"3\" height=\"3\" rx=\"1.5\"/></svg>';
 var ICON_S = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4L12 3z" fill="currentColor"/><path d="M18 14l.9 2.1 2.1.9-2.1.9L18 20l-.9-2.1-2.1-.9 2.1-.9L18 14z" fill="currentColor" opacity=".7"/></svg>';
@@ -81322,7 +81349,7 @@ function build(){
   fab.innerHTML = '<span class="ic">' + ICON + '</span><span class="dot"></span>';
   document.body.appendChild(fab); bindFab(fab); fabRestore(false); wake();
   var ov = document.createElement('div'); ov.id = 'raOverlay';
-  ov.innerHTML = '<div id="raPanel" role="dialog" aria-modal="true" aria-label="Asisten Keuangan Renco">' +
+  ov.innerHTML = '<div id="raLot" aria-hidden="true"><i></i><i></i></div><div id="raPanel" role="dialog" aria-modal="true" aria-label="Asisten Keuangan Renco">' +
     '<div id="raHead"><div class="tt"><b>Asisten Renco</b><span>Online</span></div>' +
     '<button type="button" id="raClear" title="Mulai ulang" aria-label="Mulai ulang">Ulang</button>' +
     '<button type="button" id="raClose" aria-label="Tutup">Tutup</button></div>' +
@@ -81584,6 +81611,9 @@ function toggle(on){
   build(); var ov = $('raOverlay'); if (!ov) return;
   UI.open = on === undefined ? !UI.open : !!on;
   if (UI.open) UI.t0 = Date.now();
+  clearTimeout(UI.clT);
+  if (UI.open) ov.classList.remove('closing');
+  else if (ov.classList.contains('open')) { ov.classList.add('closing'); UI.clT = setTimeout(function(){ ov.classList.remove('closing'); }, 700); }
   ov.classList.toggle('open', UI.open);
   var fab = $('raFab'); if (fab) { fab.style.display = UI.open ? 'none' : (me() && !window._rencoPayOnly ? 'flex' : 'none'); }
   if (UI.open) { try { applyMode(); } catch(e){} if (!log().children.length) greet(); setTimeout(function(){ var i = $('raIn'); if (i && window.innerWidth > 700) i.focus(); }, 120); }
@@ -94058,4 +94088,64 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 })();
 </script>
 
+
+<!-- ===== FULL-SCREEN LAYOUT: area aman atas & bawah + posisi tombol (override terakhir) ===== -->
+<style id="fs-layout-fix">
+:root{
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --nav-h: calc(79px + var(--sab));   /* diperbarui otomatis oleh JS sesuai tinggi nav asli */
+}
+html, body{ height:100%; min-height:100dvh; overscroll-behavior:none; background:#0d2016; }
+#app{ position:fixed; top:0; left:0; right:0; bottom:0; height:100vh; height:100dvh; padding-left:var(--sal); padding-right:var(--sar); }
+
+/* ATAS: header menyatu dengan status bar (isi turun sebesar notch/status bar) */
+.app-header{ padding-top:calc(12px + var(--sat)) !important; }
+/* Halaman RencoPay (header utama disembunyikan) */
+#page-rencoPay{ padding-top:var(--sat); }
+
+/* BAWAH: bottom-nav menempel ke tepi layar, ikon naik di atas home-indicator */
+.bottom-nav{
+  bottom:0 !important; left:0 !important; right:0 !important;
+  padding-bottom:var(--sab) !important;
+  padding-left:var(--sal); padding-right:var(--sar);
+  min-height:calc(72px + var(--sab)) !important;
+}
+#content{ overscroll-behavior-y:contain; }
+.page{ padding-bottom:calc(var(--nav-h) + 24px) !important; }
+
+/* TOMBOL melayang: selalu di atas bottom-nav + area aman */
+.fab{ bottom:calc(var(--nav-h) + 14px) !important; right:calc(16px + var(--sar)) !important; }
+.fab-edge{ bottom:calc(var(--nav-h) + 14px) !important; }
+.fab-edge.show{ right:calc(16px + var(--sar)) !important; }
+#rpInstallFab{ bottom:calc(var(--nav-h) + 12px) !important; right:calc(16px + var(--sar)) !important; }
+.rp-toast-notif{ bottom:calc(var(--nav-h) + 12px) !important; }
+.toast-rencopay{ bottom:calc(var(--nav-h) + 12px) !important; }
+</style>
+<script id="fs-layout-js">
+(function(){
+  function nav(){
+    var a=document.getElementById('bottomNavKoperasi'), b=document.getElementById('bottomNavRencoPay');
+    if(a && a.offsetHeight) return a;
+    if(b && b.offsetHeight) return b;
+    return null;
+  }
+  function sync(){
+    var n=nav();
+    if(n) document.documentElement.style.setProperty('--nav-h', n.offsetHeight+'px');
+  }
+  window.addEventListener('resize', sync);
+  window.addEventListener('orientationchange', function(){ setTimeout(sync,250); });
+  if(window.ResizeObserver){
+    var ro=new ResizeObserver(sync);
+    ['bottomNavKoperasi','bottomNavRencoPay'].forEach(function(id){ var e=document.getElementById(id); if(e) ro.observe(e); });
+  }
+  // nav berganti (Koperasi <-> RencoPay) lewat display:none → cek berkala ringan
+  setInterval(function(){ if(!document.hidden) sync(); }, 1500);
+  if(document.readyState!=='loading') sync(); else document.addEventListener('DOMContentLoaded', sync);
+  window.addEventListener('load', function(){ sync(); setTimeout(sync,600); });
+})();
+</script>
 </body></html>
