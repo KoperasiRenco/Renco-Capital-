@@ -76695,6 +76695,7 @@ function refreshRow(){
   var bb=$('qlBioBtn'); if(bb){ bb.style.display='none'; if(d.bio) bioAvailable().then(function(ok){ if(ok) bb.style.display=''; }); }
 }
 
+window._qlRefresh=refreshRow;
 /* Jalankan login normal memakai kredensial hasil dekripsi */
 /* Layar loading (blur seluruh halaman) selama Login Cepat memproses masuk */
 function qlBusy(on){
@@ -94137,15 +94138,21 @@ html, body{ height:100%; min-height:100dvh; overscroll-behavior:none; background
 /* ===== Header utama: dinaikkan & diperkecil, semua tampilan menyesuaikan ===== */
 :root{ --hdr-pt: calc(4px + var(--sat) * 0.5); }
 .app-header{ padding:var(--hdr-pt) 12px 6px !important; gap:4px !important; box-shadow:0 2px 10px rgba(4,14,7,.3) !important; }
-.app-header .app-header-top{ gap:4px; min-height:32px; }
-.app-header .hdr-swap-b{ height:clamp(24px,7.6vw,30px) !important; }
-.app-header .rc-wordmark-hdr{ height:clamp(22px,7vw,28px) !important; }
-.app-header .logo-icon{ width:30px !important; height:30px !important; font-size:16px !important; border-radius:9px !important; }
-.app-header .header-menu-toggle,.app-header .header-moon-btn{ width:30px !important; height:30px !important; }
-.app-header .header-menu-toggle svg,.app-header .header-moon-btn svg{ width:20px; height:20px; }
+.app-header .app-header-top{ gap:4px; min-height:38px; }
+.app-header .hdr-swap-b{ height:clamp(28px,8.8vw,35px) !important; }
+.app-header .rc-wordmark-hdr{ height:clamp(26px,8.2vw,33px) !important; }
+.app-header .logo-icon{ width:34px !important; height:34px !important; font-size:18px !important; border-radius:9px !important; }
+.app-header .header-menu-toggle,.app-header .header-moon-btn{ width:38px !important; height:38px !important; }
+.app-header .header-menu-toggle svg,.app-header .header-moon-btn svg{ width:24px; height:24px; }
 #page-rencoPay{ padding-top:var(--hdr-pt) !important; }
 /* menu bawah: jarak aman minimum agar label tidak menempel ke tepi layar */
 .bottom-nav{ padding-bottom:max(var(--sab), 8px) !important; min-height:calc(68px + max(var(--sab), 8px)) !important; }
+
+/* ===== Latar penuh setelah deploy/layar penuh: tidak ada celah di atas/bawah ===== */
+html{ background:linear-gradient(180deg,#0d2016 0,#1a472a 90px,#eef6f0 90px,#e8f2e4 100%) !important; }
+html:has(body.on-rencopay){ background:#040e07 !important; }
+body{ background:transparent !important; }
+#app{ height:var(--app-h, 100dvh) !important; min-height:var(--app-h, 100dvh); }
 </style>
 <script id="fs-layout-js">
 (function(){
@@ -94202,6 +94209,21 @@ html, body{ height:100%; min-height:100dvh; overscroll-behavior:none; background
   // pointerup & keydown juga memicu layar penuh (sentuhan/ketukan pertama apa pun)
   document.addEventListener('pointerup', onGesture, {passive:true});
   document.addEventListener('keydown', function(){ goFs(); }, true);
+
+  // tinggi aplikasi = tinggi layar nyata (ikut berubah saat bilah browser hilang / layar penuh)
+  function syncH(){
+    var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+    if(inFs()||isStandalone()) h=Math.max(h,window.innerHeight);
+    document.documentElement.style.setProperty('--app-h', Math.round(h)+'px');
+    sync();
+  }
+  window.addEventListener('resize', syncH);
+  if(window.visualViewport) window.visualViewport.addEventListener('resize', syncH);
+  window.addEventListener('orientationchange', function(){ setTimeout(syncH,200); setTimeout(syncH,600); });
+  ['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){ document.addEventListener(ev,function(){ setTimeout(syncH,100); setTimeout(syncH,500); setTimeout(syncH,1200); }); });
+  window.addEventListener('pageshow', syncH);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) syncH(); });
+  syncH(); setTimeout(syncH,300); setTimeout(syncH,1500);
   window.addEventListener('resize', sync);
   window.addEventListener('orientationchange', function(){ setTimeout(sync,250); });
   if(window.ResizeObserver){
@@ -94212,6 +94234,49 @@ html, body{ height:100%; min-height:100dvh; overscroll-behavior:none; background
   setInterval(function(){ if(!document.hidden) sync(); }, 1500);
   if(document.readyState!=='loading') sync(); else document.addEventListener('DOMContentLoaded', sync);
   window.addEventListener('load', function(){ sync(); setTimeout(sync,600); });
+})();
+</script>
+
+<script id="ql-persist-guard">
+/* ===== Perlindungan sandi (PIN) & biometrik Login Cepat dari penghapusan cache =====
+   1) Minta penyimpanan "persisten" ke browser → tidak dibuang otomatis & tidak ikut "Hapus cache".
+   2) Salinan cadangan di IndexedDB: jika localStorage terhapus sendiri (pembersih HP / hapus cache),
+      PIN & biometrik dipulihkan otomatis saat aplikasi dibuka lagi. Password tetap terenkripsi (tidak polos).
+   3) Penonaktifan sengaja (tombol "Nonaktifkan"/PIN salah 5x) ikut menghapus salinan, jadi tidak muncul lagi. */
+(function(){
+  'use strict';
+  var LS='rc_quicklogin_v1', IDBN='rc_ql_db', STORE='k', MK='ql_mirror';
+  function idb(){ return new Promise(function(res,rej){ var r=indexedDB.open(IDBN,1); r.onupgradeneeded=function(){ r.result.createObjectStore(STORE); }; r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
+  function put(v){ return idb().then(function(db){ return new Promise(function(res){ var t=db.transaction(STORE,'readwrite'); t.objectStore(STORE).put(v,MK); t.oncomplete=function(){ db.close(); res(); }; t.onerror=function(){ res(); }; }); }).catch(function(){}); }
+  function del(){ return idb().then(function(db){ return new Promise(function(res){ var t=db.transaction(STORE,'readwrite'); t.objectStore(STORE).delete(MK); t.oncomplete=function(){ db.close(); res(); }; t.onerror=function(){ res(); }; }); }).catch(function(){}); }
+  function get(){ return idb().then(function(db){ return new Promise(function(res){ var q=db.transaction(STORE,'readonly').objectStore(STORE).get(MK); q.onsuccess=function(){ db.close(); res(q.result); }; q.onerror=function(){ res(null); }; }); }).catch(function(){ return null; }); }
+
+  // (1) penyimpanan persisten
+  function persist(){ try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){} }
+  persist();
+  ['touchend','click'].forEach(function(ev){ document.addEventListener(ev, function once(){ document.removeEventListener(ev,once,true); persist(); }, true); });
+
+  // (3) sinkron instan: setiap simpan/hapus data Login Cepat langsung dicerminkan
+  try{
+    var sp=Storage.prototype, _set=sp.setItem, _rem=sp.removeItem;
+    sp.setItem=function(k,v){ var r=_set.apply(this,arguments); try{ if(this===window.localStorage && k===LS) put(String(v)); }catch(e){} return r; };
+    sp.removeItem=function(k){ var r=_rem.apply(this,arguments); try{ if(this===window.localStorage && k===LS) del(); }catch(e){} return r; };
+  }catch(e){}
+
+  // (2) pulihkan / lengkapi salinan saat aplikasi dibuka
+  function boot(){
+    var cur=null; try{ cur=localStorage.getItem(LS); }catch(e){}
+    get().then(function(m){
+      if(cur){ if(m!==cur) put(cur); return; }
+      if(m){
+        try{ JSON.parse(m); localStorage.setItem(LS,m); }catch(e){ return; }
+        try{ if(typeof window._qlRefresh==='function') window._qlRefresh(); }catch(e){}
+        setTimeout(function(){ try{ if(typeof window._qlRefresh==='function') window._qlRefresh(); }catch(e){} },1500);
+      }
+    });
+  }
+  if(window.indexedDB) boot();
+  window.addEventListener('pageshow', function(){ if(window.indexedDB) boot(); });
 })();
 </script>
 </body></html>
