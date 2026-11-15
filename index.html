@@ -89,7 +89,7 @@
   };
 })();
 </script>
-<meta name="rc-build" content="20261115-devrecover-v1">
+<meta name="rc-build" content="20261115-rpg-v1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' data: blob: https://ipwho.is https://api.bigdatacloud.net https://cwtoqrxakgaawqgyxhjz.supabase.co wss://cwtoqrxakgaawqgyxhjz.supabase.co https://api.rss2json.com https://api.allorigins.win https://corsproxy.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -17141,6 +17141,7 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
       <button class="modal-close" onclick="closeModal('modalTambahBerita')">✕</button>
     </div>
     <div class="modal-body">
+      <a href="https://www.facebook.com/share/r/19zetczkAT/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:10px 12px;margin-bottom:12px;border-radius:12px;background:rgba(24,119,242,.08);border:1.5px solid rgba(24,119,242,.3);color:#1877f2;font-size:12px;font-weight:800;text-decoration:none">📘 Buka halaman Facebook Renco Penuh Gosip (sumber utama) ↗</a>
       <div class="field">
         <label>Judul Berita</label>
         <input type="text" id="beritaJudul" placeholder="Judul artikel berita...">
@@ -17152,7 +17153,16 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
       </div>
       <div class="field">
         <label>Sumber / Media</label>
-        <input type="text" id="beritaSumber" placeholder="Contoh: CNBC Indonesia, Kompas, dll">
+        <input type="text" id="beritaSumber" value="Facebook · Renco Penuh Gosip" placeholder="Contoh: Facebook · Renco Penuh Gosip">
+      </div>
+      <div class="field">
+        <label>Foto postingan (opsional)</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="beritaFotoTh" style="flex:0 0 64px;height:64px;border-radius:12px;background:#eef1ee center/cover no-repeat;border:2px dashed #cbd3ce;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9aa7a0">🖼️</div>
+          <div style="flex:1;min-width:0"><input type="file" id="beritaFotoFile" accept="image/*" onchange="beritaFotoPilih(this)">
+            <button type="button" onclick="beritaFotoReset()" style="margin-top:6px;padding:5px 10px;border:1.5px solid rgba(230,57,70,.3);background:rgba(230,57,70,.07);color:#e63946;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Hapus foto</button></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:5px;line-height:1.4">Simpan foto dari postingan Facebook lalu pilih di sini. Foto dikecilkan otomatis; hanya 15 berita terbaru yang menyimpan foto agar data tetap ringan.</div>
       </div>
       <div class="field">
         <label>Ringkasan (opsional)</label>
@@ -17161,6 +17171,7 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
       <div class="field">
         <label>Kategori</label>
         <select id="beritaKategori">
+          <option value="facebook">📘 Facebook RPG</option>
           <option value="ekonomi">📈 Ekonomi & Keuangan</option>
           <option value="koperasi">🤝 Koperasi</option>
           <option value="investasi">💰 Investasi</option>
@@ -41627,20 +41638,62 @@ function saveBerita() {
   var ringkasan= (document.getElementById('beritaRingkasan')?.value || '').trim();
   var kategori = document.getElementById('beritaKategori')?.value || 'umum';
   if (!judul || !url) { showToast('⚠️ Judul dan URL wajib diisi'); return; }
-  if (!url.startsWith('http')) { showToast('⚠️ URL harus diawali https://'); return; }
-  _getBeritaDB().unshift({
+  if (!/^https?:\/\//i.test(url)) { showToast('⚠️ URL harus diawali https://'); return; }
+  var item = {
     id: 'brt' + Date.now(),
     judul, url, sumber, ringkasan, kategori,
     tanggal: new Date().toISOString(),
     postedBy: (AUTH && AUTH.user) ? AUTH.user.nama || 'Admin' : 'Admin'
-  });
+  };
+  if (window._beritaFotoData) item.foto = window._beritaFotoData;
+  _getBeritaDB().unshift(item);
+  // foto ikut tersimpan di data yang disinkronkan → hanya 15 berita terbaru yang menyimpan foto
+  _getBeritaDB().forEach(function (b, i) { if (i >= 15 && b.foto) delete b.foto; });
   saveDB();
   closeModal('modalTambahBerita');
-  ['beritaJudul','beritaUrl','beritaSumber','beritaRingkasan'].forEach(id => {
+  ['beritaJudul','beritaUrl','beritaRingkasan'].forEach(id => {
     var el = document.getElementById(id); if (el) el.value = '';
   });
+  var _sb = document.getElementById('beritaSumber'); if (_sb) _sb.value = 'Facebook · Renco Penuh Gosip';
+  beritaFotoReset();
   renderBerita();
   showToast('✅ Berita berhasil diposting');
+}
+
+function _beritaFotoOk(u) {
+  return typeof u === 'string' && ((/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(u) && u.length < 200000) || /^https:\/\//i.test(u));
+}
+function _beritaFotoHTML(b) {
+  if (!_beritaFotoOk(b.foto)) return '';
+  return '<img src="' + String(b.foto).replace(/"/g, '%22') + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'" style="width:100%;max-height:190px;object-fit:cover;border-radius:12px;margin-bottom:10px;display:block">';
+}
+function beritaFotoReset() {
+  window._beritaFotoData = '';
+  var th = document.getElementById('beritaFotoTh'); if (th) { th.style.backgroundImage = ''; th.textContent = '🖼️'; }
+  var fi = document.getElementById('beritaFotoFile'); if (fi) fi.value = '';
+}
+function beritaFotoPilih(inp) {
+  var f = inp.files && inp.files[0]; if (!f) return;
+  if (!/^image\//.test(f.type)) { showToast('⚠️ File harus berupa gambar'); return; }
+  var rd = new FileReader();
+  rd.onload = function () {
+    var im = new Image();
+    im.onload = function () {
+      var out = '', specs = [[720, .72], [600, .62], [480, .55], [400, .5]];
+      for (var k = 0; k < specs.length && !out; k++) {
+        var sc = Math.min(1, specs[k][0] / Math.max(im.width, im.height)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(im.width * sc)); c.height = Math.max(1, Math.round(im.height * sc));
+        var cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(im, 0, 0, c.width, c.height);
+        var u = c.toDataURL('image/jpeg', specs[k][1]); if (u.length < 140000) out = u;
+      }
+      if (!out) { showToast('⚠️ Foto terlalu besar, pilih foto lain'); return; }
+      window._beritaFotoData = out;
+      var th = document.getElementById('beritaFotoTh'); if (th) { th.style.backgroundImage = 'url(' + out + ')'; th.textContent = ''; }
+    };
+    im.onerror = function () { showToast('⚠️ Foto tidak bisa dibaca'); };
+    im.src = rd.result;
+  };
+  rd.readAsDataURL(f);
 }
 
 function hapusBerita(id) {
@@ -41660,9 +41713,9 @@ function renderBerita() {
   if (!list) return;
   var data = _getBeritaDB();
 
-  var KAT = { ekonomi:'📈 Ekonomi', koperasi:'🤝 Koperasi', investasi:'💰 Investasi', bursa:'📊 Bursa', umum:'🌐 Umum' };
-  var KAT_COLOR = { ekonomi:'#2d6a4f', koperasi:'#4361ee', investasi:'#b07a00', bursa:'#7b2d8b', umum:'#555' };
-  var KAT_BG    = { ekonomi:'rgba(45,106,79,0.1)', koperasi:'rgba(67,97,238,0.1)', investasi:'rgba(244,169,34,0.1)', bursa:'rgba(123,45,139,0.1)', umum:'rgba(0,0,0,0.06)' };
+  var KAT = { ekonomi:'📈 Ekonomi', koperasi:'🤝 Koperasi', investasi:'💰 Investasi', bursa:'📊 Bursa', umum:'🌐 Umum', facebook:'📘 Facebook RPG' };
+  var KAT_COLOR = { ekonomi:'#2d6a4f', koperasi:'#4361ee', investasi:'#b07a00', bursa:'#7b2d8b', umum:'#555', facebook:'#1877f2' };
+  var KAT_BG    = { ekonomi:'rgba(45,106,79,0.1)', koperasi:'rgba(67,97,238,0.1)', investasi:'rgba(244,169,34,0.1)', bursa:'rgba(123,45,139,0.1)', umum:'rgba(0,0,0,0.06)', facebook:'rgba(24,119,242,0.1)' };
 
   if (!data.length) {
     list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-soft)">'
@@ -41679,6 +41732,7 @@ function renderBerita() {
     var domain = '';
     try { domain = new URL(b.url).hostname.replace('www.',''); } catch(e) {}
     return '<div style="background:white;border:1.5px solid #eee;border-radius:16px;padding:14px 15px;margin-bottom:12px;box-shadow:0 1px 6px rgba(0,0,0,0.05)">'
+      + _beritaFotoHTML(b)
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">'
         + '<span style="display:inline-block;padding:3px 9px;border-radius:99px;font-size:9px;font-weight:800;letter-spacing:0.3px;background:' + KAT_BG[kat] + ';color:' + KAT_COLOR[kat] + '">' + (KAT[kat]||'🌐 Umum') + '</span>'
         + (isAdmin() ? '<button onclick="hapusBerita(\'' + b.id + '\')" style="flex-shrink:0;padding:3px 8px;border:1.5px solid rgba(230,57,70,0.3);background:rgba(230,57,70,0.07);color:#e63946;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">🗑</button>' : '')
@@ -41690,7 +41744,7 @@ function renderBerita() {
           + (b.sumber ? '<span style="font-weight:700;color:var(--text-soft)">📡 ' + b.sumber + '</span><span>·</span>' : '')
           + (domain ? '<span>' + domain + '</span><span>·</span>' : '')
           + '<span>' + tgl + '</span>'
-          + '<span style="margin-left:auto;color:#4361ee;font-weight:700">Baca →</span>'
+          + '<span style="margin-left:auto;color:#4361ee;font-weight:700">Baca selengkapnya →</span>'
         + '</div>'
       + '</a>'
     + '</div>';
@@ -47821,12 +47875,16 @@ function renderSlideBanner() {
   if (bcBtn) bcBtn.style.display = (typeof isAdmin === 'function' && isAdmin()) ? '' : 'none';
 
   // Load from storage (may have been edited)
-  const slides = _loadSlides();
+  const slides = _loadSlides().filter(_ikTampil);   // iklan nonaktif / di luar masa tayang tidak ditampilkan
+  window._ikView = slides;
   // Sync SLIDES global
   SLIDES.length = 0;
   slides.forEach(s => SLIDES.push(s));
+  if (_slideIdx >= slides.length) _slideIdx = 0;
+  var _wrapEl = document.getElementById('slideBannerWrap'); if (_wrapEl) _wrapEl.style.display = slides.length ? '' : 'none';
+  if (!slides.length) { track.innerHTML = ''; dots.innerHTML = ''; return; }
 
-  track.innerHTML = slides.map((s, i) => `
+  track.innerHTML = slides.map((s, i) => s.iklan ? _ikSlideHTML(s, i) : `
     <div class="slide-item" onclick="(function(){${s.ctaFn}})()">
       <div class="slide-item-bg" style="background:${s.gradient}"></div>
       <div class="slide-item-overlay" style="background:${s.overlay}"></div>
@@ -47973,6 +48031,7 @@ function _renderSlideEditorList() {
       </div>
       <div id="seForm_${i}" style="display:none"></div>
     </div>`).join('');
+  if (typeof _ikTandai === 'function') _ikTandai();
 }
 
 function openSlideEditForm(idx) {
@@ -48037,6 +48096,7 @@ function openSlideEditForm(idx) {
   formEl.style.display = 'block';
   const item = document.getElementById('sei_' + idx);
   if (item) item.classList.add('active-edit');
+  if (typeof _ikExtend === 'function') _ikExtend(idx);
 }
 
 function livePreviewSlide(idx) {
@@ -48075,6 +48135,7 @@ function applyGradientPreset(idx, presetIdx) {
 
 function saveSlideEdit(idx) {
   const s = _slidesData[idx];
+  if (s.iklan && typeof _ikBaca === 'function' && !_ikBaca(idx)) return;   // validasi kolom iklan dulu
   s.badge = document.getElementById('seiBadge_' + idx)?.value || s.badge;
   s.title = document.getElementById('seiTitle_' + idx)?.value || s.title;
   s.desc  = document.getElementById('seiDesc_' + idx)?.value || s.desc;
@@ -48137,6 +48198,164 @@ function addNewSlide() {
     const modal = document.querySelector('#modalEditSlide .modal-sheet');
     if (modal) modal.scrollTop = modal.scrollHeight;
   }, 100);
+}
+
+// ========== IKLAN UMUM / PRODUK pada banner promo ==========
+// Iklan disimpan sebagai slide biasa di DB.slideBanner dengan penanda s.iklan = 'umum' | 'produk', sehingga ikut tersinkron ke
+// semua perangkat dan tampil di slider Beranda serta daftar Promo di halaman login 1. Selalu diberi label "IKLAN".
+const IKLAN_MAX = 6;   // dibatasi agar data sinkron (foto disimpan di dalam data) tetap ringan
+function _ikToday() { const d = new Date(), m = d.getMonth() + 1, g = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (g < 10 ? '0' + g : g); }
+function _ikTampil(s) {
+  if (!s || !s.iklan) return true;
+  if (s.aktif === false) return false;
+  const t = _ikToday();
+  if (s.mulai && t < s.mulai) return false;
+  if (s.selesai && t > s.selesai) return false;
+  return true;
+}
+function _ikEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function _ikWa(n) {
+  let d = String(n || '').replace(/\D/g, '');
+  if (d.charAt(0) === '0') d = '62' + d.slice(1); else if (d.charAt(0) === '8') d = '62' + d;
+  return (d.length >= 9 && d.length <= 15) ? d : '';
+}
+function _ikUrl(s) {
+  if (!s) return '';
+  if (s.aksi === 'wa') {
+    const w = _ikWa(s.wa); if (!w) return '';
+    const msg = s.pesan || ('Halo, saya tertarik dengan iklan "' + (s.title || '') + '"' + (s.penjual ? ' dari ' + s.penjual : '') + ' di Renco.');
+    return 'https://wa.me/' + w + '?text=' + encodeURIComponent(msg);
+  }
+  if (s.aksi === 'url' && /^https?:\/\//i.test(s.link || '')) return s.link;
+  return '';
+}
+function _ikBuka(s) { const u = _ikUrl(s); if (!u) return; try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+function _ikBukaIdx(i) { _ikBuka((window._ikView || [])[i]); }
+function _ikGambarOk(u) { return typeof u === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(u) && u.length < 200000; }
+
+function _ikSlideHTML(s, i) {
+  const img = _ikGambarOk(s.gambar), url = _ikUrl(s);
+  return '<div class="slide-item slide-iklan' + (img ? ' has-img' : '') + '"' + (url ? ' onclick="_ikBukaIdx(' + i + ')"' : '') + '>'
+    + '<div class="slide-item-bg" style="background:' + _ikEsc(s.gradient) + '"></div>'
+    + '<div class="slide-item-overlay" style="background:' + _ikEsc(s.overlay) + '"></div>'
+    + '<div class="slide-emoji-bg">' + _ikEsc(s.emoji) + '</div>'
+    + '<span class="slide-iklan-tag">IKLAN</span>'
+    + (img ? '<img class="slide-iklan-img" alt="" src="' + s.gambar + '">' : '')
+    + '<div class="slide-item-inner">'
+    + '<div class="slide-badge">' + _ikEsc(s.badge) + '</div>'
+    + '<div class="slide-title">' + _ikEsc(s.title) + '</div>'
+    + (s.iklan === 'produk' && s.harga ? '<div class="ik-harga">' + _ikEsc(s.harga) + '</div>' : '')
+    + '<div class="slide-desc">' + _ikEsc(s.desc) + '</div>'
+    + (url ? '<button class="slide-cta" style="background:' + _ikEsc(s.ctaBg) + ';color:' + _ikEsc(s.ctaColor) + '" onclick="event.stopPropagation();_ikBukaIdx(' + i + ')">' + _ikEsc(s.cta || 'Selengkapnya') + ' →</button>' : '')
+    + (s.penjual ? '<div class="ik-seller">Oleh ' + _ikEsc(s.penjual) + '</div>' : '')
+    + '</div></div>';
+}
+
+function _ikTambah(jenis) {
+  _slidesData = _loadSlides();
+  if (_slidesData.filter(function (x) { return x.iklan; }).length >= IKLAN_MAX) { showToast('⚠️ Maksimal ' + IKLAN_MAX + ' iklan agar data tetap ringan'); return; }
+  const prod = jenis === 'produk', pr = GRADIENT_PRESETS[4];
+  _slidesData.push({
+    iklan: prod ? 'produk' : 'umum',
+    badge: prod ? '🛍️ Produk' : '📣 Iklan', title: prod ? 'Nama Produk' : 'Judul Iklan',
+    desc: prod ? 'Keunggulan singkat produk.' : 'Isi singkat iklan.',
+    cta: prod ? 'Pesan Sekarang' : 'Selengkapnya', ctaFn: '',
+    gradient: pr.grad, overlay: pr.overlay, ctaBg: 'var(--gold)', ctaColor: '#0d2016', emoji: prod ? '🛍️' : '📣',
+    gambar: '', harga: '', penjual: '', aksi: 'wa', wa: '', link: '', pesan: '', mulai: '', selesai: '',
+    aktif: false   // belum tayang sampai Admin menyalakan "Tayangkan iklan ini" dan menyimpan
+  });
+  _saveSlides();
+  _renderSlideEditorList();
+  const n = _slidesData.length - 1;
+  openSlideEditForm(n);
+  setTimeout(function () { const m = document.querySelector('#modalEditSlide .modal-sheet'); if (m) m.scrollTop = m.scrollHeight; }, 100);
+}
+
+function _ikTandai() {
+  (_slidesData || []).forEach(function (s, i) {
+    if (!s || !s.iklan) return;
+    const t = document.querySelector('#sei_' + i + ' .slide-editor-item-title'); if (!t) return;
+    t.insertAdjacentHTML('afterbegin', '<span class="ik-tag">IKLAN' + (s.iklan === 'produk' ? ' PRODUK' : '') + (_ikTampil(s) ? '' : ' · TIDAK TAYANG') + '</span>');
+  });
+}
+
+function _ikExtend(idx) {
+  const s = _slidesData[idx]; if (!s || !s.iklan) return;
+  const form = document.querySelector('#seForm_' + idx + ' .slide-edit-form'); if (!form) return;
+  const fn = document.getElementById('seiCtaFn_' + idx); if (fn && fn.closest('.field')) fn.closest('.field').style.display = 'none';
+  const sel = function (v, cur) { return v === cur ? ' selected' : ''; };
+  const box = document.createElement('div'); box.className = 'ik-box';
+  box.innerHTML =
+    '<div class="field"><label>Jenis iklan</label><select id="ikJenis_' + idx + '" onchange="_ikJenisChg(' + idx + ')">'
+    + '<option value="umum"' + sel('umum', s.iklan) + '>Iklan umum</option><option value="produk"' + sel('produk', s.iklan) + '>Iklan produk</option></select></div>'
+    + '<div class="field"><label>Foto iklan / produk (opsional)</label><div class="ik-img"><div class="th" id="ikTh_' + idx + '"></div>'
+    + '<div style="flex:1;min-width:0"><input type="file" id="ikFile_' + idx + '" accept="image/*" onchange="_ikFoto(' + idx + ',this)">'
+    + '<button type="button" class="se-btn se-btn-del" style="margin-top:6px" onclick="_ikHapusFoto(' + idx + ')">Hapus foto</button></div></div>'
+    + '<div class="pi-hint" style="font-size:11px;color:var(--text-soft);margin-top:4px">Foto otomatis dikecilkan agar ringan.</div></div>'
+    + '<div class="field" id="ikHargaF_' + idx + '"><label>Harga</label><input type="text" id="ikHarga_' + idx + '" maxlength="30" value="' + _ikEsc(s.harga) + '" placeholder="Rp 25.000"></div>'
+    + '<div class="field"><label>Nama penjual / pengiklan</label><input type="text" id="ikPenjual_' + idx + '" maxlength="40" value="' + _ikEsc(s.penjual) + '" placeholder="Mis. UMKM anggota"></div>'
+    + '<div class="field"><label>Tombol mengarah ke</label><select id="ikAksi_' + idx + '" onchange="_ikAksiChg(' + idx + ')">'
+    + '<option value="wa"' + sel('wa', s.aksi) + '>WhatsApp penjual</option><option value="url"' + sel('url', s.aksi) + '>Tautan (website)</option><option value="none"' + sel('none', s.aksi) + '>Tanpa tombol</option></select></div>'
+    + '<div class="field" id="ikWaF_' + idx + '"><label>No. WhatsApp</label><input type="tel" id="ikWa_' + idx + '" maxlength="20" value="' + _ikEsc(s.wa) + '" placeholder="0812xxxxxxxx">'
+    + '<label style="margin-top:8px">Pesan awal (opsional)</label><input type="text" id="ikPesan_' + idx + '" maxlength="160" value="' + _ikEsc(s.pesan) + '" placeholder="Kosongkan untuk pesan otomatis"></div>'
+    + '<div class="field" id="ikUrlF_' + idx + '"><label>Tautan (https://…)</label><input type="url" id="ikLink_' + idx + '" maxlength="300" value="' + _ikEsc(s.link) + '" placeholder="https://"></div>'
+    + '<div class="ik-row2"><div class="field"><label>Mulai tayang</label><input type="date" id="ikMulai_' + idx + '" value="' + _ikEsc(s.mulai) + '"></div>'
+    + '<div class="field"><label>Selesai</label><input type="date" id="ikSelesai_' + idx + '" value="' + _ikEsc(s.selesai) + '"></div></div>'
+    + '<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:700"><input type="checkbox" id="ikAktif_' + idx + '"' + (s.aktif !== false ? ' checked' : '') + '> Tayangkan iklan ini</label></div>';
+  form.insertBefore(box, form.lastElementChild);
+  _ikFotoPrev(idx); _ikAksiChg(idx); _ikJenisChg(idx);
+}
+function _ikJenisChg(idx) {
+  const j = document.getElementById('ikJenis_' + idx), f = document.getElementById('ikHargaF_' + idx);
+  if (j && f) f.style.display = j.value === 'produk' ? '' : 'none';
+}
+function _ikAksiChg(idx) {
+  const a = document.getElementById('ikAksi_' + idx); if (!a) return;
+  const w = document.getElementById('ikWaF_' + idx), u = document.getElementById('ikUrlF_' + idx);
+  if (w) w.style.display = a.value === 'wa' ? '' : 'none';
+  if (u) u.style.display = a.value === 'url' ? '' : 'none';
+}
+function _ikFotoPrev(idx) {
+  const th = document.getElementById('ikTh_' + idx), s = _slidesData[idx]; if (!th || !s) return;
+  if (_ikGambarOk(s.gambar)) { th.style.backgroundImage = 'url(' + s.gambar + ')'; th.textContent = ''; }
+  else { th.style.backgroundImage = ''; th.textContent = '🖼️'; }
+}
+function _ikHapusFoto(idx) { if (_slidesData[idx]) { _slidesData[idx].gambar = ''; _ikFotoPrev(idx); } }
+function _ikFoto(idx, inp) {
+  const f = inp.files && inp.files[0]; if (!f) return;
+  if (!/^image\//.test(f.type)) { showToast('⚠️ File harus berupa gambar'); return; }
+  const rd = new FileReader();
+  rd.onload = function () {
+    const im = new Image();
+    im.onload = function () {
+      let out = ''; const specs = [[720, .72], [600, .62], [480, .55], [400, .5]];
+      for (let k = 0; k < specs.length && !out; k++) {
+        const sc = Math.min(1, specs[k][0] / Math.max(im.width, im.height)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(im.width * sc)); c.height = Math.max(1, Math.round(im.height * sc));
+        const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(im, 0, 0, c.width, c.height);
+        const u = c.toDataURL('image/jpeg', specs[k][1]); if (u.length < 140000) out = u;
+      }
+      if (!out) { showToast('⚠️ Foto terlalu besar, pilih foto lain'); return; }
+      if (_slidesData[idx]) { _slidesData[idx].gambar = out; _ikFotoPrev(idx); showToast('✅ Foto dipasang — tekan Simpan'); }
+    };
+    im.onerror = function () { showToast('⚠️ Foto tidak bisa dibaca'); };
+    im.src = rd.result;
+  };
+  rd.readAsDataURL(f);
+}
+function _ikBaca(idx) {
+  const s = _slidesData[idx];
+  const g = function (id) { const e = document.getElementById(id + '_' + idx); return e ? String(e.value || '').trim() : ''; };
+  const jenis = g('ikJenis') === 'produk' ? 'produk' : 'umum';
+  let aksi = g('ikAksi'); if (!/^(wa|url|none)$/.test(aksi)) aksi = 'none';
+  const wa = g('ikWa'), link = g('ikLink'), m = g('ikMulai'), a = g('ikSelesai');
+  if (aksi === 'wa' && !_ikWa(wa)) { showToast('⚠️ Nomor WhatsApp belum benar'); return false; }
+  if (aksi === 'url' && !/^https?:\/\//i.test(link)) { showToast('⚠️ Tautan harus diawali http:// atau https://'); return false; }
+  if (m && a && a < m) { showToast('⚠️ Tanggal selesai lebih awal dari tanggal mulai'); return false; }
+  const ak = document.getElementById('ikAktif_' + idx);
+  s.iklan = jenis; s.harga = jenis === 'produk' ? g('ikHarga') : ''; s.penjual = g('ikPenjual');
+  s.aksi = aksi; s.wa = _ikWa(wa) || ''; s.link = link; s.pesan = g('ikPesan'); s.mulai = m; s.selesai = a; s.aktif = !!(ak && ak.checked);
+  return true;
 }
 
 // ========== INIT ==========
@@ -48485,6 +48704,23 @@ window.addEventListener('load', ()=>{
 </div>
 
 <!-- MODAL: Edit Slide Banner -->
+<style id="iklan-style">
+/* Iklan umum / produk pada banner promo */
+.slide-iklan.has-img .slide-item-inner{ padding-right:122px; }
+.slide-iklan-img{ position:absolute; right:14px; top:50%; transform:translateY(-50%); width:96px; height:96px; object-fit:cover; border-radius:16px; border:2px solid rgba(255,255,255,.75); box-shadow:0 6px 16px rgba(0,0,0,.25); z-index:2; background:#e8ece9; }
+.slide-iklan-tag{ position:absolute; top:10px; right:12px; z-index:3; font-size:9px; font-weight:800; letter-spacing:.6px; padding:2px 8px; border-radius:99px; background:rgba(0,0,0,.38); color:#fff; }
+.ik-harga{ display:inline-block; margin:0 0 8px; padding:3px 11px; border-radius:99px; background:#f4c942; color:#3a2b00; font-size:12.5px; font-weight:800; }
+.ik-seller{ font-size:10.5px; opacity:.75; margin-top:8px; }
+.ik-cta{ display:inline-block; margin-top:10px; padding:8px 16px; border-radius:99px; border:none; background:#f4c942; color:#3a2b00; font:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+.lgp-ik .lgp-img{ float:right; width:74px; height:74px; object-fit:cover; border-radius:12px; margin:0 0 6px 10px; border:2px solid rgba(255,255,255,.6); }
+.lgp-ik .lgp-tag{ position:absolute; top:10px; right:12px; font-size:9px; font-weight:800; letter-spacing:.6px; padding:2px 8px; border-radius:99px; background:rgba(0,0,0,.38); }
+.lgp-ik::after{ content:""; display:block; clear:both; }
+.ik-tag{ display:inline-block; font-size:9px; font-weight:800; padding:1px 7px; border-radius:99px; background:#f4c942; color:#3a2b00; margin-right:6px; vertical-align:middle; }
+.ik-box{ border-top:1px dashed #cfd8d2; margin-top:12px; padding-top:12px; }
+.ik-img{ display:flex; align-items:center; gap:10px; }
+.ik-img .th{ flex:0 0 64px; height:64px; border-radius:12px; background:#eef1ee center/cover no-repeat; border:2px dashed #cbd3ce; display:flex; align-items:center; justify-content:center; font-size:20px; color:#9aa7a0; }
+.ik-row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+</style>
 <div class="modal-overlay" id="modalEditSlide">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
@@ -48498,6 +48734,10 @@ window.addEventListener('load', ()=>{
     <div class="modal-body" style="padding-bottom:32px">
       <div id="slideEditorList" class="slide-editor-list"></div>
       <button class="se-add-btn" onclick="addNewSlide()" style="margin-top:16px">＋ Tambah Slide Baru</button>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="se-add-btn" onclick="_ikTambah('umum')" style="flex:1;margin:0">＋ Iklan Umum</button>
+        <button class="se-add-btn" onclick="_ikTambah('produk')" style="flex:1;margin:0">＋ Iklan Produk</button>
+      </div>
     </div>
   </div>
 </div>
@@ -69124,17 +69364,17 @@ html.renco-dark .ar-mode{ background:rgba(255,255,255,.08); } html.renco-dark .a
   opacity:1; transition:opacity .35s ease; }
 #rpFlash.out{ opacity:0; pointer-events:none; }
 #rpFlash .rpf-coin-wrap{ perspective:700px; width:84px; height:84px; margin-bottom:22px; }
-#rpFlash .rpf-coin{ width:100%; height:100%; position:relative; transform-style:preserve-3d; animation:rpfSpin 1.5s linear infinite; filter:drop-shadow(0 8px 22px rgba(244,201,66,.35)); }
+#rpFlash .rpf-coin{ width:100%; height:100%; position:relative; transform-style:preserve-3d; animation:rpfSpin 1.5s linear infinite; will-change:transform; }
 #rpFlash .rpf-face{ position:absolute; inset:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
   background:radial-gradient(circle at 32% 28%, #fff1b8 0%, #f4c942 38%, #b8860b 100%);
-  border:4px solid #e6b422; box-shadow:inset 0 0 0 3px rgba(122,92,0,.35), inset 0 2px 8px rgba(255,255,255,.55);
+  border:4px solid #e6b422; box-shadow:0 8px 22px rgba(244,201,66,.35), inset 0 0 0 3px rgba(122,92,0,.35), inset 0 2px 8px rgba(255,255,255,.55);
   backface-visibility:hidden; -webkit-backface-visibility:hidden; }
 #rpFlash .rpf-face::before{ content:''; position:absolute; inset:6px; border-radius:50%; border:1.2px solid rgba(90,66,0,.55); box-shadow:0 0 0 1px rgba(255,255,255,.35); }
 #rpFlash .rpf-face span{ position:relative; font-family:'Times New Roman',Times,Georgia,serif; font-size:42px; font-weight:700; color:#4a3500; line-height:1; letter-spacing:0; text-shadow:0 1px 0 rgba(255,255,255,.6), 0 -1px 0 rgba(90,66,0,.35); }
 #rpFlash .rpf-face.back{ transform:rotateY(180deg); }
 @keyframes rpfSpin{ from{ transform:rotateY(0deg); } to{ transform:rotateY(360deg); } }
-#rpFlash .rpf-title{ font-family:inherit; font-style:normal; font-weight:800; text-transform:uppercase; font-size:36px; line-height:1; letter-spacing:3.5px; white-space:nowrap; filter:drop-shadow(0 2px 8px rgba(0,0,0,.45)); }
-#rpFlash .rpf-title .b1{ color:#fffdf0; }
+#rpFlash .rpf-title{ font-family:inherit; font-style:normal; font-weight:800; text-transform:uppercase; font-size:36px; line-height:1; letter-spacing:3.5px; white-space:nowrap; }
+#rpFlash .rpf-title .b1{ color:#fffdf0; text-shadow:0 2px 8px rgba(0,0,0,.45); }
 #rpFlash .rpf-title .b2{ background:linear-gradient(100deg,#d4a017 0%,#f4c842 35%,#fff3c4 50%,#f4c842 65%,#d4a017 100%); background-size:260% 100%; background-position:100% 0; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; animation:rpfShine 2.4s ease-in-out infinite; }
 @keyframes rpfShine{ 0%{ background-position:100% 0; } 100%{ background-position:-60% 0; } }
 #rpFlash .rpf-tag{ margin-top:12px; font-size:15px; font-weight:600; color:#f4faf5; letter-spacing:.2px; line-height:1.4; text-align:center; padding:0 12px; max-width:100%; white-space:nowrap; text-shadow:0 1px 8px rgba(0,0,0,.5); }
@@ -94474,6 +94714,8 @@ html, body{ height:100%; min-height:100dvh; overscroll-behavior:none; background
 /* ===== Latar penuh setelah deploy/layar penuh: tidak ada celah di atas/bawah ===== */
 html{ background:linear-gradient(180deg,#0d2016 0,#1a472a 90px,#eef6f0 90px,#e8f2e4 100%) !important; }
 html:has(body.on-rencopay){ background:#040e07 !important; }
+html.renco-dark:has(body.on-rencopay){ background:#000 !important; }
+html:not(.renco-dark):has(body.on-rencopay.rp-theme){ background:#fff !important; }
 body{ background:transparent !important; }
 #app{ height:var(--app-h, 100dvh) !important; min-height:var(--app-h, 100dvh); }
 </style>
@@ -94493,13 +94735,25 @@ body{ background:transparent !important; }
   // ===== Mode layar penuh (Chrome Android / browser biasa): sembunyikan bilah alamat & navigasi =====
   function isStandalone(){ try{ return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||(window.matchMedia&&matchMedia('(display-mode: fullscreen)').matches)||window.navigator.standalone===true; }catch(e){ return false; } }
   function inFs(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); }
+  /* Satu ketukan memicu touchend + pointerup + click → dulu bisa 3x requestFullscreen, dan tiap kali layar penuh terlepas
+     (kamera QR, prompt biometrik, tombol Back) ketukan berikutnya langsung memasukkannya lagi. Perubahan tinggi layar yang
+     berulang itulah yang membuat RencoPay berkedip / layar hitam. Sekarang: ada jeda, tidak paralel, dan tidak
+     langsung masuk lagi sesaat setelah keluar.  Default-nya sekarang mati (lihat rc_fs di bawah). */
+  var fsBusy=false, fsLast=0, fsChg=0;
   function goFs(){
-    if(inFs()) return;
+    if(inFs()||fsBusy||document.hidden) return;
+    /* Pesan "Viewing full screen / Swipe down to exit" berasal dari Chrome setiap kali requestFullscreen() dipakai; web tidak bisa
+       menyembunyikannya. Karena itu masuk layar penuh lewat API dimatikan secara default. Mode layar penuh PWA (manifest, dari ikon
+       layar utama) tetap aktif dan tidak menampilkan pesan itu. Aktifkan lagi: localStorage.setItem('rc_fs','1'). */
+    try{ if(localStorage.getItem('rc_fs')!=='1') return; }catch(e){ return; }
+    var now=Date.now(); if(now-fsLast<2500||now-fsChg<900) return;
     try{ if(window.matchMedia&&matchMedia('(display-mode: fullscreen)').matches) return; }catch(e){}
     var el=document.documentElement;
     var rq=el.requestFullscreen||el.webkitRequestFullscreen;
     if(!rq) return;               // iOS Safari tidak mendukung: gunakan "Tambahkan ke Layar Utama"
-    try{ var r=rq.call(el,{navigationUI:'hide'}); if(r&&r.catch) r.catch(function(){}); }catch(e){}
+    fsLast=now; fsBusy=true;
+    var done=function(){ setTimeout(function(){ fsBusy=false; },600); };
+    try{ var r=rq.call(el,{navigationUI:'hide'}); if(r&&r.then) r.then(done,done); else done(); }catch(e){ done(); }
   }
   function onGesture(e){
     var t=e.target;
@@ -94510,7 +94764,7 @@ body{ background:transparent !important; }
   document.addEventListener('touchend', onGesture, {passive:true});
   document.addEventListener('click', onGesture, true);
   ['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){
-    document.addEventListener(ev, function(){ setTimeout(sync,150); setTimeout(sync,500); });
+    document.addEventListener(ev, function(){ fsChg=Date.now(); setTimeout(sync,150); setTimeout(sync,500); });
   });
 
   // ===== Otomatis: manifest PWA dipaksa display=fullscreen (berlaku saat dipasang/dibuka dari ikon) =====
@@ -94535,12 +94789,15 @@ body{ background:transparent !important; }
   document.addEventListener('keydown', function(){ goFs(); }, true);
 
   // tinggi aplikasi = tinggi layar nyata (ikut berubah saat bilah browser hilang / layar penuh)
-  function syncH(){
+  var hT=null, hLast=0;
+  function applyH(){
     var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
     if(inFs()||isStandalone()) h=Math.max(h,window.innerHeight);
-    document.documentElement.style.setProperty('--app-h', Math.round(h)+'px');
+    h=Math.round(h);
+    if(h>0 && Math.abs(h-hLast)>=2){ hLast=h; document.documentElement.style.setProperty('--app-h', h+'px'); }
     sync();
   }
+  function syncH(){ clearTimeout(hT); hT=setTimeout(applyH,120); }   // gabungkan badai resize saat transisi layar penuh
   window.addEventListener('resize', syncH);
   if(window.visualViewport) window.visualViewport.addEventListener('resize', syncH);
   window.addEventListener('orientationchange', function(){ setTimeout(syncH,200); setTimeout(syncH,600); });
@@ -94905,6 +95162,15 @@ html #loginScreen.lg-gate-on{ background:none !important; pointer-events:none !i
 .lgb-empty{ text-align:center; padding:48px 20px; color:rgba(244,249,241,.65); font-size:13px; }
 #lgbX{ position:absolute; left:50%; transform:translateX(-50%); bottom:calc(22px + env(safe-area-inset-bottom,0px)); width:56px; height:56px; border-radius:50%; border:1.5px solid rgba(244,201,66,.6); background:rgba(10,38,22,.92); color:#f5d77e; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 22px rgba(0,0,0,.5); cursor:pointer; padding:0; -webkit-tap-highlight-color:transparent; }
 #lgbX:active{ transform:translateX(-50%) scale(.92); }
+/* Renco Penuh Gosip: keterangan boleh 2 baris; kartu berita dengan foto, cuplikan, tombol Baca selengkapnya */
+#lgbNews .lgb-tx span{ white-space:normal; line-height:1.35; }
+.lgn small{ display:block; }
+.lgn-img{ display:block; width:100%; max-height:180px; object-fit:cover; border-radius:12px; margin-bottom:9px; background:rgba(255,255,255,.06); }
+.lgn-sn{ display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.lgn-more{ display:inline-block; margin-top:10px; padding:8px 14px; border-radius:99px; background:rgba(244,201,66,.18); border:1px solid rgba(244,201,66,.5); color:#f5d77e; font-size:12px; font-weight:800; text-decoration:none; }
+.lgn-fbitem{ border-color:rgba(24,119,242,.45); }
+.lgn-fb{ flex-shrink:0; display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px; background:linear-gradient(135deg,rgba(24,119,242,.28),rgba(24,119,242,.10)); border:1px solid rgba(24,119,242,.55); color:#f4f9f1; text-decoration:none; }
+.lgn-fb .ic{ font-size:24px; } .lgn-fb .tx{ flex:1; min-width:0; } .lgn-fb b{ display:block; font-size:13.5px; } .lgn-fb small{ font-size:11px; opacity:.75; } .lgn-fb .go{ font-size:22px; color:#f5d77e; }
 </style>
 <script id="lg-ban-js">
 (function(){
@@ -94912,15 +95178,20 @@ html #loginScreen.lg-gate-on{ background:none !important; pointer-events:none !i
   function $(i){ return document.getElementById(i); }
   var gate=$('loginGate'); if(!gate) return;
   var MAXN=10;
+  var RPG_INFO='Media Informasi Aren Community seputar Renco dan Vision2045';
+  var RPG_FB='https://www.facebook.com/share/r/19zetczkAT/';   // halaman resmi Renco Penuh Gosip = sumber utama
+  function isFb(b){ return b && (b.kategori==='facebook' || /facebook/i.test(b.sumber||'') || /(^|\.)(facebook\.com|fb\.com|fb\.watch)\//i.test(String(b.url||'').replace(/^https?:\/\//i,''))); }
+  function okFoto(u){ return typeof u==='string' && ((/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(u) && u.length<200000) || /^https:\/\//i.test(u)); }
+  function cuplikan(t){ t=String(t||'').replace(/\s+/g,' ').trim(); return t.length>180 ? t.slice(0,177).replace(/\s+\S*$/,'')+'…' : t; }
   function el(tag,cls,txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
   function promoData(){
     var a=null; try{ if(window.DB && Array.isArray(DB.slideBanner) && DB.slideBanner.length) a=DB.slideBanner; }catch(e){}
     if(!a){ try{ if(typeof SLIDES!=='undefined') a=SLIDES; }catch(e){} }
-    return (a||[]).slice(0,MAXN);
+    return (a||[]).filter(function(s){ return typeof _ikTampil!=='function' || _ikTampil(s); }).slice(0,MAXN);
   }
   function newsData(){
     var a=[]; try{ if(window.DB && Array.isArray(DB.berita)) a=DB.berita.slice(); }catch(e){}
-    a.sort(function(x,y){ return String(y.tanggal||'').localeCompare(String(x.tanggal||'')); });
+    a.sort(function(x,y){ var fx=isFb(x)?1:0, fy=isFb(y)?1:0; if(fx!==fy) return fy-fx; return String(y.tanggal||'').localeCompare(String(x.tanggal||'')); });   // Facebook RPG (sumber utama) di atas
     return a.slice(0,MAXN);
   }
   var box=el('div'); box.id='lgBan'; gate.appendChild(box);
@@ -94935,7 +95206,7 @@ html #loginScreen.lg-gate-on{ background:none !important; pointer-events:none !i
   box.appendChild(bP); box.appendChild(bN); box.appendChild(rem);
   function counts(){
     bP.querySelector('.lgb-tx span').textContent=promoData().length+' promo & info terbaru';
-    var n=newsData().length; bN.querySelector('.lgb-tx span').textContent=n? (n+' berita & pembaruan') : 'Berita & pembaruan koperasi';
+    bN.querySelector('.lgb-tx span').textContent=RPG_INFO;
   }
   counts(); setInterval(function(){ if(gate.classList.contains('show')) counts(); },2000);
 
@@ -94964,23 +95235,35 @@ html #loginScreen.lg-gate-on{ background:none !important; pointer-events:none !i
         var c=el('div','lgp'); try{ if(s.gradient) c.style.background=s.gradient; else c.style.background='linear-gradient(135deg,#1a472a,#2d6a4f)'; }catch(e){}
         if(s.badge) c.appendChild(el('span','bd',s.badge));
         c.appendChild(el('h4',null,s.title||'')); if(s.desc) c.appendChild(el('p',null,s.desc));
+        if(s.iklan){   // iklan umum / produk: label IKLAN, foto, harga, tombol WhatsApp / tautan
+          c.classList.add('lgp-ik'); c.appendChild(el('span','lgp-tag','IKLAN'));
+          if(typeof _ikGambarOk==='function' && _ikGambarOk(s.gambar)){ var im=el('img','lgp-img'); im.alt=''; im.src=s.gambar; c.insertBefore(im,c.firstChild); }
+          if(s.iklan==='produk' && s.harga) c.appendChild(el('div','ik-harga',s.harga));
+          if(typeof _ikUrl==='function' && _ikUrl(s)){ var bt=el('button','ik-cta',s.cta||'Selengkapnya'); bt.type='button'; bt.addEventListener('click',function(){ _ikBuka(s); }); c.appendChild(bt); }
+          if(s.penjual) c.appendChild(el('div','ik-seller','Oleh '+s.penjual));
+        }
         if(s.emoji) c.appendChild(el('span','em',s.emoji));
         list.appendChild(c);
       });
       if(!d.length) list.appendChild(el('div','lgb-empty','Belum ada promo.'));
     } else {
-      var n=newsData(); head.querySelector('b').textContent='Renco Penuh Gosip (RPG)'; head.querySelector('span').textContent=n.length+' berita';
-      var KAT={ekonomi:'📈 Ekonomi',koperasi:'🤝 Koperasi',investasi:'💰 Investasi',bursa:'📊 Bursa',umum:'🌐 Umum'};
+      var n=newsData(); head.querySelector('b').textContent='Renco Penuh Gosip (RPG)'; head.querySelector('span').textContent=RPG_INFO+' · '+n.length+' postingan';
+      var KAT={facebook:'📘 Facebook RPG',ekonomi:'📈 Ekonomi',koperasi:'🤝 Koperasi',investasi:'💰 Investasi',bursa:'📊 Bursa',umum:'🌐 Umum'};
+      var fbTop=el('a','lgn-fb'); fbTop.href=RPG_FB; fbTop.target='_blank'; fbTop.rel='noopener';
+      fbTop.innerHTML='<span class="ic">📘</span><span class="tx"><b>Halaman resmi Renco Penuh Gosip</b><small>Sumber utama · Facebook</small></span><span class="go">›</span>';
+      list.appendChild(fbTop);
       n.forEach(function(b){
-        var url=String(b.url||''), ok=/^https?:\/\//i.test(url);
-        var a=el(ok?'a':'div','lgn'); if(ok){ a.href=url; a.target='_blank'; a.rel='noopener'; }
-        a.appendChild(el('span','k',KAT[b.kategori]||KAT.umum));
-        a.appendChild(el('h4',null,b.judul||'')); if(b.ringkasan) a.appendChild(el('p',null,b.ringkasan));
+        var url=String(b.url||''), ok=/^https?:\/\//i.test(url), fb=isFb(b);
+        var a=el('div','lgn'+(fb?' lgn-fbitem':''));
+        if(okFoto(b.foto)){ var im=el('img','lgn-img'); im.alt=''; im.loading='lazy'; im.referrerPolicy='no-referrer'; im.src=b.foto; im.onerror=function(){ im.remove(); }; a.appendChild(im); }
+        a.appendChild(el('span','k',fb?KAT.facebook:(KAT[b.kategori]||KAT.umum)));
+        a.appendChild(el('h4',null,b.judul||'')); if(b.ringkasan) a.appendChild(el('p','lgn-sn',cuplikan(b.ringkasan)));
         var tg=''; try{ if(b.tanggal) tg=new Date(b.tanggal).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}); }catch(e){}
         a.appendChild(el('small',null,[b.sumber,tg].filter(Boolean).join(' · ')));
+        if(ok){ var bt=el('a','lgn-more','Baca selengkapnya →'); bt.href=url; bt.target='_blank'; bt.rel='noopener'; a.appendChild(bt); }
         list.appendChild(a);
       });
-      if(!n.length) list.appendChild(el('div','lgb-empty','Belum ada berita. Kembali lagi nanti ya.'));
+      if(!n.length) list.appendChild(el('div','lgb-empty','Belum ada postingan. Kunjungi halaman Facebook resmi di atas.'));
     }
     ov.classList.add('show');
   }
@@ -95109,11 +95392,9 @@ html #loginScreen.lg-gate-on{ background:none !important; pointer-events:none !i
       box.querySelector('b').textContent=hide?'Rp •••••':rp(it.amount);
       var sm=box.querySelector('small'); sm.textContent=st; sm.className=cls;
     });
-    if(data&&data.at){
-      var at=new Date(data.at), t=at.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})+' '+at.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-      foot.textContent='Data per login terakhir · '+t; foot.style.display='';
-      eye.style.display='';
-    } else { foot.style.display='none'; eye.style.display='none'; }
+    /* keterangan "Data per login terakhir · tanggal jam" dihilangkan dari banner Reminder; tombol mata tetap ada */
+    foot.style.display='none';
+    eye.style.display=(data&&data.at)?'':'none';
   }
   paint(); setInterval(paint,60000);
 })();
