@@ -6735,13 +6735,15 @@ var AUTH = { loggedIn: false, user: null };
    Saat aplikasi diminimize / ditutup sebentar, Android/iOS kerap membuang halaman dari memori lalu
    memuat ulang saat dibuka lagi (sessionStorage ikut hilang) → aplikasi "restart" ke splash + login.
    Solusi: sesi login juga dicadangkan di localStorage bersama penanda waktu aktif terakhir. Bila
-   aplikasi dibuka lagi DALAM jeda waktu (default 60 menit), sesi dipulihkan otomatis tanpa login ulang.
-   Lewat jeda → login normal. Logout manual selalu menghapus cadangan.
+   aplikasi dibuka lagi DALAM jeda waktu (default 3 menit), sesi dipulihkan otomatis tanpa login ulang.
+   Lewat jeda → WAJIB login ulang (berlaku juga bila sessionStorage tab sempat dipulihkan browser).
+   Tab/PWA yang masih terbuka & aktif tidak terpengaruh (penanda aktif diperbarui berkala).
+   Logout manual selalu menghapus cadangan.
    Ubah lama jeda (menit, 1–720):  localStorage.setItem('renco_resume_grace_min','10') */
 var AUTH_RESUME_KEY = 'renco_auth_resume';
 function _authGraceMs() {
   try { var m = parseInt(localStorage.getItem('renco_resume_grace_min'), 10); if (m >= 1 && m <= 720) return m * 60000; } catch(e) {}
-  return 60 * 60000;
+  return 3 * 60000;
 }
 function _authBackup() {
   try {
@@ -6750,7 +6752,21 @@ function _authBackup() {
   } catch(e) {}
 }
 function authLoad() {
-  try { var s = sessionStorage.getItem(AUTH_KEY); if (s) { AUTH = JSON.parse(s); return; } } catch(e) {}
+  try {
+    var s = sessionStorage.getItem(AUTH_KEY);
+    if (s) {
+      /* Sesi tab masih ada (mis. tab dipulihkan browser): tetap dicek umur "terakhir aktif"-nya.
+         Bila cadangan ada dan sudah lewat jeda → anggap kedaluwarsa, minta login ulang. */
+      var bk = null; try { bk = JSON.parse(localStorage.getItem(AUTH_RESUME_KEY) || 'null'); } catch(e) {}
+      if (bk && bk.t && (Date.now() - bk.t) >= _authGraceMs()) {
+        try { sessionStorage.removeItem(AUTH_KEY); } catch(e) {}
+        try { localStorage.removeItem(AUTH_RESUME_KEY); } catch(e) {}
+        AUTH = { loggedIn: false, user: null };
+        return;
+      }
+      AUTH = JSON.parse(s); return;
+    }
+  } catch(e) {}
   try {
     var b = JSON.parse(localStorage.getItem(AUTH_RESUME_KEY) || 'null');
     if (b && b.a && b.a.loggedIn && b.a.user && (Date.now() - (b.t || 0)) < _authGraceMs()) {
@@ -94909,11 +94925,14 @@ html #loginScreen.lg-gate-on{ background:none !important; pointer-events:none !i
     <button type="button" id="lgMain" aria-label="Masuk dengan PIN atau biometrik" title="Masuk">
       <span id="lgDoor"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Biometrik / sidik jari">
 <style>
-.lgf-scan{ animation:lgfScan 2.8s ease-in-out infinite; }
-.lgf-arcs{ animation:lgfGlow 2.8s ease-in-out infinite; }
-@keyframes lgfScan{ 0%{ transform:translateY(0); opacity:0; } 12%{ opacity:1; } 88%{ opacity:1; } 100%{ transform:translateY(46px); opacity:0; } }
-@keyframes lgfGlow{ 0%,100%{ opacity:.78; } 50%{ opacity:1; } }
-@media (prefers-reduced-motion:reduce){ .lgf-scan,.lgf-arcs{ animation:none; } .lgf-scan{ opacity:0; } }
+.lgf-scan{ animation:lgfScan 3.6s ease-in-out infinite alternate; will-change:transform; }
+.lgf-glow{ animation:lgfScan 3.6s ease-in-out infinite alternate; will-change:transform; }
+.lgf-arcs path{ animation:lgfGlow 3.2s ease-in-out infinite; }
+.lgf-arcs path:nth-child(1){ animation-delay:0s; } .lgf-arcs path:nth-child(2){ animation-delay:.25s; } .lgf-arcs path:nth-child(3){ animation-delay:.5s; }
+.lgf-arcs path:nth-child(4){ animation-delay:.75s; } .lgf-arcs path:nth-child(5){ animation-delay:1s; } .lgf-arcs path:nth-child(6){ animation-delay:1.25s; }
+/* garis cahaya: turun perlahan → naik perlahan, berulang terus (sengaja TIDAK dimatikan oleh "reduce motion") */
+@keyframes lgfScan{ from{ transform:translateY(0); } to{ transform:translateY(46px); } }
+@keyframes lgfGlow{ 0%,100%{ opacity:.5; } 50%{ opacity:1; } }
 </style>
 <g fill="none" stroke="#f4c842" stroke-linecap="round" stroke-linejoin="round">
 <path d="M12 30V20Q12 12 20 12H30M70 12H80Q88 12 88 20V30M88 70V80Q88 88 80 88H70M30 88H20Q12 88 12 80V70" stroke-width="3.6"/>
@@ -94925,13 +94944,13 @@ html #loginScreen.lg-gate-on{ background:none !important; pointer-events:none !i
 <path d="M45.5 52C45.5 49.5 47.5 48 50 48C52.5 48 54.5 49.5 54.5 52C54.5 62 54 70 52.5 78"/>
 <path d="M50 54C50 62 50 68 49 74"/>
 </g>
-<path class="lgf-scan" d="M20 27H80" stroke="#fff6c9" stroke-width="2.6"/>
+<path class="lgf-glow" d="M20 27H80" stroke="#ffe27a" stroke-opacity=".35" stroke-width="8"/><path class="lgf-scan" d="M20 27H80" stroke="#fff6c9" stroke-width="2.6"/>
 </g>
 </svg></span>
     </button></div>
   </div>
 </div>
-<button type="button" id="lgBack" aria-label="Kembali ke PIN atau biometrik"><span class="bk-c"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g fill="none" stroke="#f4c842" stroke-linecap="round" stroke-linejoin="round"><path d="M12 30V20Q12 12 20 12H30M70 12H80Q88 12 88 20V30M88 70V80Q88 88 80 88H70M30 88H20Q12 88 12 80V70" stroke-width="3.6"/><g class="lgf-arcs" stroke-width="3"><path d="M26 52C26 36 36 25 50 25C64 25 74 36 74 52"/><path d="M32 74C30 68 30 62 30 52C30 40 38 31 50 31C62 31 70 40 70 52C70 60 70 66 68 72"/><path d="M36 79C35.5 72 35 64 35 52C35 43 41 37 50 37C59 37 65 43 65 52C65 61 64.5 68 62.5 76"/><path d="M41 80C40.5 72 40 64 40 52C40 46 44.5 42.5 50 42.5C55.5 42.5 60 46 60 52C60 62 59 72 57 82"/><path d="M45.5 52C45.5 49.5 47.5 48 50 48C52.5 48 54.5 49.5 54.5 52C54.5 62 54 70 52.5 78"/><path d="M50 54C50 62 50 68 49 74"/></g><path class="lgf-scan" d="M20 27H80" stroke="#fff6c9" stroke-width="2.6"/></g></svg></span><span class="bk-l">Login</span></button>
+<button type="button" id="lgBack" aria-label="Kembali ke PIN atau biometrik"><span class="bk-c"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g fill="none" stroke="#f4c842" stroke-linecap="round" stroke-linejoin="round"><path d="M12 30V20Q12 12 20 12H30M70 12H80Q88 12 88 20V30M88 70V80Q88 88 80 88H70M30 88H20Q12 88 12 80V70" stroke-width="3.6"/><g class="lgf-arcs" stroke-width="3"><path d="M26 52C26 36 36 25 50 25C64 25 74 36 74 52"/><path d="M32 74C30 68 30 62 30 52C30 40 38 31 50 31C62 31 70 40 70 52C70 60 70 66 68 72"/><path d="M36 79C35.5 72 35 64 35 52C35 43 41 37 50 37C59 37 65 43 65 52C65 61 64.5 68 62.5 76"/><path d="M41 80C40.5 72 40 64 40 52C40 46 44.5 42.5 50 42.5C55.5 42.5 60 46 60 52C60 62 59 72 57 82"/><path d="M45.5 52C45.5 49.5 47.5 48 50 48C52.5 48 54.5 49.5 54.5 52C54.5 62 54 70 52.5 78"/><path d="M50 54C50 62 50 68 49 74"/></g><path class="lgf-glow" d="M20 27H80" stroke="#ffe27a" stroke-opacity=".35" stroke-width="8"/><path class="lgf-scan" d="M20 27H80" stroke="#fff6c9" stroke-width="2.6"/></g></svg></span><span class="bk-l">Login</span></button>
 <script id="lg-gate-js">
 (function(){
   'use strict';
@@ -95534,7 +95553,7 @@ html.renco-dark #loginMenuDropdown::before{ background:#1c1c1c; }
     });
   }
   function refresh(){
-    var d=data(); if(!d.length) d=[{badge:'',title:'Selamat Datang Di Koperasi Renco Syariah',desc:'Koperasi keluarga berbasis syariah — bersama membangun kesejahteraan.'}]; var sg=JSON.stringify(d.map(function(s){ return [s.badge,s.title,s.desc]; }));
+    var d=data(); if(!d.length) d=[{badge:'',title:'Koperasi Renco',desc:'Renco, Kelurahan Kelayu Jorong, Kecamatan Selong, Kabupaten Lombok Timur, Nusa Tenggara Barat, Indonesia. HP 087855712922 / Email koperasirenco@gmail.com'}]; var sg=JSON.stringify(d.map(function(s){ return [s.badge,s.title,s.desc]; }));
     if(sg===sig) return; sig=sg;
     gate.classList.toggle('lg-bc-on',d.length>0);
     if(!d.length){ box.classList.remove('open'); return; }
@@ -95636,7 +95655,6 @@ button#lgBack .bk-c{ width:64px; height:64px; border:1.5px solid rgba(244,201,66
 button#lgBack:active .bk-c{ transform:scale(.93); background:rgba(244,201,66,.16); }
 button#lgBack .bk-c svg{ width:46px; height:46px; display:block; pointer-events:none; filter:drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
 button#lgBack .bk-l{ font-size:10.5px; line-height:13px; font-weight:700; letter-spacing:.4px; color:#f5d77e; text-shadow:0 1px 3px rgba(0,0,0,.45); }
-@media (prefers-reduced-motion:reduce){ button#lgBack .lgf-arcs, button#lgBack .lgf-scan{ animation:none; } button#lgBack .lgf-scan{ opacity:0; } }
 </style>
 
 <style id="lg-fb-corner-style">
@@ -95685,11 +95703,12 @@ html body #loginScreen #loginMenuDropdown::before{ right:25px; }
 
 /* ── ticker "Info Terkini": pil krem berbingkai emas ── */
 #loginGate #lgBc{ left:11px; right:11px; top:calc(78px + env(safe-area-inset-top,0px)); height:32px; }
-#loginGate .lgbc-tk,#loginGate.lg-bc-on .lgbc-tk{ top:0; height:32px; transform:none; box-sizing:border-box; border:1.5px solid #d6af3c; border-radius:16px; background:linear-gradient(180deg,#fefaec,#f4ead0); box-shadow:0 5px 12px rgba(0,0,0,.28); -webkit-mask-image:none; mask-image:none; -webkit-backdrop-filter:none; backdrop-filter:none; }
-#loginGate .lgbc-tr{ left:42px; right:12px; }
+#loginGate .lgbc-tk,#loginGate.lg-bc-on .lgbc-tk{ top:0; height:32px; transform:none; box-sizing:border-box; border:1px solid rgba(46,115,58,.45); border-radius:8px; background:linear-gradient(135deg,#f1f8ec 0%,#dcecd3 55%,#c9e2bf 100%); box-shadow:0 4px 10px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.7); -webkit-mask-image:none; mask-image:none; -webkit-backdrop-filter:none; backdrop-filter:none; }
+#loginGate .lgbc-pill,#loginGate.lg-bc-on .lgbc-pill{ display:none !important; }
+#loginGate .lgbc-tr{ left:12px; right:12px; }
 #loginGate .lgbc-run > span{ font-size:clamp(11.5px,3.5vw,13.5px); font-weight:500; color:#27382b; text-shadow:none; padding-right:36px; }
 #loginGate .lgbc-run b{ color:#0d3f1c; font-weight:700; margin-right:0; }
-#loginGate .lgbc-run i{ display:inline-block; width:1.5px; height:17px; background:#b98a1c; margin:0 12px; vertical-align:middle; font-size:0; }
+#loginGate .lgbc-run i{ display:inline-block; width:1.5px; height:17px; background:#4f8a58; margin:0 12px; vertical-align:middle; font-size:0; }
 #loginGate .lgbc-pill{ left:5px; top:2px; width:28px; height:28px; border:1px solid #b98a1c; background:radial-gradient(circle at 35% 30%,#ffeaa3,#e9bd3f 60%,#c99a22); color:#0b3d1a; box-shadow:0 2px 4px rgba(0,0,0,.3); -webkit-backdrop-filter:none; backdrop-filter:none; }
 #loginGate .lgbc-pill::before,#loginGate .lgbc-pill::after{ display:none; }
 #loginGate .lgbc-pill svg{ width:16px; height:16px; }
@@ -95700,7 +95719,7 @@ html body #loginScreen #loginMenuDropdown::before{ right:25px; }
 #loginGate #lgBan,#loginGate.lg-bc-on #lgBan{ position:absolute; z-index:3; left:5px; right:5px; max-width:490px; margin:0 auto; top:calc(129px + env(safe-area-inset-top,0px)) !important; bottom:calc(98px + env(safe-area-inset-bottom,0px)); padding:3px 6px 12px; gap:12px; box-sizing:border-box; overflow-x:hidden; overflow-y:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 #loginGate #lgBan::-webkit-scrollbar{ display:none; }
 #loginGate .lgb-card{ flex-shrink:0; min-height:83px; padding:10px 13px 10px 14px; gap:13px; border:1.5px solid #d6af3c; border-radius:20px; background:linear-gradient(180deg,#fdf8e8 0%,#f6ecd0 100%); color:#0f3a1d; box-shadow:0 8px 18px rgba(0,0,0,.30),inset 0 0 0 1.5px rgba(255,255,255,.55); overflow:hidden; }
-#loginGate .lgb-card::after{ content:''; position:absolute; right:0; bottom:0; width:46%; height:58%; pointer-events:none; z-index:0; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1'%3E%3Cstop offset='0' stop-color='%23f3dc8e' stop-opacity='0'/%3E%3Cstop offset='.4' stop-color='%23ebc65c'/%3E%3Cstop offset='1' stop-color='%23c99a22'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 60 C60 52 120 22 200 0 V60 Z' fill='url(%23g)'/%3E%3Cpath d='M0 60 C70 57 140 38 200 16 V60 Z' fill='%23fff4c8' fill-opacity='.38'/%3E%3C/svg%3E") no-repeat right bottom/100% 100%; }
+#loginGate .lgb-card::after{ content:none; display:none; background:none; }
 #loginGate .lgb-card > *{ position:relative; z-index:1; }
 #loginGate .lgb-rem.open::after{ opacity:0; }
 #loginGate .lgb-ic{ width:62px; height:62px; border-radius:16px; font-size:34px; line-height:1; background:radial-gradient(circle at 35% 28%,#3f8f48 0%,#1c6130 55%,#0f4a22 100%); box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 3px 6px rgba(0,0,0,.25); }
@@ -95748,7 +95767,7 @@ html.renco-dark #loginGate .lgb-ri small,html.renco-dark #loginGate .lgb-rf{ col
 html.renco-dark #loginGate .lgb-ri .rt b{ color:#f4f9f1; }
 html.renco-dark #loginGate .lgb-ri small.ov{ color:#ff8a8a; } html.renco-dark #loginGate .lgb-ri small.nr{ color:#ffc266; }
 html.renco-dark #loginGate .lgb-rf b{ color:#f5d77e; }
-html.renco-dark #loginGate .lgbc-tk,html.renco-dark #loginGate.lg-bc-on .lgbc-tk{ background:linear-gradient(180deg,#232323,#161616); border-color:rgba(244,201,66,.6); }
+html.renco-dark #loginGate .lgbc-tk,html.renco-dark #loginGate.lg-bc-on .lgbc-tk{ background:linear-gradient(135deg,#1c2b20,#14201a 60%,#0f1a14); border-color:rgba(111,224,122,.35); }
 html.renco-dark #loginGate .lgbc-run > span{ color:rgba(244,249,241,.85); }
 html.renco-dark #loginGate .lgbc-run b{ color:#f5d77e; }
 
@@ -95770,6 +95789,15 @@ html.renco-dark #loginGate .lgbc-run b{ color:#f5d77e; }
 @media (prefers-reduced-motion:reduce){ #loginGate .lgbc-run > span + span{ display:inline-block !important; } }
 /* banner: tanpa tanda panah ">" */
 #loginGate .lgb-go{ display:none !important; }
+
+/* bar info: penuh dari tepi kiri ke kanan, tanpa sudut membulat */
+#loginGate #lgBc{ left:0; right:0; }
+#loginGate .lgbc-tk,#loginGate.lg-bc-on .lgbc-tk{ border-radius:0; border-left:none; border-right:none; }
+html.renco-dark #loginGate .lgbc-tk,html.renco-dark #loginGate.lg-bc-on .lgbc-tk{ border-radius:0; }
+/* nama shortcut & label Login: kecil, tipis, emas, serasi */
+#loginGate .lgs-tile span,#loginGate #lgMainLbl,button#lgBack .bk-l{ font-size:10px; line-height:12px; font-weight:400; letter-spacing:.2px; color:#e9c860; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+#loginGate .lgs-tile span{ max-width:60px; }
+@media (max-width:340px){ #loginGate .lgs-tile span{ font-size:9.5px; } }
 
 /* halaman 2 (User & Password): tombol Login/PIN di kiri bawah */
 button#lgBack{ left:calc(20px + env(safe-area-inset-left,0px)) !important; right:auto !important; }
