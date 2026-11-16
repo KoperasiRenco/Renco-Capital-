@@ -89,7 +89,7 @@
   };
 })();
 </script>
-<meta name="rc-build" content="20261115-door-v1">
+<meta name="rc-build" content="20261116-pwa-fs-v1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' data: blob: https://ipwho.is https://api.bigdatacloud.net https://cwtoqrxakgaawqgyxhjz.supabase.co wss://cwtoqrxakgaawqgyxhjz.supabase.co https://api.rss2json.com https://api.allorigins.win https://corsproxy.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -72742,7 +72742,7 @@ body.rp-theme #page-forum .forum-grid-btn.fgb-current .fgb-label{color:#ffd166}
 
 /* Tombol Install Aplikasi (PWA) di halaman login */
 (function(){
-  function standalone(){ return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true; }
+  function standalone(){ return (window.matchMedia&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches||matchMedia('(display-mode: minimal-ui)').matches))||window.navigator.standalone===true; }
   function show(){ var b=document.getElementById('loginInstallBtn'); if(b) b.style.display=standalone()?'none':'flex'; }
   window.addEventListener('rc-install-ready',show);
   window.addEventListener('appinstalled',function(){ if(window.__rpInstalling) return; /* yang terpasang RencoPay, bukan Koperasi */ window.__rcInstallEvt=null; var b=document.getElementById('loginInstallBtn'); if(b) b.style.display='none'; });
@@ -72820,7 +72820,7 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
 </div></div>
 <script>
 (function(){
-  function standalone(){ return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true; }
+  function standalone(){ return (window.matchMedia&&(matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches||matchMedia('(display-mode: minimal-ui)').matches))||window.navigator.standalone===true; }
   var rpMode = !!window._rencoPayOnly;
 
   /* Satu-satunya tombol install RencoPay: pojok kanan bawah halaman menu RencoPay (untuk aplikasi RencoPay itu sendiri).

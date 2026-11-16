@@ -1,25 +1,52 @@
 {
+  "id": "koperasi-renco",
   "name": "Koperasi Renco",
-  "short_name": "RENCO",
-  "description": "Aplikasi Koperasi Renco: simpanan, pembiayaan, dan RencoPay.",
+  "short_name": "Renco",
+  "description": "Aplikasi manajemen Koperasi Renco: simpanan, pembiayaan, Kifayah, Semeton® dan RencoPay.",
   "lang": "id",
   "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone"],
-  "background_color": "#0d2016",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "orientation": "portrait",
+  "background_color": "#0b3a19",
   "theme_color": "#1a472a",
-  "categories": ["finance", "business"],
+  "categories": [
+    "finance",
+    "business"
+  ],
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+    {
+      "src": "assets/favicon-48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ],
   "shortcuts": [
     {
       "name": "RencoPay",
       "short_name": "RencoPay",
+      "description": "Buka dompet digital RencoPay",
       "url": "./?app=rencopay",
-      "icons": [{ "src": "assets/rencopay-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "assets/rencopay-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
