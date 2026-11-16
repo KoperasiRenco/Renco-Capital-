@@ -11,7 +11,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const VERSION = '20261116-v1';
+const VERSION = '20261116-v2';
 const PREFIX = 'renco-';
 const CACHE_PAGES = PREFIX + 'pages-' + VERSION;
 const CACHE_STATIC = PREFIX + 'static-' + VERSION;
@@ -29,9 +29,13 @@ const PRECACHE = [
   'manifest-rencopay.json',
   'assets/favicon-48.png',
   'assets/icon-192.png',
+  'assets/icon-512.png',
+  'assets/icon-maskable-192.png',
+  'assets/icon-maskable-512.png',
   'assets/icon-renco.png',
   'assets/apple-touch-icon.png',
   'assets/rencopay-192.png',
+  'assets/rencopay-512.png',
   'assets/logo-renco.jpg',
   'assets/logo-renco-capital.png',
   'assets/logo-renco-print.png'

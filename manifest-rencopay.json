@@ -1,17 +1,48 @@
 {
+  "id": "rencopay",
   "name": "RencoPay",
   "short_name": "RencoPay",
-  "description": "RencoPay: dompet dan pembayaran Koperasi Renco.",
+  "description": "Dompet digital RencoPay. Akun dan data sama dengan aplikasi Koperasi Renco.",
   "lang": "id",
   "dir": "ltr",
   "start_url": "./?app=rencopay",
   "scope": "./",
   "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone"],
-  "background_color": "#0d2016",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "orientation": "portrait",
+  "background_color": "#ffffff",
   "theme_color": "#1a472a",
-  "categories": ["finance"],
+  "categories": [
+    "finance"
+  ],
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "assets/rencopay-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+    {
+      "src": "assets/rencopay-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/rencopay-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
