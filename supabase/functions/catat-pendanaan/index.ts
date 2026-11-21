@@ -1,50 +1,42 @@
-// Supabase Edge Function: catat-pendanaan
-// Dipanggil RencoPay setelah nasabah berhasil mendanai program. Menulis ke
-// pendanaan_proyek (dibaca Aren Jariyah) dan pendanaan_pembayar (data pribadi, tertutup).
-// Deploy:  supabase functions deploy catat-pendanaan
-// SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY otomatis tersedia di Edge Function.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+// Edge Function: catat-partisipasi
+// Deploy:  supabase functions deploy catat-partisipasi
+// Secret opsional:  supabase secrets set PESERTA_SALT="isi-acak-panjang"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
+async function sha256(t: string) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "metode tidak didukung" }, 405);
+  if (req.method !== "POST") return json({ error: "method" }, 405);
 
-  let b: Record<string, unknown>;
-  try { b = await req.json(); } catch { return json({ error: "JSON tidak valid" }, 400); }
+  let b: any;
+  try { b = await req.json(); } catch { return json({ error: "json" }, 400); }
 
-  const no_bukti = String(b.no_bukti ?? "");
-  const kode_usulan = String(b.kode_usulan ?? "").toUpperCase();
-  const jumlah = Number(b.jumlah);
-  const nama = b.nama_pembayar == null ? null : String(b.nama_pembayar).slice(0, 100);
+  const jenis = b?.jenis, no = String(b?.no_bukti ?? ""), jml = Math.round(Number(b?.jumlah));
+  if (jenis !== "aset" && jenis !== "abadi") return json({ error: "jenis" }, 422);
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(no)) return json({ error: "no_bukti" }, 422);
+  if (!Number.isFinite(jml) || jml < 1 || jml > 10_000_000_000) return json({ error: "jumlah" }, 422);
 
-  if (!/^[A-Za-z0-9_-]{6,64}$/.test(no_bukti)) return json({ error: "no_bukti tidak valid" }, 400);
-  if (!/^(AK|PR)-\d{2,}$/.test(kode_usulan)) return json({ error: "kode_usulan tidak valid" }, 400);
-  if (!Number.isInteger(jumlah) || jumlah < 1000 || jumlah > 1_000_000_000) return json({ error: "jumlah tidak valid" }, 400);
+  const nama = b?.nama_pembayar ? String(b.nama_pembayar).slice(0, 80) : null;
+  const kk = b?.kk_id ? String(b.kk_id).slice(0, 80) : null;
+  const hash = kk ? await sha256((Deno.env.get("PESERTA_SALT") ?? "") + kk) : null;
 
-  const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
-  let id: string | undefined;
-  const ins = await db.from("pendanaan_proyek")
-    .insert({ no_bukti, kode_usulan, jumlah }).select("id").single();
-  if (ins.error) {
-    if (ins.error.code !== "23505") return json({ error: "gagal menyimpan" }, 500);
-    // no_bukti sudah ada: kiriman ulang, bukan catatan baru
-    const ex = await db.from("pendanaan_proyek").select("id").eq("no_bukti", no_bukti).single();
-    if (ex.error) return json({ error: "gagal menyimpan" }, 500);
-    id = ex.data.id;
-  } else id = ins.data.id;
-
-  if (nama) {
-    const p = await db.from("pendanaan_pembayar").upsert({ pendanaan_id: id, nama_pembayar: nama });
-    if (p.error) return json({ error: "gagal menyimpan pembayar" }, 500);
-  }
-  return json({ ok: true, duplikat: !!ins.error });
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  // Nomor bukti ganda diabaikan (aman dikirim ulang).
+  const { error } = await sb.from("partisipasi_renco").upsert(
+    { no_bukti: no, jenis, peserta_hash: hash, jumlah: jml, nama_pembayar: nama, status: "berhasil" },
+    { onConflict: "no_bukti", ignoreDuplicates: true },
+  );
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
 });
