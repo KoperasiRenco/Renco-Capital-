@@ -86395,7 +86395,7 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
       var al = id ? d.asetLain.find(function(x){ return x.id === id; }) : null;
       return sheet(al ? 'Ubah Aset Bersama' : 'Tambah Aset Bersama', [
         { k:'nama', l:'Nama aset', v:al ? al.nama : '', ph:'mis. Gedung Serbaguna Renco' },
-        { k:'kodeUsulan', l:'Kode usulan Aren Jariyah (wajib bila status “Dalam pengumpulan dana”)', v:al ? al.kodeUsulan : '', ph:'mis. AK-003' },
+        { k:'kodeUsulan', l:'Kode Aren Jariyah: usulan aset (AK-xx) atau proyek (PR-xx). Wajib bila status “Dalam pengumpulan dana”', v:al ? al.kodeUsulan : '', ph:'mis. AK-003 atau PR-01' },
         { k:'ic', l:'Ikon (emoji, opsional)', v:al ? al.ic : '', ph:'🏢' },
         { k:'jenis', l:'Jenis aset', type:'select', v:al ? al.jenis : 'Tanah', opts:ASET_JENIS.map(function(j){ return [j, j]; }) },
         { k:'status', l:'Status (hanya “Dalam pengumpulan dana” yang bisa didanai nasabah via RencoPay)', type:'select', v:al ? al.status : 'rencana', opts:ASET_STATUS },
@@ -86408,8 +86408,8 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
       ], function(o){
         if (!need(o, ['nama'])) return false;
         var kodeU = String(o.kodeUsulan || '').trim().toUpperCase();
-        if (kodeU && !/^AK-\d{2,}$/.test(kodeU)) { alert('Kode usulan harus berbentuk AK-03 atau AK-003 (sesuai Aren Jariyah).'); return false; }
-        if (o.status === 'kumpul' && !kodeU) { alert('Isi kode usulan Aren Jariyah dulu agar pendanaan tercatat di Aren Jariyah.'); return false; }
+        if (kodeU && !/^(AK|PR)-\d{2,}$/.test(kodeU)) { alert('Kode harus berbentuk AK-03 (usulan aset) atau PR-01 (proyek), sesuai Aren Jariyah.'); return false; }
+        if (o.status === 'kumpul' && !kodeU) { alert('Isi kode Aren Jariyah (AK-xx atau PR-xx) dulu agar pendanaan tercatat di Aren Jariyah.'); return false; }
         if (kodeU && d.asetLain.some(function(x){ return x.kodeUsulan === kodeU && (!al || x.id !== al.id); })) { alert('Kode usulan ' + kodeU + ' sudah dipakai program lain.'); return false; }
         if (!al) { al = { id: 'al_' + uidx() }; d.asetLain.push(al); }
         al.kodeUsulan = kodeU;
