@@ -86395,6 +86395,7 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
       var al = id ? d.asetLain.find(function(x){ return x.id === id; }) : null;
       return sheet(al ? 'Ubah Aset Bersama' : 'Tambah Aset Bersama', [
         { k:'nama', l:'Nama aset', v:al ? al.nama : '', ph:'mis. Gedung Serbaguna Renco' },
+        { k:'kodeUsulan', l:'Kode usulan Aren Jariyah (wajib bila status “Dalam pengumpulan dana”)', v:al ? al.kodeUsulan : '', ph:'mis. AK-003' },
         { k:'ic', l:'Ikon (emoji, opsional)', v:al ? al.ic : '', ph:'🏢' },
         { k:'jenis', l:'Jenis aset', type:'select', v:al ? al.jenis : 'Tanah', opts:ASET_JENIS.map(function(j){ return [j, j]; }) },
         { k:'status', l:'Status (hanya “Dalam pengumpulan dana” yang bisa didanai nasabah via RencoPay)', type:'select', v:al ? al.status : 'rencana', opts:ASET_STATUS },
@@ -86406,7 +86407,12 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
         { k:'ket', l:'Keterangan', type:'textarea', v:al ? al.ket : '' }
       ], function(o){
         if (!need(o, ['nama'])) return false;
+        var kodeU = String(o.kodeUsulan || '').trim().toUpperCase();
+        if (kodeU && !/^AK-\d{2,}$/.test(kodeU)) { alert('Kode usulan harus berbentuk AK-03 atau AK-003 (sesuai Aren Jariyah).'); return false; }
+        if (o.status === 'kumpul' && !kodeU) { alert('Isi kode usulan Aren Jariyah dulu agar pendanaan tercatat di Aren Jariyah.'); return false; }
+        if (kodeU && d.asetLain.some(function(x){ return x.kodeUsulan === kodeU && (!al || x.id !== al.id); })) { alert('Kode usulan ' + kodeU + ' sudah dipakai program lain.'); return false; }
         if (!al) { al = { id: 'al_' + uidx() }; d.asetLain.push(al); }
+        al.kodeUsulan = kodeU;
         al.nama = o.nama.trim(); al.ic = o.ic.trim(); al.jenis = ASET_JENIS.indexOf(o.jenis) >= 0 ? o.jenis : 'Lainnya';
         al.status = ASET_STATUS.some(function(x){ return x[0] === o.status; }) ? o.status : 'rencana';
         al.lokasi = o.lokasi.trim(); al.nilai = Math.max(0, +o.nilai || 0); al.target = Math.max(0, +o.target || 0); al.terkumpul = Math.max(0, +o.terkumpul || 0);
@@ -87438,6 +87444,9 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
     { id:'takaful',  t:'Renco Takaful',  s:'Perlindungan dan Solidaritas Anggota',      items:['darurat','peduli'] },
     { id:'gakure',   t:'Renco Gakure',   s:'Pendidikan dan Pengembangan Generasi',      items:['edu','buku'] }
   ];
+  /* Program pendanaan lama (aset, edu, buku, umkm, sampah, gumi, abadi, peduli) disembunyikan dari menu.
+     Data & riwayatnya tetap utuh. Ubah ke true bila ingin menampilkannya lagi. */
+  var LEGACY_AKTIF = false;
   var DARURAT = { k:'darurat', ic:'🆘', t:'Takaful Darurat', d:'Dana pinjaman tanpa bunga untuk kebutuhan mendesak anggota, dengan pengembalian sesuai kemampuan.' };
   var META = {
     aset:  { s:'Tanah bersama · target 2030',      g:'linear-gradient(135deg,#0f3d33,#1f7a5c)' },
@@ -87509,10 +87518,10 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
       + '<button type="button" class="rpv45-hbtn" onclick="rpV45Prog()">Lihat rincian kontribusi per program</button></div>'
       + '<div class="rpv45-sec"><h4>' + (ST.cat ? 'Pilih program' : '4 Pilar Vision 2045') + '</h4></div>'
       + (ST.cat ? '<button type="button" class="rpv45-back" onclick="rpV45Home()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>4 Pilar</button>' : '')
-      + CATS.filter(function(c){ return !ST.cat || c.id === ST.cat; }).map(function(c){
+      + CATS.filter(function(c){ return (!ST.cat || c.id === ST.cat) && c.items.length; }).map(function(c){
           if (!ST.cat) return '<button type="button" class="rpv45-card rpv45-pil" onclick="rpV45Cat(\'' + c.id + '\')"><span class="ic">' + ({ jariyah:'🌳', koperasi:'🏛️', takaful:'🤲', gakure:'🎓' })[c.id] + '</span><span class="tx"><b>' + esc(c.t) + '</b><small>' + esc(c.s) + '</small></span><svg class="chv" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
           return '<div class="rpv45-card rpv45-cat">'
-            + (c.abadi ? '<button type="button" class="rpv45-cathd" onclick="rpV45Pick(\'abadi\')" aria-label="Danai Dana Abadi Renco"><span class="tx"><h4>' + esc(c.t) + '</h4><div class="rpv45-cs">Dana Abadi Renco · ' + esc(c.s) + '</div></span><span class="go" aria-hidden="true">🏦 ›</span></button>'
+            + (c.abadi && LEGACY_AKTIF ? '<button type="button" class="rpv45-cathd" onclick="rpV45Pick(\'abadi\')" aria-label="Danai Dana Abadi Renco"><span class="tx"><h4>' + esc(c.t) + '</h4><div class="rpv45-cs">Dana Abadi Renco · ' + esc(c.s) + '</div></span><span class="go" aria-hidden="true">🏦 ›</span></button>'
                          : '<h4>' + esc(c.t) + '</h4><div class="rpv45-cs">' + esc(c.s) + '</div>')
             + '<div class="rpv45-list">'
             + c.items.map(function(k){
@@ -87535,10 +87544,11 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
       var d = (window.DB && DB.asetBersama) || {}, U = Array.isArray(d.unitProg) ? d.unitProg : [];
       for (var i = PROG.length - 1; i >= 0; i--) if (PROG[i].unit || PROG[i].al) PROG.splice(i, 1);
       CATS.forEach(function(c){ c.items = c.items.filter(function(k){ return String(k).indexOf('u_') !== 0 && String(k).indexOf('al_') !== 0; }); });
+      if (!LEGACY_AKTIF) CATS.forEach(function(c){ c.items = c.items.filter(function(k){ return k === 'darurat'; }); });
       /* Aset Bersama lain buatan admin: yang berstatus “Dalam pengumpulan dana” bisa didanai nasabah */
       var jc = CATS.filter(function(x){ return x.id === 'jariyah'; })[0];
       (Array.isArray(d.asetLain) ? d.asetLain : []).forEach(function(a){
-        if (!jc || a.status !== 'kumpul' || String(a.id).indexOf('al_') !== 0) return;
+        if (!jc || a.status !== 'kumpul' || !a.kodeUsulan || String(a.id).indexOf('al_') !== 0) return;
         PROG.push({ k:a.id, ic:a.ic || '🏢', t:'Aset Bersama · ' + a.nama, d:a.ket || 'Aset bersama warga Renco.', al:true });
         jc.items.splice(1, 0, a.id);
       });
@@ -87678,6 +87688,39 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
       + '<button type="button" onclick="document.getElementById(\'rpv45Thx\').remove()">Tutup</button></div>';
     document.body.appendChild(o);
   }
+  /* ── Pencatatan ke Supabase bersama (dibaca Aren Jariyah) lewat Edge Function ── */
+  var AQ_KEY = 'rpv45_antrian_pendanaan';
+  function aqGet(){ try { var a = JSON.parse(localStorage.getItem(AQ_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e) { return []; } }
+  function aqSet(a){ try { localStorage.setItem(AQ_KEY, JSON.stringify(a)); } catch(e) {} }
+  var aqBusy = false;
+  async function aqKirim(){
+    if (aqBusy || window._RENCO_IS_LOCAL || !window.supabaseClient || !window.supabaseClient.functions) return;
+    var q = aqGet(); if (!q.length) return;
+    aqBusy = true;
+    try {
+      for (var i = 0; i < q.length; i++) {
+        var r = await window.supabaseClient.functions.invoke('catat-pendanaan', { body: q[i] });
+        if (r && r.error) {
+          var st = r.error && r.error.context && r.error.context.status;
+          if (st && st >= 400 && st < 500 && st !== 429) { /* data ditolak permanen: buang agar tidak macet */ }
+          else break;
+        }
+        q.splice(i, 1); i--; aqSet(q);
+      }
+    } catch(e) {}
+    aqBusy = false;
+  }
+  function catatAren(ref, prog, j, nm){
+    try {
+      var d = (window.DB && DB.asetBersama) || {};
+      var a = (d.asetLain || []).filter(function(x){ return x.id === prog; })[0];
+      if (!a || !a.kodeUsulan) return;
+      var q = aqGet(); q.push({ no_bukti: ref, kode_usulan: a.kodeUsulan, jumlah: j, nama_pembayar: nm });
+      aqSet(q); aqKirim();
+    } catch(e) {}
+  }
+  window.addEventListener('online', function(){ setTimeout(aqKirim, 1500); });
+  setTimeout(aqKirim, 6000);
   function doFund(){
     if (ST.busy) return; ST.busy = true;
     var ok = document.getElementById('rpv45Ok'); if (ok) ok.disabled = true;
@@ -87709,6 +87752,7 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
       } else {
         d.danaAbadi.push({ id: ref, tanggal: tg, jenis: 'setoran', jumlah: j, ket: ketP + ' — ' + nm, oleh: nm });
       }
+      catatAren(ref, P.prog, j, nm);
       if (typeof saveDB === 'function') saveDB();
       closeSheet();
       window._rpV45Pending = null;
