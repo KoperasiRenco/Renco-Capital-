@@ -87693,23 +87693,47 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
   function aqGet(){ try { var a = JSON.parse(localStorage.getItem(AQ_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e) { return []; } }
   function aqSet(a){ try { localStorage.setItem(AQ_KEY, JSON.stringify(a)); } catch(e) {} }
   var aqBusy = false;
+  var SENT_KEY = 'rpv45_terkirim_pendanaan';
+  function sentGet(){ try { var a = JSON.parse(localStorage.getItem(SENT_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e) { return []; } }
+  function sentAdd(id){ try { var a = sentGet(); if (a.indexOf(id) < 0) { a.push(id); localStorage.setItem(SENT_KEY, JSON.stringify(a.slice(-3000))); } } catch(e) {} }
+  /* Pendanaan lama yang belum pernah terkirim (mis. sebelum fungsi server dipasang) ikut dikirim.
+     Aman dikirim ulang: server menolak nomor bukti ganda tanpa membuat catatan baru. */
+  function aqIsiUlang(){
+    try {
+      var d = (window.DB && DB.asetBersama) || {};
+      var kode = {}; (d.asetLain || []).forEach(function(a){ if (a.kodeUsulan) kode[a.id] = a.kodeUsulan; });
+      var sent = sentGet(), q = aqGet(), ada = {}; q.forEach(function(x){ ada[x.no_bukti] = 1; });
+      var baru = false;
+      (d.danaProg || []).forEach(function(x){
+        if (x.jenis !== 'masuk' || x.sumber !== 'RencoPay' || !kode[x.prog] || !x.id) return;
+        if (sent.indexOf(x.id) >= 0 || ada[x.id]) return;
+        if (!/^[A-Za-z0-9_-]{6,64}$/.test(String(x.id)) || !(+x.jumlah >= 1000)) return;
+        q.push({ no_bukti: x.id, kode_usulan: kode[x.prog], jumlah: Math.round(+x.jumlah), nama_pembayar: x.oleh || null }); baru = true;
+      });
+      if (baru) aqSet(q);
+    } catch(e) {}
+  }
   async function aqKirim(){
     if (aqBusy || window._RENCO_IS_LOCAL || !window.supabaseClient || !window.supabaseClient.functions) return;
+    aqIsiUlang();
     var q = aqGet(); if (!q.length) return;
     aqBusy = true;
     try {
       for (var i = 0; i < q.length; i++) {
         var r = await window.supabaseClient.functions.invoke('catat-pendanaan', { body: q[i] });
         if (r && r.error) {
-          var st = r.error && r.error.context && r.error.context.status;
-          if (st && st >= 400 && st < 500 && st !== 429) { /* data ditolak permanen: buang agar tidak macet */ }
-          else break;
+          var st = r.error.context && r.error.context.status;
+          console.warn('[RencoPay→Aren Jariyah] gagal kirim', q[i].no_bukti, st || r.error.message);
+          /* hanya data yang jelas tidak valid (400/422) yang dibuang; selain itu (404 fungsi belum ada, 401/403, 5xx, offline) dicoba lagi nanti */
+          if (st === 400 || st === 422) { q.splice(i, 1); i--; aqSet(q); continue; }
+          break;
         }
-        q.splice(i, 1); i--; aqSet(q);
+        sentAdd(q[i].no_bukti); q.splice(i, 1); i--; aqSet(q);
       }
-    } catch(e) {}
+    } catch(e) { console.warn('[RencoPay→Aren Jariyah]', e); }
     aqBusy = false;
   }
+  window.rpV45KirimUlang = aqKirim;
   function catatAren(ref, prog, j, nm){
     try {
       var d = (window.DB && DB.asetBersama) || {};
@@ -96471,6 +96495,18 @@ html body img{ -webkit-user-drag:none; }
 html.renco-dark .v45a{ --a-bg:linear-gradient(180deg,#1b1b1b,#141414); --a-bd:#8a6c1c; --a-tx:#f1e6c0; --a-sub:#b9b196; }
 html.renco-dark .v45a-dots i{ background:rgba(241,230,192,.25); } html.renco-dark .v45a-dots i.on{ background:#f4d060; }
 #loginGate .v45a{ flex-shrink:0; margin:0; box-shadow:0 8px 18px rgba(0,0,0,.30),inset 0 0 0 1.5px rgba(255,255,255,.55); border-radius:20px; }
+/* Latar kaca transparan (glassmorphism) */
+.v45a{ --a-bg:linear-gradient(135deg,rgba(255,255,255,.34),rgba(255,255,255,.10) 55%,rgba(255,255,255,.20)); --a-bd:rgba(255,255,255,.50); --a-tx:#0b3a19; --a-sub:rgba(11,58,25,.78);
+  -webkit-backdrop-filter:blur(20px) saturate(1.7); backdrop-filter:blur(20px) saturate(1.7);
+  box-shadow:0 10px 30px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.65); }
+.v45a-h .ic{ background:rgba(255,255,255,.22); border:1px solid rgba(255,255,255,.5); box-shadow:inset 0 1px 0 rgba(255,255,255,.6); }
+.v45a-h .chv{ background:rgba(255,255,255,.28); border:1px solid rgba(255,255,255,.5); color:inherit; }
+.v45a-dots i{ background:rgba(255,255,255,.45); } .v45a-dots i.on{ background:#f4d060; }
+.v45a-c{ -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); box-shadow:0 6px 16px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.35); border:1px solid rgba(255,255,255,.28); }
+#loginGate .v45a, html.renco-dark .v45a{ --a-bg:linear-gradient(135deg,rgba(14,70,42,.52),rgba(14,70,42,.26) 55%,rgba(14,70,42,.38)); --a-tx:#fff; --a-sub:rgba(255,255,255,.85);
+  box-shadow:0 10px 30px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.55); }
+#loginGate .v45a .tx b{ text-shadow:0 1px 6px rgba(0,30,15,.55); } #loginGate .v45a .tx small{ text-shadow:0 1px 4px rgba(0,30,15,.5); }
+html.renco-dark .v45a-dots i{ background:rgba(255,255,255,.35); } html.renco-dark .v45a-dots i.on{ background:#f4d060; }
 @media (prefers-reduced-motion:reduce){ .v45a-b,.v45a .chv{ transition:none; } }
 </style>
 <script id="v45ads-js">
@@ -96496,7 +96532,7 @@ html.renco-dark .v45a-dots i{ background:rgba(241,230,192,.25); } html.renco-dar
     var d=data(), o=isOpen(ctx);
     return '<div class="v45a'+(o?' open':'')+'" data-ctx="'+ctx+'">'
       +'<button type="button" class="v45a-h" aria-expanded="'+(o?'true':'false')+'" onclick="v45AdsToggle(this)">'
-      +'<span class="ic">📣</span><span class="tx"><b>Ruang Iklan Vision 2045</b><small>Kenali semua platform Renco · '+d.length+' platform</small></span><span class="tag">IKLAN</span><span class="chv">'+CH+'</span></button>'
+      +'<span class="ic">📣</span><span class="tx"><b>Ruang Vision 2045</b><small>Kenali semua platform Renco · '+d.length+' platform</small></span><span class="chv">'+CH+'</span></button>'
       +'<div class="v45a-b"><div><div class="v45a-tr" onscroll="v45AdsDots(this)">'
       + d.map(function(x,i){ return '<button type="button" class="v45a-c" style="background:'+esc(x.g||'linear-gradient(135deg,#1a472a,#2d6a4f)')+'" onclick="v45AdsGo(\''+ctx+'\','+i+')"><span class="lb">PLATFORM</span><span class="em">'+esc(x.em)+'</span><b>'+esc(x.t)+'</b><p>'+esc(x.d)+'</p><span class="go">'+esc(x.go||'Buka')+' →</span></button>'; }).join('')
       +'</div><div class="v45a-dots">'+d.map(function(_,i){ return '<i'+(i===0?' class="on"':'')+'></i>'; }).join('')+'</div></div></div></div>';
