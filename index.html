@@ -3359,7 +3359,7 @@ body {
 }
 
 .app-header-top {
-  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px;
+  display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 6px;
 }
 .app-header .logo { display: flex; align-items: center; justify-content: flex-start; gap: 8px; min-width: 0; overflow: hidden; }
 .app-header .logo-icon {
@@ -3396,6 +3396,13 @@ body {
 .header-moon-btn .ico-sun { display: none; }
 .header-moon-btn.on .ico-moon { display: none; }
 .header-moon-btn.on .ico-sun { display: block; color: #ffd166; }
+/* Tombol headset Asisten Renco di header: ketuk = tampilkan kembali FAB (atau buka asisten bila FAB sedang tampil) */
+.ra-hdr-btn { position: relative; color: #fff; }
+.ra-hdr-btn svg { display: block; }
+.ra-hdr-btn:not(.fab-on) { opacity: .82; }
+.ra-hdr-btn.has-alert::after { content: ""; position: absolute; top: 5px; right: 5px; width: 9px; height: 9px; border-radius: 50%; background: #f4a922; border: 2px solid rgba(255,255,255,.85); animation: raHdrPing 1.8s ease-out infinite; }
+@keyframes raHdrPing { 0%{box-shadow:0 0 0 0 rgba(244,169,34,.65)} 80%,100%{box-shadow:0 0 0 8px rgba(244,169,34,0)} }
+body.on-rencopay .ra-hdr-btn, body.on-vision2045 .ra-hdr-btn { display: none !important; }
 .header-menu-toggle.open { background: rgba(255,255,255,0.16); }
 .header-actions {
   display: flex; flex-direction: column; justify-content: flex-start; align-content: center;
@@ -6799,6 +6806,44 @@ function _v45Migrasi(users) {
   if (ch) setTimeout(function(){ try { if (typeof isAdmin === 'function' && isAdmin() && typeof saveDB === 'function') saveDB(); } catch(e) {} }, 1500);
 }
 
+/* ── Anggota terhitung: nasabah yang diundang lewat "Undangan Akun" baru dihitung sebagai anggota
+   setelah benar-benar masuk memakai akun undangannya. Undangan admin tidak dihitung. Nasabah lama tanpa undangan tetap terhitung. ── */
+window.rencoAnggotaTerhitung = function(list){
+  try{
+    var d = window.DB || {}; var all = Array.isArray(list) ? list : (d.nasabah || []);
+    var inv = (d.undanganAkun || []).filter(function(x){ return x && x.role !== 'admin' && x.nasabahId != null && x.nasabahId !== ''; });
+    if (!inv.length) return all;
+    var users = (d.users || []), logs = d.loginLog || [], blok = {};
+    inv.forEach(function(x){
+      var u = users.find(function(y){ return y.id === x.userId; });
+      if (!u || u.aktif === false || !u.mustChangePw) return;          // akun hilang/nonaktif/sudah aktif → tidak menahan
+      var since = String(x.terbit || x.dibuat || '');
+      var seen = logs.some(function(l){ return String(l.username).toLowerCase() === String(x.username).toLowerCase() && String(l.waktu) >= since; });
+      if (!seen) blok[String(x.nasabahId)] = true; else delete blok[String(x.nasabahId)];
+    });
+    return all.filter(function(n){ return !blok[String(n.id)]; });
+  }catch(e){ return Array.isArray(list) ? list : ((window.DB && window.DB.nasabah) || []); }
+};
+window.rencoJmlAnggota = function(list){ return window.rencoAnggotaTerhitung(list).length; };
+/* ── "Tidak Aktif (Otomatis)" → "Tidak Aktif" biasa setelah 24 jam (atau lebih cepat bila admin sudah konfirmasi) ── */
+window.rencoNormalisasiNonaktif = function(){
+  try{
+    var list=(window.DB&&DB.nasabah)||[], now=Date.now(), ch=false;
+    list.forEach(function(a){
+      if(!a||a.status!=='Tidak Aktif'||!a.statusOtomatis) return;
+      var t=new Date(a.nonaktifTanggal||(a.notifNonaktif&&a.notifNonaktif.tanggal)||0).getTime();
+      if(!t||isNaN(t)||now-t<86400000) return;
+      a.statusOtomatis=false;
+      if(!a.notifNonaktif) a.notifNonaktif={};
+      if(a.notifNonaktif.status!=='selesai'){ a.notifNonaktif.status='selesai'; a.notifNonaktif.selesaiTanggal=new Date().toISOString(); }
+      ch=true;
+    });
+    if(ch && typeof window.saveDB==='function'){ try{ window.saveDB(); }catch(e){} }
+    return ch;
+  }catch(e){ return false; }
+};
+setInterval(function(){ window.rencoNormalisasiNonaktif(); },300000);
+setTimeout(function(){ window.rencoNormalisasiNonaktif(); },4000);
 function usersLoad() {
   // Prioritas: dari DB utama (tersinkronisasi ke Supabase)
   if (window.DB && Array.isArray(window.DB.users)) {
@@ -11747,6 +11792,31 @@ html.renco-dark body #app #page-rencoPay #rpMenuGrid .rp-hint{position:absolute;
 #qlPinOv .ql-dot.on{background:#f4d67a !important;border-color:#f4d67a !important}
 #qlPinOv .ql-err{color:#ffe08a !important}
 </style>
+<style id="lpr-icontabs-css">
+/* Sub menu Laporan: carousel bergaya "Pilih peran" — kartu ikon + nama, kartu terpilih di tengah membesar, geser halus */
+#page-laporan > .tab-bar{ position:relative; gap:10px !important; padding:14px 0 10px !important; align-items:center; scroll-behavior:smooth; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; touch-action:pan-x; }
+#page-laporan > .tab-bar::before,#page-laporan > .tab-bar::after{ content:''; flex:0 0 calc(50% - 50px); }
+#page-laporan > .tab-bar::after{ order:98; }
+#page-laporan > .tab-bar .tab-pill{ flex:0 0 auto; width:92px; height:98px; padding:10px 6px 8px !important; display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:7px; border-radius:20px; border:2.5px solid transparent !important; background:#fff !important; color:#4b5b50 !important; font-size:11px; font-weight:700; line-height:1.1; white-space:normal !important; text-align:center; scroll-snap-align:center; box-shadow:0 3px 12px rgba(20,60,40,.10); transform:scale(var(--s,1)); opacity:var(--o,1); transition:border-color .25s ease, box-shadow .25s ease; will-change:transform,opacity; }
+#page-laporan > .tab-bar .tab-pill[style*="display:none"], #page-laporan > .tab-bar .tab-pill[style*="display: none"]{ display:none !important; }
+#page-laporan > .tab-bar .tab-pill .lpr-ic{ width:46px; height:46px; border-radius:15px; display:flex; align-items:center; justify-content:center; color:#fff; background:linear-gradient(145deg,var(--c1,#3fa58f),var(--c2,#2a7d77)); box-shadow:0 6px 12px -4px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.35); flex:0 0 auto; }
+#page-laporan > .tab-bar .tab-pill .lpr-ic svg{ width:24px !important; height:24px !important; margin:0 !important; vertical-align:0 !important; display:block !important; }
+#page-laporan > .tab-bar .tab-pill > svg{ display:none !important; }
+#page-laporan > .tab-bar .tab-pill .lpr-t{ display:block !important; max-width:84px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+#page-laporan > .tab-bar .tab-pill.active{ background:#fff !important; border-color:#2d6a4f !important; color:#14381f !important; box-shadow:0 8px 22px rgba(45,106,79,.32); }
+#page-laporan > .tab-bar .tab-pill:active{ transform:scale(calc(var(--s,1) * .96)); }
+.lpr-arrow{ position:sticky; z-index:5; flex:0 0 30px; width:30px; height:30px; margin:0; padding:0; border:0; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; line-height:1; font-family:inherit; cursor:pointer; color:#2d6a4f; background:#e3eee7; box-shadow:0 1px 4px rgba(0,0,0,.12); -webkit-tap-highlight-color:transparent; }
+.lpr-arrow:active{ background:#cfe2d6; }
+.lpr-prev{ left:12px; margin-right:-40px; } .lpr-next{ right:12px; margin-left:-40px; order:99; }
+#lprCaption{ text-align:center; padding:2px 24px 10px; }
+#lprCaption b{ display:block; font-size:15px; font-weight:800; color:#14281c; }
+#lprCaption span{ display:block; margin-top:3px; font-size:12px; color:#6b7a70; }
+html.renco-dark #page-laporan > .tab-bar .tab-pill{ background:#1c1c1c !important; color:#d8d8d8 !important; }
+html.renco-dark #page-laporan > .tab-bar .tab-pill.active{ background:#232323 !important; border-color:#f5d77e !important; color:#f5d77e !important; box-shadow:0 8px 22px rgba(0,0,0,.5); }
+html.renco-dark .lpr-arrow{ color:#f5d77e; background:rgba(245,215,126,.16); }
+html.renco-dark #lprCaption b{ color:#f5f0dc; } html.renco-dark #lprCaption span{ color:#a8a8a8; }
+@media (prefers-reduced-motion:reduce){ #page-laporan > .tab-bar{ scroll-behavior:auto; } }
+</style>
 </head>
 <body>
 <script>
@@ -12041,7 +12111,7 @@ var _LOGIN_INFO_CONTENT = {
             '<span style="display:block;font-size:13.5px;font-weight:800;color:#1c3025;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + val + '</span></span>' +
           '</a>' +
           (copyVal ? '<button type="button" onclick="_liCopy(this,\'' + copyVal + '\')" style="' + pill + '">Salin</button>'
-                   : '<a href="' + href + '" target="_blank" rel="noopener" style="' + pill + '">Buka</a>') +
+                   : '<a href="' + href + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + ' style="' + pill + '">Buka</a>') +
         '</div>';
       }
       return '<div style="color:#374151">' +
@@ -12051,8 +12121,8 @@ var _LOGIN_INFO_CONTENT = {
           '<div style="font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.82)">Hubungi pengurus untuk bantuan login, lupa username/password, atau transaksi.</div></div>' +
         '</div>' +
         '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">' +
-          row('https://wa.me/6287855712922', true, 'linear-gradient(135deg,#25D366,#128c4a)', ICO_WA, 'WhatsApp · chat langsung', '0878-5571-2922', 0, '0878-5571-2922') +
-          row('mailto:koperasirenco@gmail.com', false, 'linear-gradient(135deg,#2d6a4f,#40916c)', ICO_ML, 'Email · kirim pesan', 'koperasirenco@gmail.com', 0, 'koperasirenco@gmail.com') +
+          row('https://wa.me/6287855712922', true, 'linear-gradient(135deg,#25D366,#128c4a)', ICO_WA, 'WhatsApp · chat langsung', '0878-5571-2922', 0, '') +
+          row('mailto:koperasirenco@gmail.com', false, 'linear-gradient(135deg,#2d6a4f,#40916c)', ICO_ML, 'Email · kirim pesan', 'koperasirenco@gmail.com', 0, '') +
           row('https://www.facebook.com/share/1FoxWn4nsu/', true, 'linear-gradient(135deg,#1877F2,#0b57c9)', ICO_FB, 'Facebook · halaman resmi', 'Koperasi Renco', 1, '') +
         '</div>' +
       '</div>';
@@ -12964,6 +13034,11 @@ if(l&&sh){var m='url("'+l.src+'")';sh.style.webkitMaskImage=m;sh.style.maskImage
       title="Aktifkan Master Device — device ini jadi satu-satunya sumber kebenaran DB">
       <span id="_rencoBtnMasterDot" style="font-size:13px;line-height:1;transition:all 0.3s ease">🔘</span>
       <span id="_rencoBtnMasterLabel" style="font-size:9px;font-weight:900;letter-spacing:0.6px;color:rgba(255,255,255,0.65);font-family:inherit;user-select:none;transition:color 0.3s">MASTER</span>
+    </button>
+
+    <!-- Tombol headset Asisten Renco — di samping kiri ikon mode gelap. Ketuk untuk mengaktifkan kembali FAB -->
+    <button class="header-moon-btn ra-hdr-btn" id="raHdrBtn" type="button" onclick="window.RencoAsisten && RencoAsisten.hdrTap()" title="Asisten Renco" aria-label="Asisten Renco" style="display:none">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="3" y="12" width="4" height="6" rx="2"/><rect x="17" y="12" width="4" height="6" rx="2"/><path d="M20 18v1a3 3 0 0 1-3 3h-3"/><rect x="11" y="20.2" width="3" height="3" rx="1.5"/></svg>
     </button>
 
     <!-- Tombol Mode Malam (khusus nasabah) — di samping kiri ikon garis tiga -->
@@ -18915,6 +18990,23 @@ function hitungSkorKepercayaan(kkId, opsi) {
     tglGabung.setDate(1); tglGabung.setHours(0,0,0,0);
     tglGabung = _rencoAwalKewajiban(tglGabung);
     var rawBulan = (today.getFullYear()-tglGabung.getFullYear())*12 + (today.getMonth()-tglGabung.getMonth());
+    // FIX: hitung bulan tunggak LANGSUNG dari transaksi iuran wajib (tidak bergantung status/field
+    // a.iuranBulanTunggak, yang tidak diperbarui untuk anggota 'Tidak Aktif').
+    var _bulanBayarSkor = new Set();
+    ((window.DB && DB.transaksi) || []).forEach(function(t){
+      if (t.kkId === kkId && t.type === 'simpanan' && (t.jenis||'') === 'wajib') {
+        var kb = (typeof _iwKeyTxn === 'function') ? _iwKeyTxn(t) : null;
+        if (kb) _bulanBayarSkor.add(kb);
+      }
+    });
+    var _batasSkor = new Date(today.getFullYear(), today.getMonth() - 1, 1); _batasSkor.setHours(0,0,0,0);
+    var _curSkor = new Date(tglGabung), _tunggakLangsung = 0;
+    while (_curSkor <= _batasSkor) {
+      var _kSkor = _curSkor.getFullYear() + '-' + String(_curSkor.getMonth() + 1).padStart(2, '0');
+      if (!_bulanBayarSkor.has(_kSkor)) _tunggakLangsung++;
+      _curSkor.setMonth(_curSkor.getMonth() + 1);
+    }
+    bulanTunggak = _tunggakLangsung;
     iuranBulan = Math.max(rawBulan, bulanTunggak);
     if (iuranBulan >= 1) {
       iuranLunas = Math.max(0, iuranBulan - bulanTunggak);
@@ -18989,7 +19081,7 @@ function hitungSkorKepercayaan(kkId, opsi) {
   var belumTeruji = pinjamanList.length === 0;
   if (total !== null) {
     if (adaPinjamanMenunggak && total > 54) { total = 54; batas.push('Sedang memiliki cicilan menunggak — skor dibatasi maksimal 54.'); }
-    else if (a.iuranMenunggak && total > 69) { total = 69; batas.push('Iuran wajib sedang menunggak — skor dibatasi maksimal 69.'); }
+    else if ((a.iuranMenunggak || bulanTunggak > 0) && total > 69) { total = 69; batas.push('Iuran wajib sedang menunggak — skor dibatasi maksimal 69.'); }
     if (belumTeruji && total > 84) { total = 84; batas.push('Belum pernah teruji lewat pinjaman/pembiayaan — "Sangat Dipercaya" baru bisa dicapai setelah ada riwayat pelunasan.'); }
   }
 
@@ -19379,6 +19471,32 @@ function isNasabahBlacklist(kkId) {
   return !!(a && a.blacklist && a.blacklist.aktif);
 }
 window.isNasabahBlacklist = isNasabahBlacklist;
+
+/* Cari anggota yang SEDANG di-blacklist berdasarkan id / KTP / No. HP / nama persis.
+   Dipakai untuk menolak pembukaan nama baru dan undangan baru. Return {n: anggota, by: 'id'|'KTP'|'No. HP'|'nama'} atau null. */
+function _blNormNama(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim(); }
+function _blNormHp(s){ var d=String(s||'').replace(/\D/g,''); if (d.indexOf('62')===0) d='0'+d.slice(2); return d; }
+function _blNormKtp(s){ return String(s||'').replace(/\D/g,''); }
+window.rencoCariBlacklist = function(q){
+  q = q || {};
+  var nm=_blNormNama(q.nama), hp=_blNormHp(q.hp), ktp=_blNormKtp(q.ktp), hit=null;
+  ((window.DB && DB.nasabah) || []).some(function(n){
+    if (!n || !n.blacklist || !n.blacklist.aktif) return false;
+    if (q.id != null && q.id !== '' && String(n.id) === String(q.id)) { hit = {n:n, by:'id'}; return true; }
+    if (ktp.length >= 8 && _blNormKtp(n.ktp) === ktp) { hit = {n:n, by:'KTP'}; return true; }
+    if (hp.length >= 9 && _blNormHp(n.hp) === hp)     { hit = {n:n, by:'No. HP'}; return true; }
+    if (nm.length >= 3 && _blNormNama(n.nama) === nm) { hit = {n:n, by:'nama'}; return true; }
+    return false;
+  });
+  return hit;
+};
+window.rencoTolakBlacklist = function(q, konteks){
+  var h = window.rencoCariBlacklist(q); if (!h) return false;
+  var msg = '🚫 Ditolak: ' + h.n.nama + ' ada di daftar BLACKLIST' + (h.by !== 'id' ? ' (cocok ' + h.by + ')' : '') + '. ' + (konteks || '');
+  try{ if (typeof showToast === 'function') showToast(msg.trim()); else alert(msg.trim()); }catch(e){}
+  try{ if (typeof auditLog === 'function') auditLog('Blacklist Ditolak', (konteks || 'Aksi') + ' ditolak: ' + h.n.nama + ' di-blacklist (cocok ' + h.by + ')', 'user-mgmt'); }catch(e){}
+  return true;
+};
 
 function openBlacklistModal(id) {
   if (!((typeof isAdmin === 'function' && isAdmin()))) { if (typeof showToast==='function') showToast('⛔ Hanya Admin yang dapat mengubah status blacklist'); return; }
@@ -21229,7 +21347,7 @@ function renderNasabahKategori() {
     if (!termasuk) lainnya.push(n);
   });
 
-  const totalKat = nasabah.length;
+  const totalKat = window.rencoJmlAnggota(nasabah);
   const katAktif = KATEGORI_MASTER.filter(k => Object.keys(byKat[k.key]).length > 0).length;
 
   // ── Avatar helper ──
@@ -30465,7 +30583,7 @@ function renderHome() {
     }
   })();
   if (typeof window._applySaldoVisibility === 'function') window._applySaldoVisibility();
-  document.getElementById('statNasabah').textContent = DB.nasabah.length;
+  document.getElementById('statNasabah').textContent = window.rencoJmlAnggota();
   document.getElementById('statSimpanan').textContent = fmt(totalSimpanan);
   document.getElementById('statPinjaman').textContent = fmt(totalPinjaman);
   const totalPembSyariah = (DB.pembiayaanSyariah||[]).reduce((a,b)=>a+(b.jumlah||0),0);
@@ -30814,7 +30932,7 @@ function setNasabahStatusMode(mode) {
 }
 
 function _nsSummaryHTML() {
-  var all = DB.nasabah || [];
+  var all = window.rencoAnggotaTerhitung ? window.rencoAnggotaTerhitung() : (DB.nasabah || []);
   var aktif = all.filter(function(a){ return (a.status||'Aktif') === 'Aktif'; }).length;
   var telat = all.filter(function(a){ return a.iuranMenunggak && (a.status||'Aktif') === 'Aktif'; }).length;
   return '<div class="ns-sum">'
@@ -30842,7 +30960,15 @@ function renderNasabah(filter='') {
     btn.classList.toggle('active', btn.getAttribute('data-mode') === _nasabahStatusMode);
   });
 
-  const list = DB.nasabah.filter(a=>!filter||a.nama.toLowerCase().includes(filter.toLowerCase()))
+  if (window.rencoNormalisasiNonaktif) window.rencoNormalisasiNonaktif();
+  // Nasabah yang sudah dikirimi undangan tetapi belum pernah login tidak tampil & tidak terhitung
+  // Anggota ber-blacklist yang belum pernah login tetap TAMPIL (di grup terpisah di bawah), tapi tidak ikut terhitung sebagai anggota
+  const _baseNs = (window.rencoAnggotaTerhitung ? window.rencoAnggotaTerhitung() : DB.nasabah);
+  const _baseIds = new Set(_baseNs.map(n=>String(n.id)));
+  const _blHidden = (_nasabahStatusMode === 'semua' || _nasabahStatusMode === 'blacklist')
+    ? (DB.nasabah||[]).filter(n=>n && n.blacklist && n.blacklist.aktif && !_baseIds.has(String(n.id))) : [];
+  const _blHiddenIds = new Set(_blHidden.map(n=>String(n.id)));
+  const list = _baseNs.concat(_blHidden).filter(a=>!filter||a.nama.toLowerCase().includes(filter.toLowerCase()))
     .filter(a=>{
       if (_nasabahStatusMode === 'semua') return true;
       if (_nasabahStatusMode === 'blacklist') return !!(a.blacklist && a.blacklist.aktif);
@@ -30851,6 +30977,8 @@ function renderNasabah(filter='') {
     })
     .slice()
     .sort((a,b)=>{
+      const aH = _blHiddenIds.has(String(a.id)) ? 1 : 0, bH = _blHiddenIds.has(String(b.id)) ? 1 : 0;
+      if (aH !== bH) return aH - bH;
       const aAktif = (a.status||'Aktif')==='Aktif' ? 0 : 1;
       const bAktif = (b.status||'Aktif')==='Aktif' ? 0 : 1;
       if (aAktif !== bAktif) return aAktif - bAktif;
@@ -30862,7 +30990,8 @@ function renderNasabah(filter='') {
     el.innerHTML = `<div class="empty-state"><div class="empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="7" r="3.5" stroke="#40916c" stroke-width="1.7"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="#40916c" stroke-width="1.7" stroke-linecap="round"/><circle cx="18" cy="8" r="2.5" stroke="#40916c" stroke-width="1.5" opacity="0.65"/><path d="M21 19c0-2.5-1.8-4.5-4-5" stroke="#40916c" stroke-width="1.5" stroke-linecap="round" opacity="0.65"/></svg></div><h3>${filter||modeLbl?'Tidak Ditemukan':'Belum Ada Nasabah'}</h3><p>${modeLbl?'Tidak ada nasabah'+modeLbl:'Tap + untuk tambah nasabah'}</p></div>`;
     return;
   }
-  el.innerHTML = _nsSummaryHTML() + list.map((a, _idx)=>{
+  const _nsRender = (a, _idx)=>{
+    const _blBelumLogin = _blHiddenIds.has(String(a.id));
     const sim = totalSimpananKK(a.id);
     const pin = totalPinjamanAktifKK(a.id);
     const simpBerjangka = (DB.tabunganBerjangka||[]).filter(t=>t.kkId===a.id && t.status==='aktif').reduce((s,b)=>s+(b.jumlah||0),0);
@@ -30870,15 +30999,15 @@ function renderNasabah(filter='') {
     const isOpen = !!_nasabahOpen[a.id];
     const statusAktif = (a.status||'Aktif') === 'Aktif';
     return `
-    <div class="member-item-wrap ${statusAktif?'member-active':'member-inactive'}" id="nasabahWrap_${a.id}" ${(a.blacklist&&a.blacklist.aktif)?'style="background:rgba(220,38,38,0.05)"':''}>
+    <div class="member-item-wrap ${statusAktif?'member-active':'member-inactive'}" id="nasabahWrap_${a.id}" ${(a.blacklist&&a.blacklist.aktif)?('style="background:rgba(220,38,38,0.05)'+(_blBelumLogin?';border-left:3px solid #dc2626':'')+'"'):''}>
       <div class="member-item-row" onclick="toggleNasabahDetail('${a.id}')">
         ${renderAvatarHTML(a)}
         <div class="member-info" style="flex:1">
           <div class="member-name">${a.nama}</div>
-          <div class="member-sub" style="margin-top:2px;font-size:10px;color:var(--text-soft)">${statusAktif?'Aktif':'Tidak Aktif'}</div>
+          <div class="member-sub" style="margin-top:2px;font-size:10px;color:var(--text-soft)">${statusAktif?'Aktif':'Tidak Aktif'}${_blBelumLogin?' · Belum pernah login':''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          ${(a.blacklist && a.blacklist.aktif) ? `<span title="Blacklist" style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(127,29,29,0.14);color:#7f1d1d;border:1px solid rgba(127,29,29,0.4)">🚫 Blacklist</span>` : (typeof hitungSkorKepercayaan === 'function') ? (function(){
+          ${(a.blacklist && a.blacklist.aktif) ? `<span title="Blacklist" style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(127,29,29,0.14);color:#7f1d1d;border:1px solid rgba(127,29,29,0.4)">🚫 Blacklist${_blBelumLogin?' · Belum login':''}</span>` : (typeof hitungSkorKepercayaan === 'function') ? (function(){
             var sk = hitungSkorKepercayaan(a.id);
             if (!sk) return '';
             return '<span title="Skor Kepercayaan" style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;background:'+sk.warna+'18;color:'+sk.warna+';border:1px solid '+sk.warna+'40">'+_skorIconSVG(10,sk.warna)+' '+(sk.total===null?'Baru':sk.total)+'</span>';
@@ -30904,7 +31033,13 @@ function renderNasabah(filter='') {
         </div>
       </div>
     </div>`;
-  }).join('');
+  };
+  const _mainNs = list.filter(a=>!_blHiddenIds.has(String(a.id)));
+  const _grpNs  = list.filter(a=>_blHiddenIds.has(String(a.id)));
+  const _grpHdr = _grpNs.length
+    ? '<div style="margin:14px 16px 6px;padding:8px 12px;border-radius:10px;background:rgba(127,29,29,0.10);border:1px dashed rgba(127,29,29,0.45);font-size:11px;font-weight:800;color:#7f1d1d">🚫 Blacklist — Belum Pernah Login ('+_grpNs.length+')<div style="font-weight:600;font-size:10px;opacity:.85;margin-top:2px">Belum terhitung sebagai anggota.</div></div>'
+    : '';
+  el.innerHTML = _nsSummaryHTML() + _mainNs.map(_nsRender).join('') + _grpHdr + _grpNs.map(_nsRender).join('');
   // Render kartu anggota inline di bawah daftar (hanya untuk nasabah/user)
   if (typeof _renderKartuInlineDaftar === 'function') _renderKartuInlineDaftar();
 }
@@ -30958,6 +31093,11 @@ function saveKK() {
   const nama = document.getElementById('kkNama').value.trim();
   if (!nama) { showToast('⚠️ Nama tidak boleh kosong'); return; }
   const editId = document.getElementById('editKKId').value;
+
+  // Pembukaan nama baru ditolak bila KTP / No. HP / nama sama dengan anggota yang sedang di-blacklist
+  if (!editId && window.rencoTolakBlacklist && rencoTolakBlacklist({
+        nama: nama, ktp: document.getElementById('kkKtp').value, hp: document.getElementById('kkHp').value
+      }, 'Pembukaan nama baru')) return;
 
   if (editId) {
     const idx = DB.nasabah.findIndex(a=>a.id===editId);
@@ -43748,7 +43888,7 @@ function _pdfGenKeseluruhan(jsPDFCls) {
   var doc = new jsPDFCls({ orientation: 'p', unit: 'mm', format: 'a4' });
   var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
   var margin = 14, usableW = pageW - margin * 2;
-  var y = _pdfKop(doc, pageW, margin, 'LAPORAN KESELURUHAN (KONSOLIDASI)', 'Dicetak ' + _pdfTglPanjang() + '  |  ' + nasabah.length + ' anggota');
+  var y = _pdfKop(doc, pageW, margin, 'LAPORAN KESELURUHAN (KONSOLIDASI)', 'Dicetak ' + _pdfTglPanjang() + '  |  ' + window.rencoJmlAnggota(nasabah) + ' anggota');
 
   y = _pdfSection(doc, y, margin, 'Ringkasan Konsolidasi', [26, 58, 42]);
   y = _pdfRingkasan(doc, y, margin, usableW, [
@@ -43785,7 +43925,7 @@ function _pdfGenKeseluruhan(jsPDFCls) {
   doc.setFontSize(8.6);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(50, 50, 50);
-  var narasi = 'Koperasi RENCO memiliki ' + nasabah.length + ' anggota aktif dengan total simpanan bersih ' + _pdfFmt(saldoSimpanan) + '. ' +
+  var narasi = 'Koperasi RENCO memiliki ' + window.rencoJmlAnggota(nasabah) + ' anggota aktif dengan total simpanan bersih ' + _pdfFmt(saldoSimpanan) + '. ' +
     'Pinjaman koperasi aktif sebesar ' + _pdfFmt(piutangPin) + ' (' + pinAktif.length + ' kontrak, ' + pinLunas.length + ' lunas) dan pembiayaan Renco Capital aktif ' + _pdfFmt(piutangPem) + '. ' +
     'Total aktiva konsolidasi mencapai ' + _pdfFmt(totalAktiva) + ' dengan estimasi pendapatan ' + _pdfFmt(totalPendapatan) + ' dan estimasi SHU ' + _pdfFmt(totalSHU) + '.';
   var lines = doc.splitTextToSize(narasi, usableW);
@@ -44247,7 +44387,7 @@ function _renderLaporanKoperasiNasabahView() {
   var monthsFull = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   function fmt2(n){ return typeof fmt==='function'?fmt(n||0):'Rp'+Number(n||0).toLocaleString('id-ID'); }
 
-  var totalAnggota   = (DB.nasabah||[]).length;
+  var totalAnggota   = window.rencoJmlAnggota();
   var totalSimpanan  = (DB.transaksi||[]).filter(function(t){return t.type==='simpanan';}).reduce(function(a,b){return a+(b.jumlah||0);},0)
                      - (DB.transaksi||[]).filter(function(t){return t.type==='tarik-sukarela';}).reduce(function(a,b){return a+(b.jumlah||0);},0);
   var pinAktif       = (DB.pinjaman||[]).filter(function(p){return p.status==='aktif'||p.status==='menunggak';});
@@ -59144,7 +59284,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
         <!-- Counter row bawah -->
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px">
           <div style="text-align:center;background:rgba(255,255,255,0.07);border-radius:9px;padding:7px 4px">
-            <div style="font-size:16px;font-weight:800;color:white">${(DB.nasabah||[]).length}</div>
+            <div style="font-size:16px;font-weight:800;color:white">${window.rencoJmlAnggota()}</div>
             <div style="font-size:8px;color:rgba(255,255,255,0.4);font-weight:700">Anggota</div>
           </div>
           <div style="text-align:center;background:rgba(255,255,255,0.07);border-radius:9px;padding:7px 4px">
@@ -59316,7 +59456,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       ${_sectionHeader('📝 Ringkasan Eksekutif','#1a472a')}
       <div style="padding:0 14px 28px">
         <div style="background:white;border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.06);font-size:11px;line-height:1.9;color:var(--text)">
-          Koperasi RENCO per <b>${monthsFull[m]} ${y}</b> memiliki <b>${(DB.nasabah||[]).length} anggota aktif</b>.
+          Koperasi RENCO per <b>${monthsFull[m]} ${y}</b> memiliki <b>${window.rencoJmlAnggota()} anggota aktif</b>.
           Total simpanan bersih <b style="color:#2d6a4f">${_fmt(saldoSimpanan)}</b>
           (Pokok <b>${_fmt(simPokok)}</b> · Wajib <b>${_fmt(simWajib)}</b> · Sukarela <b>${_fmt(simSukarela)}</b>).
           Pinjaman aktif <b style="color:#e63946">${pinAktif.length} nasabah</b> senilai total <b style="color:#e63946">${_fmt(pinAktif.reduce((a,b)=>a+(b.jumlah||0),0))}</b>
@@ -59580,7 +59720,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div style="background:rgba(255,255,255,0.07);border-radius:10px;padding:9px 12px">
             <div style="font-size:9px;color:rgba(255,255,255,0.4);font-weight:700">👤 Nasabah</div>
-            <div style="font-size:14px;font-weight:800;color:white;margin-top:2px">${nasabah.length} anggota</div>
+            <div style="font-size:14px;font-weight:800;color:white;margin-top:2px">${window.rencoJmlAnggota(nasabah)} anggota</div>
           </div>
           
           <div style="background:rgba(255,255,255,0.07);border-radius:10px;padding:9px 12px">
@@ -59644,7 +59784,7 @@ window.setMemberTabPembayaran = setMemberTabPembayaran;
       <div style="padding:0 14px 24px">
         <div style="background:white;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
           <div style="font-size:11px;line-height:1.8;color:var(--text)">
-            Koperasi RENCO per ${_nowLabel()} memiliki <b>${nasabah.length} anggota aktif</b> dengan total simpanan bersih <b style="color:#2d6a4f">${_fmt(saldoSimpanan)}</b>. 
+            Koperasi RENCO per ${_nowLabel()} memiliki <b>${window.rencoJmlAnggota(nasabah)} anggota aktif</b> dengan total simpanan bersih <b style="color:#2d6a4f">${_fmt(saldoSimpanan)}</b>. 
             Pinjaman koperasi aktif sebesar <b style="color:#e63946">${_fmt(piutangPin)}</b> dan pembiayaan Renco Capital aktif <b style="color:#7c3aed">${_fmt(piutangPem)}</b>. 
             Total aktiva konsolidasi mencapai <b style="color:#2d6a4f">${_fmt(totalAktiva)}</b> dengan estimasi pendapatan <b style="color:#f4a922">${_fmt(totalPendapatan)}</b> 
             dan estimasi SHU <b style="color:#7c3aed">${_fmt(totalSHU)}</b>.
@@ -70924,7 +71064,7 @@ html.renco-dark .ar-mode{ background:rgba(255,255,255,.08); } html.renco-dark .a
     per.forEach(function(r){ Object.keys(tot).forEach(function(k){ tot[k] += r[k]; }); });
     var aktif = (DB.pinjaman || []).filter(function(p){ return p.status === 'aktif'; });
     tot.pending = (DB.pendingTransaksi || []).filter(function(p){ return p.status === 'pending'; }).length;
-    tot.anggota = (DB.nasabah || []).length;
+    tot.anggota = window.rencoJmlAnggota();
     tot.sisaPokok = aktif.reduce(function(a,p){ return a + (Number(p.sisaPokok) || 0); }, 0);
     return { per:per, tot:tot };
   }
@@ -82048,6 +82188,9 @@ var CSS = '' +
 '#raFab.dragging{cursor:grabbing;opacity:1;box-shadow:0 14px 30px rgba(13,32,22,.5),0 0 0 6px rgba(255,209,102,.3)}#raFab.dragging .ic{transform:scale(1.14) rotate(-8deg)}' +
 '#raFab .dot{position:absolute;top:5px;right:5px;width:11px;height:11px;border-radius:50%;background:#f4a922;border:2px solid rgba(255,255,255,.85);display:none}' +
 '#raFab.has-alert .dot{display:block;animation:raPing 1.8s ease-out infinite}' +
+'#raFabX{position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;background:rgba(13,32,22,.92);color:#fff;border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2;touch-action:manipulation;opacity:0;pointer-events:none;transform:scale(.4);transition:opacity .18s,transform .22s cubic-bezier(.2,.9,.3,1.4)}' +
+'#raFab.show-x #raFabX{opacity:1;pointer-events:auto;transform:scale(1)}' +
+'#raFab.side-r #raFabX{right:auto;left:-8px}#raFab.dragging #raFabX{display:none}' +
 '@keyframes raPing{0%{box-shadow:0 0 0 0 rgba(244,169,34,.65)}80%,100%{box-shadow:0 0 0 9px rgba(244,169,34,0)}}' +
 /* ── FAB: denyut halus + label saat aktif (ketuk 1x aktif, ketuk lagi buka) ── */
 '#raFab:not(.dragging):not(.press){animation:raHalo 3.4s ease-out infinite}' +
@@ -82203,8 +82346,16 @@ function fabBounds(){ var w = window.innerWidth, h = window.innerHeight; return 
 function fabPlace(x, y, anim){
   var f = $('raFab'); if (!f) return;
   FABST.x = x; FABST.y = y;
+  f.classList.toggle('side-r', x + FABS / 2 >= window.innerWidth / 2);
   f.style.transition = anim && !reduceMotion() ? 'transform .45s cubic-bezier(.18,.9,.28,1.18),opacity .3s' : 'opacity .3s';
   f.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+}
+function fabHideX(){ var f = $('raFab'); clearTimeout(FABST.xT); if (f) f.classList.remove('show-x'); }
+function fabShowX(){
+  var f = $('raFab'); if (!f) return;
+  f.classList.add('show-x'); clearTimeout(FABST.xT);
+  FABST.xT = setTimeout(fabHideX, 3500);   /* hilang lagi otomatis setelah beberapa saat */
+  try { if (navigator.vibrate) navigator.vibrate(12); } catch(_){}
 }
 function fabRestore(anim){
   var b = fabBounds(), pos = null;
@@ -82234,18 +82385,20 @@ function bindFab(f){
     FABST.sx = e.clientX; FABST.sy = e.clientY; FABST.ox = FABST.x; FABST.oy = FABST.y;
     try { f.setPointerCapture(e.pointerId); } catch(_){}
     f.classList.add('press'); wake();
+    fabHideX(); FABST.long = false; clearTimeout(FABST.lpT);
+    FABST.lpT = setTimeout(function(){ if (FABST.down && !FABST.moved) { FABST.long = true; f.classList.remove('press'); fabShowX(); } }, 480);
   });
   f.addEventListener('pointermove', function(e){
     if (!FABST.down || e.pointerId !== FABST.pid) return;
     var dx = e.clientX - FABST.sx, dy = e.clientY - FABST.sy;
-    if (!FABST.moved) { if (Math.hypot(dx, dy) < (e.pointerType === 'mouse' ? 6 : 14)) return; FABST.moved = true; f.classList.remove('press'); f.classList.add('dragging'); }
+    if (!FABST.moved) { if (Math.hypot(dx, dy) < (e.pointerType === 'mouse' ? 6 : 14)) return; FABST.moved = true; clearTimeout(FABST.lpT); fabHideX(); f.classList.remove('press'); f.classList.add('dragging'); }
     FABST.nx = FABST.ox + dx; FABST.ny = FABST.oy + dy;
     if (!FABST.raf) FABST.raf = requestAnimationFrame(fabFrame);
     e.preventDefault();
   });
   var end = function(e){
     if (!FABST.down || e.pointerId !== FABST.pid) return;
-    FABST.down = false; f.classList.remove('press', 'dragging');
+    FABST.down = false; clearTimeout(FABST.lpT); f.classList.remove('press', 'dragging');
     try { f.releasePointerCapture(e.pointerId); } catch(_){}
     if (FABST.raf) { cancelAnimationFrame(FABST.raf); FABST.raf = 0; }
     /* geseran sangat kecil (jari goyang saat mengetuk) tetap dihitung sebagai ketukan → langsung buka */
@@ -82257,7 +82410,7 @@ function bindFab(f){
       fabPlace(FABST.x + FABS / 2 < window.innerWidth / 2 ? b.minX : b.maxX, clamp(FABST.y, b.minY, b.maxY), true);
       fabSave();
       try { if (navigator.vibrate) navigator.vibrate(8); } catch(_){}
-    } else if (e.type === 'pointerup') toggle(true);
+    } else if (e.type === 'pointerup' && !FABST.long) toggle(true);   /* ditahan = hanya memunculkan tombol ✕, tidak membuka asisten */
     wake();
   };
   f.addEventListener('pointerup', end); f.addEventListener('pointercancel', end);
@@ -82271,8 +82424,16 @@ function build(){
   if (UI.built || typeof document === 'undefined') return;
   var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   var fab = document.createElement('button'); fab.id = 'raFab'; fab.type = 'button'; fab.setAttribute('aria-label', 'Customer Service Asisten Renco (ketuk untuk membuka, geser untuk memindahkan)'); fab.title = 'Asisten Renco · geser untuk memindahkan';
-  fab.innerHTML = '<span class="ic">' + ICON + '</span><span class="dot"></span>';
+  fab.innerHTML = '<span class="ic">' + ICON + '</span><span class="dot"></span>' +
+    '<span id="raFabX" role="button" aria-label="Sembunyikan Asisten Renco" title="Sembunyikan"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></span>';
   document.body.appendChild(fab); bindFab(fab); fabRestore(false); wake();
+  (function(){
+    var x = $('raFabX'); if (!x) return;
+    /* jangan biarkan ketukan di tombol tutup memicu geser/buka FAB */
+    ['pointerdown','pointerup','pointercancel','pointermove','contextmenu'].forEach(function(ev){ x.addEventListener(ev, function(e){ e.stopPropagation(); }); });
+    x.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault(); fabClose(); });
+    try { new MutationObserver(hdrSync).observe(fab, { attributes: true, attributeFilter: ['class'] }); } catch(_){}
+  })();
   var ov = document.createElement('div'); ov.id = 'raOverlay';
   ov.innerHTML = '<div id="raLot" aria-hidden="true"><i></i><i></i></div><div id="raPanel" role="dialog" aria-modal="true" aria-label="Asisten Keuangan Renco">' +
     '<div id="raHead"><div class="tt"><b>Asisten Renco</b><span>Online</span></div>' +
@@ -82555,7 +82716,8 @@ function toggle(on){
   if (UI.open) ov.classList.remove('closing');
   else if (ov.classList.contains('open')) { ov.classList.add('closing'); UI.clT = setTimeout(function(){ ov.classList.remove('closing'); }, 700); }
   ov.classList.toggle('open', UI.open);
-  var fab = $('raFab'); if (fab) { fab.style.display = UI.open ? 'none' : (me() && !window._rencoPayOnly ? 'flex' : 'none'); }
+  var fab = $('raFab'); if (fab) { fab.style.display = UI.open ? 'none' : (me() && !window._rencoPayOnly && !fabOff() ? 'flex' : 'none'); }
+  hdrSync();
   if (UI.open) { try { applyMode(); } catch(e){} if (!log().children.length) greet(); setTimeout(function(){ var i = $('raIn'); if (i && window.innerWidth > 700) i.focus(); }, 120); }
   else wake();
 }
@@ -82594,11 +82756,12 @@ function sync(){
   var u = me(), fab = $('raFab');
   var owner = u ? String(u.nasabahId || u.id || u.username || '') : null;
   if (UI.owner !== owner) { UI.owner = owner; UI.psN = null; UI.psTs = 0; SESS = sessFresh(); if (UI.built) { reset(); if (UI.open) toggle(false); } }
-  if (!u) { if (fab) fab.style.display = 'none'; return; }
+  if (!u) { if (fab) fab.style.display = 'none'; hdrSync(); return; }
   build(); fab = $('raFab');
-  if (window._rencoPayOnly) { fab.style.display = 'none'; return; }
+  if (window._rencoPayOnly) { fab.style.display = 'none'; hdrSync(); return; }
   var wasHidden = fab.style.display !== 'flex';
-  fab.style.display = UI.open ? 'none' : 'flex';
+  fab.style.display = (UI.open || fabOff()) ? 'none' : 'flex';
+  hdrSync();
   if (wasHidden && !UI.open) { fabRestore(false); wake(); }
   var nowTs = Date.now();
   if (!UI.alertTs || nowTs - UI.alertTs > 30000 || UI.alertOwner !== owner) {
@@ -82608,7 +82771,37 @@ function sync(){
   if (!UI.psTs || nowTs - UI.psTs > 40000) { UI.psTs = nowTs; try { psCek(); } catch(e){} }
 }
 
-window.RencoAsisten = { answer: answer, open: function(){ toggle(true); }, close: function(){ toggle(false); }, _parse: { uang: parseUang, durasi: parseDurasi } };
+/* ── FAB bisa ditutup; tombol headset di header mengaktifkannya kembali ── */
+function fabOff(){ return lsGet('raFabOff') === '1'; }
+function hdrSync(){
+  var b = $('raHdrBtn'); if (!b) return;
+  var show = !!me() && !window._rencoPayOnly;
+  b.style.display = show ? 'flex' : 'none';
+  var on = !fabOff();
+  b.classList.toggle('fab-on', on);
+  var f = $('raFab');
+  b.classList.toggle('has-alert', !!(f && f.classList.contains('has-alert')));
+  b.title = on ? 'Buka Asisten Renco' : 'Tampilkan kembali tombol Asisten Renco';
+  b.setAttribute('aria-label', b.title);
+}
+function fabClose(){
+  lsSet('raFabOff', '1'); fabHideX();
+  var f = $('raFab'); if (f) f.style.display = 'none';
+  hdrSync();
+  try { if (typeof showToast === 'function') showToast('Asisten Renco disembunyikan. Ketuk ikon headset di header untuk menampilkannya lagi.', 3200); } catch(_){}
+}
+function fabShow(){
+  lsSet('raFabOff', '0');
+  var f = $('raFab');
+  if (f && !UI.open && me() && !window._rencoPayOnly) {
+    f.style.display = 'flex'; fabRestore(false); wake();
+    try { f.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320 }); } catch(_){}
+  }
+  hdrSync();
+}
+function hdrTap(){ if (fabOff()) fabShow(); else toggle(true); }
+
+window.RencoAsisten = { answer: answer, open: function(){ toggle(true); }, close: function(){ toggle(false); }, fabClose: fabClose, fabShow: fabShow, hdrTap: hdrTap, _parse: { uang: parseUang, durasi: parseDurasi } };
 try { var _ks = []; for (var _i = 0; _i < localStorage.length; _i++) { var _k = localStorage.key(_i); if (_k && _k.indexOf('raLearn:') === 0) _ks.push(_k); } _ks.forEach(function(k){ localStorage.removeItem(k); }); } catch(e){}
 if (typeof document !== 'undefined') {
   var start = function(){ sync(); setInterval(sync, 3000); setInterval(chatPoll, 4000); };
@@ -84385,6 +84578,15 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
 .sv-lg{ font-size:9.5px; font-weight:700; opacity:.65; margin:4px 0; }
 .sv-cnt{ display:flex; align-items:center; gap:8px; font-size:11px; font-weight:900; }
 .sv-cnt .ab-bar{ flex:1; margin:0; }
+.rk-sum{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+.rk-sum>div{ border-radius:14px; padding:10px 12px; background:rgba(128,128,128,.07); border:1px solid rgba(128,128,128,.18); }
+.rk-sum span{ display:block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; opacity:.65; }
+.rk-sum b{ display:block; margin-top:2px; font-size:15px; font-weight:800; color:#1a6640; }
+html.renco-dark .rk-sum b{ color:#f4d67a; }
+.rk-m{ cursor:pointer; padding-left:8px; padding-right:8px; border-radius:10px; -webkit-tap-highlight-color:transparent; }
+.rk-m.on{ background:rgba(26,102,64,.14); }
+.rk-dl{ display:flex; gap:8px; margin:6px 0 10px; flex-wrap:wrap; }
+.rk-up{ color:#15803d; font-weight:800; } .rk-dn{ color:#e63946; font-weight:800; }
 </style>
 <script id="asetBersamaJS">
 (function(){
@@ -84402,7 +84604,8 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
     { k:'peduli',   sup:1, ic:'🤝', t:'Takaful Peduli',      d:'Dana solidaritas anggota untuk bantuan musibah dan kondisi sangat membutuhkan.' },
     { k:'peta',     sup:1, ic:'🗺️', t:'Peta Masa Depan',     d:'Rencana dan tahapan pembangunan menuju 2045.' },
     { k:'indeks',   sup:1, ic:'📈', t:'Indeks Kesejahteraan', d:'Mengukur perubahan kondisi masyarakat dari waktu ke waktu.' },
-    { k:'laporan',  ic:'📑', t:'Laporan dan Legalitas', d:'Laporan penggunaan dana, keputusan rapat, dokumen aset, dan ketentuan kepemilikan.' }
+    { k:'laporan',  ic:'📑', t:'Laporan dan Legalitas', d:'Laporan penggunaan dana, keputusan rapat, dokumen aset, dan ketentuan kepemilikan.' },
+    { k:'rekap',    adm:1, ic:'📊', t:'Rekap Kontribusi', d:'Rekap bulanan kontribusi anggota untuk seluruh program Vision 2045 (khusus pengurus).' }
   ];
   var BLN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
   /* Kategori Vision 2045 — sama persis dengan pengelompokan di RencoPay */
@@ -84413,7 +84616,7 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
     gakure:   { t:'Renco Gakure',   s:'Pendidikan dan Pengembangan Generasi' }
   };
   function catH(k, first){ var c = CATS[k];
-    if (k === 'jariyah') return '<button type="button" id="abJarBtn" class="ab-cat ab-cat-dana ab-cat-jar' + (first ? ' ab-cat-first' : '') + (ST.jOpen ? ' open' : '') + '" onclick="_abJar()" aria-expanded="' + (ST.jOpen ? 'true' : 'false') + '" aria-controls="abJp" aria-label="Buka Aset Bersama dan Dana Abadi Renco"><span class="tx"><h3>' + c.t + '</h3><small>Aset Bersama · Dana Abadi Renco · ' + c.s + '</small></span><span class="go" aria-hidden="true">🏦 <i class="ch">›</i></span></button>';
+    if (k === 'jariyah') return '<button type="button" id="abJarBtn" class="ab-cat ab-cat-dana ab-cat-jar' + (first ? ' ab-cat-first' : '') + (ST.jOpen ? ' open' : '') + '" onclick="_abJar()" aria-expanded="' + (ST.jOpen ? 'true' : 'false') + '" aria-controls="abJp" aria-label="Ringkasan Aren Jariyah: Aset Bersama dan Dana Abadi Renco" title="Lihat ringkasan Aset Bersama dan Dana Abadi"><span class="tx"><h3>' + c.t + '</h3><small>' + c.s + '</small></span><span class="go" aria-hidden="true"><span class="lb-c">Ringkasan</span><span class="lb-o">Tutup</span><i class="ch">›</i></span></button>';
     return '<div class="ab-cat' + (first ? ' ab-cat-first' : '') + '"><h3>' + c.t + '</h3><small>' + c.s + '</small></div>'; }
   function supC(k){ var m = MENU.filter(function(x){ return x.k === k; })[0]; return m ? '<button type="button" class="ab-sup-c" onclick="_abTab(\'' + m.k + '\')"><div class="ic">' + m.ic + '</div><b>' + m.t + '</b><span>' + m.d + '</span></button>' : ''; }
   function supDarurat(){ return '<button type="button" class="ab-sup-c" onclick="try{_tkFrom(\'vision2045\')}catch(e){}try{navTo(\'takaful\')}catch(e){}"><div class="ic">🆘</div><b>Takaful Darurat</b><span>Dana pinjaman tanpa bunga untuk kebutuhan mendesak anggota.</span></button>'; }
@@ -85492,7 +85695,248 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
     var el = document.createElement('a'); el.href = URL.createObjectURL(blob); el.download = 'survei-' + String(p.nama).replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.csv';
     document.body.appendChild(el); el.click(); el.remove();
   };
-  var VIEWS = { peduli: function(){ return dpH('peduli'); }, dana: vDana, peta: vPeta, indeks: vIndeksX, gumi: vGumi, sampah: vSampah, edu: vEdu, target: vTarget, cicilan: vCicilan, progres: vProgres, buku: vBuku, umkm: vUmkm, laporan: vLaporan };
+
+  /* ═════════════════════════════════════════════════════════════════
+     REKAP BULANAN KONTRIBUSI VISION 2045 (khusus pengurus)
+     Sumber: seluruh pencatatan program di DB.asetBersama — setoran Aset Bersama,
+     Pendidikan, Dana Abadi, dan program lain — baik lewat RencoPay maupun dicatat pengurus.
+     ═════════════════════════════════════════════════════════════════ */
+  var RK_BLNF = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  function rkBln(ym){ var p = String(ym).split('-'); return (RK_BLNF[+p[1] - 1] || '?') + ' ' + p[0]; }
+  function rkNorm(t){ return String(t || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function rkShort(n){ n = +n || 0; if (n >= 1e9) return (n / 1e9).toFixed(1).replace('.', ',') + ' M'; if (n >= 1e6) return (n / 1e6).toFixed(1).replace('.', ',') + ' jt'; if (n >= 1e3) return Math.round(n / 1e3) + ' rb'; return String(n); }
+  function rkPct(a, b){ return b > 0 ? (a / b * 100).toFixed(1).replace('.', ',') + '%' : '0%'; }
+  function rkProgNama(k){
+    var d = D(), base = { aset:'Aset Bersama (Lapangan Renco)', edu:'Pendidikan dan Beasiswa', abadi:'Dana Abadi Renco', buku:'Perpustakaan Renco', umkm:'Wirausaha Renco', sampah:'Sampah Jadi Berkah', gumi:'Gumi Renco', peduli:'Takaful Peduli' };
+    if (base[k]) return base[k];
+    var u = (d.unitProg || []).filter(function(x){ return x.id === k; })[0]; if (u && u.nama) return u.nama;
+    var a = (d.asetLain || []).filter(function(x){ return x.id === k; })[0]; if (a) return a.nama || a.judul || a.id;
+    return k || 'Lainnya';
+  }
+  function rkData(){
+    var d = D(), out = [], walletRef = {}, byName = {};
+    try { var dn = (window.DB && DB.dompetNasabah) || {}; Object.keys(dn).forEach(function(kk){ (dn[kk] || []).forEach(function(t){ if (t && t.kategori === 'Vision 2045' && t.id) walletRef[t.id] = kk; }); }); } catch(e){}
+    ((window.DB && DB.nasabah) || []).forEach(function(n){ if (n && n.nama) byName[rkNorm(n.nama)] = n.id; });
+    function add(prog, x, kk, nm){
+      var j = +x.jumlah || 0; if (!(j > 0)) return;
+      var tg = String(x.tanggal || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(tg)) return;
+      var id = kk || walletRef[x.id] || byName[rkNorm(nm)] || null;
+      out.push({ id:x.id, tanggal:tg, bln:tg.slice(0, 7), prog:prog, jumlah:j, kk:id, anggota:!!id,
+        nama: id ? nama(id) : (nm || 'Tanpa nama'), ket:x.ket || '',
+        sumber: (walletRef[x.id] || x.sumber === 'RencoPay' || /RencoPay/i.test(x.ket || '')) ? 'RencoPay' : 'Dicatat pengurus' });
+    }
+    (d.peserta || []).forEach(function(pe){ (pe.pembayaran || []).forEach(function(x){ add('aset', x, pe.kkId, ''); }); });
+    (d.danaBea || []).forEach(function(x){ add('edu', x, null, x.donatur); });
+    (d.danaAbadi || []).forEach(function(x){ if (x.jenis === 'setoran') add('abadi', x, null, x.oleh); });
+    (d.danaProg || []).forEach(function(x){ if (x.jenis === 'masuk') add(x.prog, x, null, x.oleh); });
+    return out;
+  }
+  function rkKey(r){ return r.kk || ('n:' + rkNorm(r.nama)); }
+  function vRekap(){
+    if (!adm()) return '<div class="ab-card"><div class="ab-note">Rekap kontribusi hanya dapat dilihat oleh pengurus.</div></div>';
+    var rows = rkData(), RK = (ST.rk = ST.rk || {}), M = {};
+    rows.forEach(function(r){ var m = M[r.bln] = M[r.bln] || { bln:r.bln, tot:0, n:0, who:{} }; m.tot += r.jumlah; m.n++; m.who[rkKey(r)] = 1; });
+    var ml = Object.keys(M).sort().reverse();
+    if (!ml.length) return '<div class="ab-card"><h4>📊 Rekap Kontribusi Bulanan</h4><div class="ab-note">Belum ada kontribusi tercatat untuk program Vision 2045.</div></div>';
+    var cur = (RK.bln && M[RK.bln]) ? RK.bln : ml[0]; RK.eff = cur;
+    var sel = rows.filter(function(r){ return r.bln === cur; }), tot = M[cur].tot;
+    var py = cur.split('-'), pd = new Date(+py[0], +py[1] - 2, 1), prev = pd.getFullYear() + '-' + ('0' + (pd.getMonth() + 1)).slice(-2), pt = M[prev] ? M[prev].tot : 0;
+    var PG = {}, MB = {};
+    sel.forEach(function(r){
+      var g = PG[r.prog] = PG[r.prog] || { tot:0, n:0 }; g.tot += r.jumlah; g.n++;
+      var m = MB[rkKey(r)] = MB[rkKey(r)] || { nama:r.nama, anggota:r.anggota, tot:0, n:0, pg:{} };
+      m.tot += r.jumlah; m.n++; m.pg[r.prog] = (m.pg[r.prog] || 0) + r.jumlah;
+    });
+    var pgl = Object.keys(PG).sort(function(a, b){ return PG[b].tot - PG[a].tot; });
+    var mbl = Object.keys(MB).map(function(k){ return MB[k]; }).sort(function(a, b){ return b.tot - a.tot || String(a.nama).localeCompare(String(b.nama), 'id'); });
+    var nAng = mbl.filter(function(m){ return m.anggota; }).length, nNon = mbl.length - nAng;
+    var totAng = mbl.reduce(function(a, m){ return a + (m.anggota ? m.tot : 0); }, 0), totNon = tot - totAng;
+    var delta = tot - pt;
+    var banding = pt > 0 ? '<span class="' + (delta >= 0 ? 'rk-up' : 'rk-dn') + '">' + (delta >= 0 ? '▲ ' : '▼ ') + rp(Math.abs(delta)) + ' (' + rkPct(Math.abs(delta), pt) + ')</span> dibanding ' + rkBln(prev) : 'Belum ada data ' + rkBln(prev) + ' sebagai pembanding';
+    var h = '<div class="ab-card"><h4>📊 Rekap Kontribusi Bulanan</h4>'
+      + '<div class="ab-note" style="margin-bottom:8px">Total kontribusi anggota untuk seluruh program Vision 2045, dihitung dari semua setoran yang tercatat (RencoPay dan dicatat pengurus).</div>'
+      + '<select class="ab-sel" onchange="_abRk(\'bln\',this.value)" aria-label="Pilih bulan">' + ml.map(function(b){ return '<option value="' + b + '"' + (b === cur ? ' selected' : '') + '>' + rkBln(b) + ' · ' + rp(M[b].tot) + '</option>'; }).join('') + '</select>'
+      + '<div class="ab-lbl">Total kontribusi ' + rkBln(cur) + '</div><div class="ab-big">' + rp(tot) + '</div>'
+      + '<div class="ab-note" style="margin-top:4px">' + banding + '</div></div>'
+      + '<div class="rk-sum">'
+      + '<div><span>Transaksi</span><b>' + sel.length + '</b></div>'
+      + '<div><span>Kontributor</span><b>' + mbl.length + '</b></div>'
+      + '<div><span>Anggota</span><b>' + nAng + ' · ' + rp(totAng) + '</b></div>'
+      + '<div><span>Rata-rata / kontributor</span><b>' + rp(mbl.length ? Math.round(tot / mbl.length) : 0) + '</b></div>'
+      + (nNon ? '<div style="grid-column:1/-1"><span>Non-anggota / tanpa data anggota</span><b>' + nNon + ' orang · ' + rp(totNon) + '</b></div>' : '')
+      + '</div>'
+      + '<div class="rk-dl"><button type="button" class="ab-btn" onclick="_abRkCsv(\'bulan\')">⬇ CSV ' + rkBln(cur) + '</button><button type="button" class="ab-btn" onclick="_abRkCsv(\'all\')">⬇ CSV semua bulan</button>'
+      + '<button type="button" class="ab-btn" onclick="_abRkPdf(\'bulan\')">📄 PDF ' + rkBln(cur) + '</button><button type="button" class="ab-btn" onclick="_abRkPdf(\'all\')">📄 PDF semua bulan</button></div>';
+
+    h += '<div class="ab-card"><h4>🗂 Per Program · ' + rkBln(cur) + '</h4>'
+      + pgl.map(function(k){ var g = PG[k]; return '<div class="ab-row"><div class="l"><b>' + esc(rkProgNama(k)) + '</b><span>' + g.n + ' transaksi · ' + rkPct(g.tot, tot) + '</span></div><div class="r">' + rp(g.tot) + '</div></div>'; }).join('')
+      + '<div class="ab-row"><div class="l"><b>Total</b></div><div class="r">' + rp(tot) + '</div></div></div>';
+
+    h += '<details open><summary>👥 Per Anggota · ' + rkBln(cur) + ' <span class="ab-note">' + mbl.length + '</span></summary><div class="in">'
+      + mbl.map(function(m, i){
+          var pgTxt = Object.keys(m.pg).sort(function(a, b){ return m.pg[b] - m.pg[a]; }).map(function(k){ return esc(rkProgNama(k)) + ' ' + rp(m.pg[k]); }).join(' · ');
+          return '<div class="ab-row" style="align-items:flex-start"><div class="l" style="flex:1"><b>' + (i + 1) + '. ' + esc(m.nama) + (m.anggota ? '' : ' <span class="ab-chip belum">non-anggota</span>') + '</b><span>' + m.n + ' transaksi · ' + pgTxt + '</span></div><div class="r">' + rp(m.tot) + '</div></div>';
+        }).join('') + '</div></details>';
+
+    h += '<details><summary>🧾 Rincian Transaksi · ' + rkBln(cur) + ' <span class="ab-note">' + sel.length + '</span></summary><div class="in">'
+      + sel.slice().sort(function(a, b){ return String(b.tanggal).localeCompare(String(a.tanggal)); }).map(function(r){
+          return '<div class="ab-row" style="align-items:flex-start"><div class="l" style="flex:1"><b>' + esc(r.nama) + '</b><span>' + tgl(r.tanggal) + ' · ' + esc(rkProgNama(r.prog)) + ' · ' + r.sumber + (r.ket ? ' · ' + esc(r.ket) : '') + '</span></div><div class="r">' + rp(r.jumlah) + '</div></div>';
+        }).join('') + '</div></details>';
+
+    var all = ml.reduce(function(a, b){ return a + M[b].tot; }, 0);
+    h += '<div class="ab-card"><h4>📅 Rekap Per Bulan</h4>'
+      + monthBars(rows, function(x){ return x.jumlah; }, '', function(v){ return v ? rkShort(v) : '0'; })
+      + '<div class="ab-note" style="margin:6px 0">Ketuk satu bulan untuk melihat rinciannya.</div>'
+      + ml.map(function(b){ var m = M[b]; return '<div class="ab-row rk-m' + (b === cur ? ' on' : '') + '" onclick="_abRk(\'bln\',\'' + b + '\')"><div class="l"><b>' + rkBln(b) + '</b><span>' + m.n + ' transaksi · ' + Object.keys(m.who).length + ' kontributor</span></div><div class="r">' + rp(m.tot) + '</div></div>'; }).join('')
+      + '<div class="ab-row"><div class="l"><b>Total seluruh bulan</b><span>' + rows.length + ' transaksi</span></div><div class="r">' + rp(all) + '</div></div></div>';
+    return h;
+  }
+  window._abRk = function(k, v){ ST.rk = ST.rk || {}; ST.rk[k] = v; renderPanel(); };
+  function rkDl(name, text){
+    try {
+      var b = new Blob(['\ufeff' + text], { type:'text/csv;charset=utf-8' });
+      var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(function(){ try { URL.revokeObjectURL(a.href); a.remove(); } catch(e){} }, 1500);
+    } catch(e) { if (typeof showToast === 'function') showToast('Gagal membuat berkas CSV'); }
+  }
+  window._abRkCsv = function(mode){
+    if (!adm()) return;
+    var rows = rkData(), L = [];
+    function q(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+    if (mode === 'all') {
+      var progs = {}, M = {};
+      rows.forEach(function(r){ progs[r.prog] = 1; var m = M[r.bln] = M[r.bln] || { n:0, who:{}, tot:0, pg:{} }; m.n++; m.tot += r.jumlah; m.who[rkKey(r)] = 1; m.pg[r.prog] = (m.pg[r.prog] || 0) + r.jumlah; });
+      var pk = Object.keys(progs);
+      L.push(['Bulan', 'Jumlah Transaksi', 'Jumlah Kontributor'].concat(pk.map(rkProgNama)).concat(['Total (Rp)']).map(q).join(';'));
+      Object.keys(M).sort().forEach(function(b){ var m = M[b]; L.push([rkBln(b), m.n, Object.keys(m.who).length].concat(pk.map(function(k){ return m.pg[k] || 0; })).concat([m.tot]).map(q).join(';')); });
+      rkDl('rekap-kontribusi-vision2045-per-bulan.csv', L.join('\r\n'));
+      return;
+    }
+    var cur = (ST.rk && ST.rk.eff) || '', sel = rows.filter(function(r){ return r.bln === cur; });
+    L.push(['Tanggal', 'Nama', 'Status', 'Program', 'Jumlah (Rp)', 'Sumber', 'Keterangan'].map(q).join(';'));
+    sel.slice().sort(function(a, b){ return String(a.tanggal).localeCompare(String(b.tanggal)); }).forEach(function(r){ L.push([r.tanggal, r.nama, r.anggota ? 'Anggota' : 'Non-anggota', rkProgNama(r.prog), r.jumlah, r.sumber, r.ket].map(q).join(';')); });
+    L.push('');
+    L.push(['Total per anggota ' + rkBln(cur)].map(q).join(';'));
+    var MB = {}; sel.forEach(function(r){ var m = MB[rkKey(r)] = MB[rkKey(r)] || { nama:r.nama, tot:0, n:0 }; m.tot += r.jumlah; m.n++; });
+    Object.keys(MB).map(function(k){ return MB[k]; }).sort(function(a, b){ return b.tot - a.tot; }).forEach(function(m){ L.push([m.nama, m.n, m.tot].map(q).join(';')); });
+    L.push(['TOTAL', sel.length, sel.reduce(function(a, r){ return a + r.jumlah; }, 0)].map(q).join(';'));
+    rkDl('kontribusi-vision2045-' + cur + '.csv', L.join('\r\n'));
+  };
+
+  /* ── PDF rekap kontribusi (memakai helper PDF resmi aplikasi: kop, tabel bergaris, tanda tangan, footer) ── */
+  function rkClip(t, n){ t = String(t == null ? '' : t); return t.length > n ? t.slice(0, n - 3) + '...' : t; }
+  function rkPdfOut(doc, name){
+    var toast = function(m){ if (typeof showToast === 'function') showToast(m); };
+    try {
+      /* di HP: bagikan/simpan lewat lembar bagikan bila tersedia (lebih andal daripada unduhan langsung) */
+      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') && navigator.share && navigator.canShare) {
+        var file = new File([doc.output('blob')], name, { type:'application/pdf' });
+        if (navigator.canShare({ files:[file] })) {
+          navigator.share({ files:[file], title:name }).then(function(){ toast('✅ PDF rekap siap'); })
+            .catch(function(e){ if (!e || e.name !== 'AbortError') { try { doc.save(name); toast('✅ PDF rekap diunduh'); } catch(_){ toast('❌ Gagal menyimpan PDF'); } } });
+          return;
+        }
+      }
+    } catch(e){}
+    doc.save(name); toast('✅ PDF rekap diunduh');
+  }
+  window._abRkPdf = function(mode){
+    if (!adm()) return;
+    var toast = function(m){ if (typeof showToast === 'function') showToast(m); };
+    var J = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!J) { toast('⚠️ Library PDF belum siap, coba lagi'); return; }
+    if (typeof _pdfKop !== 'function' || typeof _pdfTabel !== 'function') { toast('⚠️ Fitur PDF belum siap, muat ulang halaman'); return; }
+    var rows = rkData();
+    if (!rows.length) { toast('Belum ada kontribusi untuk dicetak'); return; }
+    toast('📑 Membuat PDF rekap...');
+    try {
+      var doc = new J({ orientation:'p', unit:'mm', format:'a4' });
+      var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 14, usableW = pageW - margin * 2, y, name;
+      var M = {}; rows.forEach(function(r){ var m = M[r.bln] = M[r.bln] || { bln:r.bln, tot:0, n:0, who:{}, pg:{} }; m.tot += r.jumlah; m.n++; m.who[rkKey(r)] = 1; var g = m.pg[r.prog] = m.pg[r.prog] || { tot:0, n:0 }; g.tot += r.jumlah; g.n++; });
+      var ml = Object.keys(M).sort(), HIJAU = [26, 71, 42];
+      var W = function(a){ return a.map(function(x){ return usableW * x; }); };
+
+      if (mode === 'all') {
+        var all = rows.reduce(function(a, r){ return a + r.jumlah; }, 0), who = {}; rows.forEach(function(r){ who[rkKey(r)] = 1; });
+        var top = ml.slice().sort(function(a, b){ return M[b].tot - M[a].tot; })[0];
+        y = _pdfKop(doc, pageW, margin, 'REKAP KONTRIBUSI VISION 2045 — SEMUA BULAN', 'Periode ' + rkBln(ml[0]) + ' s.d. ' + rkBln(ml[ml.length - 1]) + ' · Dicetak ' + _pdfTglPanjang());
+        y = _pdfSection(doc, y, margin, 'Ringkasan Keseluruhan', HIJAU);
+        y = _pdfRingkasan(doc, y, margin, usableW, [
+          { label:'Total kontribusi', value:_pdfFmt(all) },
+          { label:'Jumlah transaksi', value:String(rows.length) },
+          { label:'Kontributor unik', value:String(Object.keys(who).length) },
+          { label:'Jumlah bulan tercatat', value:String(ml.length) },
+          { label:'Rata-rata per bulan', value:_pdfFmt(Math.round(all / ml.length)), color:[176, 122, 0] },
+          { label:'Bulan tertinggi', value:rkBln(top) + ' · ' + _pdfFmt(M[top].tot), color:[176, 122, 0] }
+        ]);
+        y = _pdfCheckPage(doc, y, pageH, 30);
+        y = _pdfSection(doc, y, margin, 'Rekap Per Bulan', HIJAU);
+        var c1 = W([.34, .18, .20, .28]);
+        y = _pdfTabel(doc, y, margin, usableW, pageH,
+          [{ header:'Bulan', key:'b', width:c1[0] }, { header:'Transaksi', key:'n', width:c1[1] }, { header:'Kontributor', key:'k', width:c1[2] }, { header:'Total', key:'t', width:c1[3] }],
+          ml.slice().reverse().map(function(b){ return { b:rkBln(b), n:String(M[b].n), k:String(Object.keys(M[b].who).length), t:_pdfFmt(M[b].tot) }; })
+            .concat([{ b:'TOTAL', n:String(rows.length), k:String(Object.keys(who).length), t:_pdfFmt(all), _total:true }]));
+        y = _pdfCheckPage(doc, y + 4, pageH, 30);
+        y = _pdfSection(doc, y, margin, 'Rincian Per Program Tiap Bulan', HIJAU);
+        var c2 = W([.46, .16, .24, .14]), rr = [];
+        ml.slice().reverse().forEach(function(b){
+          var m = M[b];
+          rr.push({ _group: rkBln(b) + '  ·  ' + m.n + ' transaksi  ·  ' + Object.keys(m.who).length + ' kontributor  ·  Total ' + _pdfFmt(m.tot) });
+          Object.keys(m.pg).sort(function(a, z){ return m.pg[z].tot - m.pg[a].tot; }).forEach(function(k){ rr.push({ p:rkClip(rkProgNama(k), 40), n:String(m.pg[k].n), t:_pdfFmt(m.pg[k].tot), s:rkPct(m.pg[k].tot, m.tot) }); });
+        });
+        y = _pdfTabel(doc, y, margin, usableW, pageH,
+          [{ header:'Program', key:'p', width:c2[0] }, { header:'Transaksi', key:'n', width:c2[1] }, { header:'Total', key:'t', width:c2[2] }, { header:'% Bulan', key:'s', width:c2[3] }], rr);
+        name = 'rekap-kontribusi-vision2045-semua-bulan.pdf';
+      } else {
+        var cur = (ST.rk && ST.rk.eff && M[ST.rk.eff]) ? ST.rk.eff : ml[ml.length - 1];
+        var sel = rows.filter(function(r){ return r.bln === cur; }), tot = M[cur].tot;
+        var py = cur.split('-'), pd = new Date(+py[0], +py[1] - 2, 1), prev = pd.getFullYear() + '-' + ('0' + (pd.getMonth() + 1)).slice(-2), pt = M[prev] ? M[prev].tot : 0, delta = tot - pt;
+        var PG = {}, MB = {};
+        sel.forEach(function(r){
+          var g = PG[r.prog] = PG[r.prog] || { tot:0, n:0 }; g.tot += r.jumlah; g.n++;
+          var m = MB[rkKey(r)] = MB[rkKey(r)] || { nama:r.nama, anggota:r.anggota, tot:0, n:0 }; m.tot += r.jumlah; m.n++;
+        });
+        var pgl = Object.keys(PG).sort(function(a, b){ return PG[b].tot - PG[a].tot; });
+        var mbl = Object.keys(MB).map(function(k){ return MB[k]; }).sort(function(a, b){ return b.tot - a.tot || String(a.nama).localeCompare(String(b.nama), 'id'); });
+        var nAng = mbl.filter(function(m){ return m.anggota; }).length, nNon = mbl.length - nAng;
+        y = _pdfKop(doc, pageW, margin, 'REKAP KONTRIBUSI VISION 2045 — ' + rkBln(cur).toUpperCase(), 'Dicetak ' + _pdfTglPanjang());
+        y = _pdfSection(doc, y, margin, 'Ringkasan ' + rkBln(cur), HIJAU);
+        y = _pdfRingkasan(doc, y, margin, usableW, [
+          { label:'Total kontribusi', value:_pdfFmt(tot) },
+          { label:'Jumlah transaksi', value:String(sel.length) },
+          { label:'Kontributor', value:mbl.length + ' (' + nAng + ' anggota' + (nNon ? ', ' + nNon + ' non-anggota' : '') + ')' },
+          { label:'Rata-rata per kontributor', value:_pdfFmt(mbl.length ? Math.round(tot / mbl.length) : 0) },
+          { label:'Bulan sebelumnya (' + rkBln(prev) + ')', value:pt > 0 ? _pdfFmt(pt) : 'Belum ada data', color:[176, 122, 0] },
+          { label:'Selisih dibanding bulan lalu', value:pt > 0 ? ((delta >= 0 ? '+ ' : '- ') + _pdfFmt(Math.abs(delta)) + ' (' + rkPct(Math.abs(delta), pt) + ')') : '-', color:(delta >= 0 ? [21, 128, 61] : [230, 57, 70]) }
+        ]);
+        y = _pdfCheckPage(doc, y, pageH, 30);
+        y = _pdfSection(doc, y, margin, 'Kontribusi Per Program', HIJAU);
+        var c3 = W([.46, .16, .24, .14]);
+        y = _pdfTabel(doc, y, margin, usableW, pageH,
+          [{ header:'Program', key:'p', width:c3[0] }, { header:'Transaksi', key:'n', width:c3[1] }, { header:'Total', key:'t', width:c3[2] }, { header:'% Total', key:'s', width:c3[3] }],
+          pgl.map(function(k){ return { p:rkClip(rkProgNama(k), 40), n:String(PG[k].n), t:_pdfFmt(PG[k].tot), s:rkPct(PG[k].tot, tot) }; })
+            .concat([{ p:'TOTAL', n:String(sel.length), t:_pdfFmt(tot), s:'100%', _total:true }]));
+        y = _pdfCheckPage(doc, y + 4, pageH, 30);
+        y = _pdfSection(doc, y, margin, 'Kontribusi Per Anggota (' + mbl.length + ')', HIJAU);
+        var c4 = W([.07, .39, .14, .10, .20, .10]);
+        y = _pdfTabel(doc, y, margin, usableW, pageH,
+          [{ header:'No', key:'i', width:c4[0] }, { header:'Nama', key:'nm', width:c4[1] }, { header:'Status', key:'st', width:c4[2] }, { header:'Trx', key:'n', width:c4[3] }, { header:'Total', key:'t', width:c4[4] }, { header:'% Total', key:'s', width:c4[5] }],
+          mbl.map(function(m, i){ return { i:String(i + 1), nm:rkClip(m.nama, 36), st:m.anggota ? 'Anggota' : 'Non-anggota', n:String(m.n), t:_pdfFmt(m.tot), s:rkPct(m.tot, tot) }; })
+            .concat([{ i:'', nm:'TOTAL', st:'', n:String(sel.length), t:_pdfFmt(tot), s:'100%', _total:true }]));
+        y = _pdfCheckPage(doc, y + 4, pageH, 30);
+        y = _pdfSection(doc, y, margin, 'Rincian Transaksi (' + sel.length + ')', HIJAU);
+        var c5 = W([.13, .27, .30, .16, .14]);
+        y = _pdfTabel(doc, y, margin, usableW, pageH,
+          [{ header:'Tanggal', key:'tg', width:c5[0] }, { header:'Nama', key:'nm', width:c5[1] }, { header:'Program', key:'p', width:c5[2] }, { header:'Sumber', key:'sb', width:c5[3] }, { header:'Jumlah', key:'t', width:c5[4] }],
+          sel.slice().sort(function(a, b){ return String(a.tanggal).localeCompare(String(b.tanggal)); }).map(function(r){ return { tg:tgl(r.tanggal), nm:rkClip(r.nama, 26), p:rkClip(rkProgNama(r.prog), 30), sb:r.sumber === 'RencoPay' ? 'RencoPay' : 'Pengurus', t:_pdfFmt(r.jumlah) }; }));
+        name = 'rekap-kontribusi-vision2045-' + cur + '.pdf';
+      }
+      if (typeof _pdfTtd === 'function') y = _pdfTtd(doc, y + 6, pageW, pageH, margin);
+      if (typeof _pdfFooterSemua === 'function') _pdfFooterSemua(doc, pageW, pageH, margin, 'Rekap Kontribusi Vision 2045');
+      rkPdfOut(doc, name);
+    } catch(e) { console.error('[RekapV45PDF]', e); toast('❌ Gagal membuat PDF. Silakan coba lagi.'); }
+  };
+  var VIEWS = { peduli: function(){ return dpH('peduli'); }, dana: vDana, peta: vPeta, indeks: vIndeksX, gumi: vGumi, sampah: vSampah, edu: vEdu, target: vTarget, cicilan: vCicilan, progres: vProgres, buku: vBuku, umkm: vUmkm, laporan: vLaporan, rekap: vRekap };
   var watch = null;
   function curMenu(){
     if (String(ST.tab).indexOf('u_') === 0) { var u = unitById(ST.tab); if (u) return { k:u.id, ic:esc(u.ic || '🌱'), t:esc(u.nama), d:esc(u.tagline || ''), unit:u }; }
@@ -85526,7 +85970,7 @@ html.renco-dark .ab-lk.on{ background:#f4d67a; color:#1a1300; border-color:#f4d6
     pn.querySelector('.tb-art').innerHTML = th === 'un' ? '' : th === 'bk' ? artBook() : th === 'um' ? artUm() : th === 'ed' ? artEdu() : th === 'sp' ? artSampah() : th === 'gm' ? artGumi() : th === 'su' ? '' : FIELD;
     var body = pn.querySelector('.ab-pn-body'), same = pn.getAttribute('data-k') === m.k, sc = same ? body.scrollTop : 0;
     pn.setAttribute('data-k', m.k);
-    body.innerHTML = (th === 'lap' ? '<div class="ab-gtabs">' + MENU.filter(function(x){ return !x.ban && !x.sup; }).map(function(x){ return gtile(x.ic + ' ' + x.t, x.k === m.k, "_abTab('" + x.k + "')"); }).join('') + '</div>' : '') + (m.unit ? vUnit(m.unit) : VIEWS[m.k]());
+    body.innerHTML = (th === 'lap' ? '<div class="ab-gtabs">' + MENU.filter(function(x){ return !x.ban && !x.sup && (!x.adm || adm()); }).map(function(x){ return gtile(x.ic + ' ' + x.t, x.k === m.k, "_abTab('" + x.k + "')"); }).join('') + '</div>' : '') + (m.unit ? vUnit(m.unit) : VIEWS[m.k]());
     animBars(body); body.scrollTop = sc;
   }
   function closePanel(){
@@ -86502,6 +86946,9 @@ html.renco-dark #abRoot .ab-sec span{ color:#f5d77e; }
 #abRoot .ab-cat-jar .go{ display:inline-flex; align-items:center; gap:6px; }
 #abRoot .ab-cat-jar .go .ch{ font-style:normal; display:inline-block; font-size:16px; line-height:1; transform:rotate(90deg); transition:transform .25s ease; }
 #abRoot .ab-cat-jar.open .go .ch{ transform:rotate(-90deg); }
+#abRoot .ab-cat-jar .go .lb-o{ display:none; }
+#abRoot .ab-cat-jar.open .go .lb-o{ display:inline; }
+#abRoot .ab-cat-jar.open .go .lb-c{ display:none; }
 #abRoot .ab-jp{ display:none; margin:0 0 14px; }
 #abRoot .ab-jp.open{ display:block; animation:abJpIn .28s ease both; }
 @keyframes abJpIn{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
@@ -86674,7 +87121,7 @@ function suggestUsername(nama, jenis){
 function nasabahTanpaAkun(){
   var d = window.DB, has = {};
   usersLoad().forEach(function(u){ if (u.nasabahId) has[u.nasabahId] = 1; });
-  return ((d && d.nasabah) || []).filter(function(n){ return !has[n.id]; })
+  return ((d && d.nasabah) || []).filter(function(n){ return !has[n.id] && !(n.blacklist && n.blacklist.aktif); })
     .sort(function(a,b){ return String(a.nama).localeCompare(String(b.nama), 'id'); });
 }
 function findNasabah(id){ return ((window.DB && DB.nasabah) || []).find(function(n){ return n.id === id; }) || null; }
@@ -86857,12 +87304,14 @@ window.uaCreate = async function(){
     nasabahId = $('uaNasabah').value;
     if (!nasabahId) { toast('⚠️ Pilih anggota terlebih dahulu'); return; }
     var nb = findNasabah(nasabahId); if (!nb) { toast('⚠️ Data anggota tidak ditemukan'); return; }
+    if (window.rencoTolakBlacklist && rencoTolakBlacklist({ id: nasabahId, nama: nb.nama, ktp: nb.ktp, hp: nb.hp }, 'Undangan akun baru')) return;
     nama = nb.nama; hp = nb.hp || '';
     Array.prototype.forEach.call($('uaAkses').querySelectorAll('.ua-chip.on'), function(c){ akses.push(c.getAttribute('data-id')); });
     if (!akses.length) { toast('⚠️ Pilih minimal 1 menu yang bisa diakses'); return; }
   } else {
     nama = $('uaNama').value.trim();
     if (!nama) { toast('⚠️ Nama wajib diisi'); return; }
+    if (window.rencoTolakBlacklist && rencoTolakBlacklist({ nama: nama }, 'Undangan akun baru')) return;
   }
   var username = $('uaUsername').value.trim().toLowerCase();
   var pw = $('uaPassword').value.trim();
@@ -86914,19 +87363,71 @@ window.uaCreate = async function(){
   }
 };
 
+/* ───────── AUTO-BLACKLIST: undangan akun diterbitkan lebih dari 3× ───────── */
+var UA_MAKS_TERBIT = 3;   // penerbitan ke-4 dan seterusnya (> 3×) → anggota otomatis masuk blacklist
+/* Pernah login = sudah pernah masuk/mengaktifkan akun, kapan pun (bukan hanya sejak kartu terakhir).
+   Dicek dari: penanda permanen inv.pernahLogin, akun sudah aktif (tidak wajib ganti sandi), atau ada catatan login. */
+function _uaPernahLogin(inv, u){
+  try{
+    if (inv && inv.pernahLogin) return true;
+    if (u && !u.mustChangePw) return true;
+    var logs = (window.DB && DB.loginLog) || [];
+    var un = String((inv && inv.username) || '').toLowerCase();
+    return !!un && logs.some(function(l){ return String(l.username).toLowerCase() === un; });
+  }catch(e){ return false; }
+}
+function _uaPeringatanBlacklist(inv){
+  try{
+    if (!inv || inv.role === 'admin' || !inv.nasabahId) return '';
+    var nb = findNasabah(inv.nasabahId);
+    if (!nb || (nb.blacklist && nb.blacklist.aktif)) return '';
+    var _uu = usersLoad().find(function(x){ return x.id === inv.userId; });
+    if (_uaPernahLogin(inv, _uu)) return '';                                // sudah pernah login → tidak terkena aturan
+    if ((inv.jumlahTerbit || 1) >= UA_MAKS_TERBIT)
+      return '⚠️ PERINGATAN: ini penerbitan ke-' + ((inv.jumlahTerbit || 1) + 1) + '. Undangan yang dikirim lebih dari ' + UA_MAKS_TERBIT + '× akan membuat anggota ini (yang belum pernah login) OTOMATIS masuk daftar blacklist.\n\n';
+  }catch(e){}
+  return '';
+}
+function _uaAutoBlacklist(inv){
+  try{
+    if (!inv || inv.role === 'admin' || !inv.nasabahId) return false;      // hanya anggota, bukan admin
+    if ((inv.jumlahTerbit || 1) <= UA_MAKS_TERBIT) return false;
+    if (inv.pernahLogin) return false;                                     // sudah pernah login → bukan sasaran aturan
+    var nb = findNasabah(inv.nasabahId); if (!nb) return false;
+    if (nb.blacklist && nb.blacklist.aktif) return false;                  // sudah blacklist
+    var tgl = nowIso();
+    var alasan = 'Otomatis oleh sistem: undangan akun diterbitkan/dikirim ' + inv.jumlahTerbit + '× (melebihi batas ' + UA_MAKS_TERBIT + '×) dan anggota belum pernah login sama sekali.';
+    var entry = { aksi:'blacklist', kategori:'Lainnya', alasan:alasan, tanggal:tgl, oleh:'Sistem (otomatis)' };
+    if (!nb.blacklist || !Array.isArray(nb.blacklist.riwayat)) nb.blacklist = { riwayat: [] };
+    nb.blacklist.aktif = true; nb.blacklist.kategori = entry.kategori; nb.blacklist.alasan = alasan;
+    nb.blacklist.tanggal = tgl; nb.blacklist.oleh = entry.oleh; nb.blacklist.riwayat.push(entry);
+    try{ if (typeof auditLog === 'function') auditLog('Blacklist Otomatis', nb.nama + ' di-blacklist otomatis: undangan akun terbit ' + inv.jumlahTerbit + '×', 'user-mgmt'); }catch(e){}
+    try{ if (typeof historyLog === 'function') historyLog('Blacklist Otomatis', nb.nama + ' di-blacklist otomatis (undangan > ' + UA_MAKS_TERBIT + '×)'); }catch(e){}
+    return nb;
+  }catch(e){ console.warn('[UA] auto-blacklist gagal', e); return false; }
+}
+
 window.uaReissue = async function(id){
   if (_busy || !admOK()) return;
   var d = dbx(); var inv = d.undanganAkun.find(function(x){ return x.id === id; }); if (!inv) return;
   var users = usersLoad(); var u = users.find(function(x){ return x.id === inv.userId; });
   if (!u) { toast('⚠️ Akun tidak ditemukan (mungkin sudah dihapus)'); return; }
-  if (!confirm('Terbitkan ulang kartu untuk "' + inv.nama + '"?\n\nKata sandi baru dibuat otomatis dan kata sandi lama TIDAK berlaku lagi. Pengguna akan diminta membuat kata sandi baru saat masuk.')) return;
+  if (inv.nasabahId && window.rencoTolakBlacklist && rencoTolakBlacklist({ id: inv.nasabahId }, 'Penerbitan ulang undangan')) return;
+  var _wUA = _uaPeringatanBlacklist(inv);
+  if (!confirm(_wUA + 'Terbitkan ulang kartu untuk "' + inv.nama + '"?\n\nKata sandi baru dibuat otomatis dan kata sandi lama TIDAK berlaku lagi. Pengguna akan diminta membuat kata sandi baru saat masuk.')) return;
   _busy = true;
   try{
+    if (_uaPernahLogin(inv, u)) inv.pernahLogin = true;   // catat permanen SEBELUM sandi direset
     var tmp = RCPW.temp();
     RCPW.set(u, tmp); u.mustChangePw = true;
     usersSave(users);
     inv.terbit = nowIso(); inv.jumlahTerbit = (inv.jumlahTerbit || 1) + 1;
+    var _nbBL = _uaAutoBlacklist(inv);
     if (typeof saveDB === 'function') saveDB();
+    if (_nbBL) {
+      toast('🚫 ' + _nbBL.nama + ' otomatis masuk blacklist (undangan > ' + UA_MAKS_TERBIT + '×)');
+      try{ if (typeof renderNasabah === 'function') renderNasabah(window._lastNasabahFilter || ''); }catch(e){}
+    }
     try{ if (typeof auditLog === 'function') auditLog('Undangan Akun', 'Kartu undangan diterbitkan ulang untuk ' + inv.nama + ' (@' + inv.username + ')', 'user-mgmt'); }catch(e){}
     var nb = inv.nasabahId ? findNasabah(inv.nasabahId) : null;
     var oleh = (window.AUTH && AUTH.user && (AUTH.user.nama || AUTH.user.username)) || 'Admin';
@@ -87444,9 +87945,9 @@ html.renco-dark .rpv45-sec h4{color:#f5d77e}html.renco-dark .rpv45-sec span{colo
     { id:'takaful',  t:'Renco Takaful',  s:'Perlindungan dan Solidaritas Anggota',      items:['darurat','peduli'] },
     { id:'gakure',   t:'Renco Gakure',   s:'Pendidikan dan Pengembangan Generasi',      items:['edu','buku'] }
   ];
-  /* Program pendanaan lama (aset, edu, buku, umkm, sampah, gumi, abadi, peduli) disembunyikan dari menu.
-     Data & riwayatnya tetap utuh. Ubah ke true bila ingin menampilkannya lagi. */
-  var LEGACY_AKTIF = false;
+  /* Program pendanaan (aset, edu, buku, umkm, sampah, gumi, abadi, peduli) DITAMPILKAN kembali di menu pendanaan.
+     Ubah ke false bila suatu saat ingin menyembunyikannya lagi (data & riwayat tetap utuh). */
+  var LEGACY_AKTIF = true;
   var DARURAT = { k:'darurat', ic:'🆘', t:'Takaful Darurat', d:'Dana pinjaman tanpa bunga untuk kebutuhan mendesak anggota, dengan pengembalian sesuai kemampuan.' };
   var META = {
     aset:  { s:'Tanah bersama · target 2030',      g:'linear-gradient(135deg,#0f3d33,#1f7a5c)' },
@@ -91193,6 +91694,7 @@ html.renco-dark #jtRoot{ --jt-bg:#000000; --jt-card:#141414; --jt-tx:#ffffff; --
     var v=invInit(), t=todayStr(), nama=String(v.nama||'').trim(), hp=String(v.hp||'').trim();
     if (nama.length<2){ toast('⚠️ Isi nama tamu'); return; }
     if (hp && hp.replace(/\D/g,'').length<9){ toast('⚠️ Nomor HP/WhatsApp tidak valid'); return; }
+    if (window.rencoTolakBlacklist && rencoTolakBlacklist({ id: v.anggota||null, nama: nama, hp: hp }, 'Undangan baru')) return;
     if (!v.tgl || v.tgl<t){ toast('⚠️ Tanggal tidak boleh sebelum hari ini'); return; }
     if (!/^\d{2}:\d{2}$/.test(v.jam||'')){ toast('⚠️ Isi jam kedatangan'); return; }
     var w=kondisi(v.tgl, v.jam);
@@ -96800,6 +97302,81 @@ html.renco-dark .v45a-dots i{ background:rgba(255,255,255,.35); } html.renco-dar
     var t=document.createElement('div'); t.innerHTML=window.v45AdsHTML('lg'); var n=t.firstChild; n.id='v45adsLg'; box.appendChild(n);
   }
   /* mountLogin() dinonaktifkan */
+})();
+</script>
+<script id="lpr-icontabs-js">
+(function(){
+  'use strict';
+  var ICON={
+    'nasabah-pribadi':'<circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+    'kerja':'<rect x="5" y="4" width="14" height="17" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M9 4.5h6M8.5 10h7M8.5 13.5h7M8.5 17h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+    'kinerja':'<path d="M3.5 17l5.5-5.5 3.5 3.5 7.5-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+  };
+  var LBL={'nasabah-pribadi':'Nasabah','koperasi':'Koperasi','renco-capital':'Renco Capital','keseluruhan':'Keseluruhan','arsip':'Arsip','tunggakan':'Tunggakan','history':'History','kerja':'Laporan Kerja','kinerja':'Kinerja'};
+  var DESC={'nasabah-pribadi':'Ringkasan simpanan & transaksi anggota','koperasi':'Laporan keuangan Koperasi Renco','renco-capital':'Laporan usaha Renco Capital','keseluruhan':'Gabungan seluruh laporan (konsolidasi)','arsip':'Arsip laporan bulanan & tahunan','tunggakan':'Daftar iuran & cicilan yang menunggak','history':'Riwayat aktivitas & perubahan data','kerja':'Catatan laporan kerja pengurus','kinerja':'Penilaian kinerja pengurus'};
+  var COL={'nasabah-pribadi':['#4fb7a0','#2a7d77'],'koperasi':['#4caf6a','#1f7a3d'],'renco-capital':['#f2c44a','#c98f12'],'keseluruhan':['#5b9bd5','#2f63a8'],'arsip':['#b08968','#7a5230'],'tunggakan':['#ef7b6e','#c0392b'],'history':['#8d99ae','#546074'],'kerja':['#a78bda','#6b3fb0'],'kinerja':['#f4a259','#d4691a']};
+  var busy=false, bar, cap;
+  function fix(pill){
+    var tab=pill.getAttribute('data-tab')||'', txt='';
+    Array.prototype.slice.call(pill.childNodes).forEach(function(n){
+      if(n.nodeType===3 && n.nodeValue.trim()){ txt=n.nodeValue.trim(); var sp=document.createElement('span'); sp.className='lpr-t'; sp.textContent=n.nodeValue.trim(); pill.replaceChild(sp,n); }
+      else if(n.nodeType===3){ pill.removeChild(n); }
+    });
+    var t=pill.querySelector('.lpr-t');
+    var label=LBL[tab]||tab;
+    if(tab==='nasabah-pribadi' && txt){ var c=txt.replace(/^[^\p{L}\p{N}]+/u,'').trim(); if(c) label=c; }
+    else if(t && t.textContent && !LBL[tab]) label=t.textContent;
+    if(!t){ t=document.createElement('span'); t.className='lpr-t'; pill.appendChild(t); }
+    if(t.textContent!==label) t.textContent=label;
+    var svg=pill.querySelector(':scope > svg'), ic=pill.querySelector(':scope > .lpr-ic');
+    if(!ic){
+      ic=document.createElement('span'); ic.className='lpr-ic'; var col=COL[tab]||COL.koperasi; ic.style.setProperty('--c1',col[0]); ic.style.setProperty('--c2',col[1]);
+      pill.insertBefore(ic,pill.firstChild);
+    }
+    if(svg){ ic.appendChild(svg); }
+    if(!ic.querySelector('svg') && ICON[tab]){
+      var ns='http://www.w3.org/2000/svg', sv=document.createElementNS(ns,'svg'); sv.setAttribute('viewBox','0 0 24 24'); sv.setAttribute('fill','none'); sv.innerHTML=ICON[tab]; ic.appendChild(sv);
+    }
+    pill.setAttribute('title',label); pill.setAttribute('aria-label',label);
+  }
+  function pills(){ return Array.prototype.slice.call(bar.querySelectorAll('.tab-pill')).filter(function(p){ return p.style.display!=='none'; }); }
+  function paint(){
+    var br=bar.getBoundingClientRect(), c=br.left+br.width/2;
+    pills().forEach(function(el){ var r=el.getBoundingClientRect(), d=Math.min(1,Math.abs(r.left+r.width/2-c)/(br.width*.45));
+      el.style.setProperty('--s',(1.08-.2*d).toFixed(3)); el.style.setProperty('--o',(1-.5*d).toFixed(3)); });
+  }
+  function center(el,smooth){
+    var br=bar.getBoundingClientRect(), r=el.getBoundingClientRect(), left=bar.scrollLeft+(r.left+r.width/2)-(br.left+br.width/2);
+    try{ bar.scrollTo({left:left,behavior:smooth?'smooth':'auto'}); }catch(e){ bar.scrollLeft=left; }
+  }
+  function step(dir){
+    var ps=pills(); if(!ps.length) return; var br=bar.getBoundingClientRect(), c=br.left+br.width/2, best=0, bd=1e9;
+    ps.forEach(function(el,i){ var r=el.getBoundingClientRect(), d=Math.abs(r.left+r.width/2-c); if(d<bd){ bd=d; best=i; } });
+    center(ps[Math.max(0,Math.min(ps.length-1,best+dir))],true);
+  }
+  function caption(){
+    var a=bar.querySelector('.tab-pill.active'); if(!a||!cap) return; var tab=a.getAttribute('data-tab')||'';
+    var t=a.querySelector('.lpr-t'); var name=(t&&t.textContent)||LBL[tab]||''; if(tab==='nasabah-pribadi') name=name==='Nasabah'?'Laporan Nasabah':name;
+    cap.innerHTML=''; var b=document.createElement('b'); b.textContent=name; var sp=document.createElement('span'); sp.textContent=DESC[tab]||''; cap.appendChild(b); cap.appendChild(sp);
+  }
+  function run(){ if(busy) return; busy=true; try{ bar.querySelectorAll('.tab-pill').forEach(fix); caption(); paint(); }finally{ busy=false; } }
+  function init(){
+    bar=document.querySelector('#page-laporan > .tab-bar'); if(!bar) return;
+    cap=document.createElement('div'); cap.id='lprCaption'; bar.parentNode.insertBefore(cap,bar.nextSibling);
+    var a=document.createElement('button'); a.type='button'; a.className='lpr-arrow lpr-prev'; a.setAttribute('aria-label','Sebelumnya'); a.textContent='‹';
+    var z=document.createElement('button'); z.type='button'; z.className='lpr-arrow lpr-next'; z.setAttribute('aria-label','Berikutnya'); z.textContent='›';
+    a.addEventListener('click',function(e){ e.stopPropagation(); step(-1); }); z.addEventListener('click',function(e){ e.stopPropagation(); step(1); });
+    bar.insertBefore(a,bar.firstChild); bar.appendChild(z);
+    run(); var last=null, tick=0;
+    bar.addEventListener('scroll',function(){ if(tick) return; tick=requestAnimationFrame(function(){ tick=0; paint(); }); },{passive:true});
+    new MutationObserver(function(){
+      if(busy) return; run(); var act=bar.querySelector('.tab-pill.active'); if(act && act!==last){ last=act; setTimeout(function(){ center(act,true); setTimeout(paint,80); },30); }
+    }).observe(bar,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class','style']});
+    window.addEventListener('resize',paint);
+    var act=bar.querySelector('.tab-pill.active'); if(act){ last=act; var sb=bar.style.scrollBehavior; bar.style.scrollBehavior='auto'; center(act,false); bar.style.scrollBehavior=sb; paint(); }
+    setTimeout(function(){ var a2=bar.querySelector('.tab-pill.active'); if(a2){ center(a2,false); paint(); } },400);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
 </script>
 </body></html>
