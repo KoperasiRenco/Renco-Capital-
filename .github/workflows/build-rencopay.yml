@@ -1,0 +1,21 @@
+name: Build RencoPay
+on:
+  push:
+    paths:
+      - 'Koperasi_Renco.html'
+      - 'build_rencopay.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 build_rencopay.py Koperasi_Renco.html RencoPay.html
+      - name: Commit RencoPay.html
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add RencoPay.html
+          git diff --cached --quiet || (git commit -m "Auto-build RencoPay.html" && git push)
