@@ -73478,8 +73478,8 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
     }catch(e){}
   }
   function fallbackOpen(){
-    var base=location.href.split('#')[0].split('?')[0];
-    var link0=base+'?app=rencopay&install=1';
+    var base=location.href.split('#')[0].split('?')[0].replace(/[^\/]*$/,'');
+    var link0=base+'RencoPay.html?install=1';   /* aplikasi RencoPay mandiri (tanpa Koperasi) */
     if(standalone()){
       sheet('Browser tidak mengizinkan dialog install dari dalam aplikasi Koperasi. Buka link ini di browser (Chrome/Safari), lalu ketuk Install.',
         'Salin Link',function(){
@@ -73493,13 +73493,6 @@ html.rp-only #rpKembaliKoperasiBtn{ display:none !important; }
   }
   window.rcInstallRencoPay=function(){
     if(rpMode){ doPrompt(); return; }
-    var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
-    if(ios){
-      /* iOS tidak punya dialog install: arahkan ke Bagikan → Tambahkan ke Layar Utama, dengan ikon & nama RencoPay */
-      setRpManifest(true);
-      manual();
-      return;
-    }
     /* Android/Chrome/Edge: buka halaman RencoPay mandiri (?app=rencopay&install=1) yang sejak awal memuat manifest-rencopay.json.
        Menukar <link rel="manifest"> di halaman Koperasi TIDAK andal: browser sudah menilai halaman ini sebagai aplikasi Koperasi
        (yang terpasang), sehingga prompt install RencoPay tidak pernah muncul. */
